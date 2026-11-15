@@ -36,6 +36,23 @@ services:
       db:
         condition: service_healthy
 
+  worker:
+    build: ./service
+    command: python -m service.reminder_worker
+    working_dir: /app
+    volumes:
+      - ./service:/app/service
+      - ./alembic.ini:/app/alembic.ini
+      - ./alembic:/app/alembic
+    environment:
+      APP_ENV: ${APP_ENV:-development}
+      SECRET_KEY: ${SECRET_KEY:-}
+      DATABASE_URL: postgresql+psycopg2://halgheh:halgheh@db:5432/halgheh
+      REMINDER_SCHEDULING_HORIZON_DAYS: ${REMINDER_SCHEDULING_HORIZON_DAYS:-30}
+      SCHEDULER_INTERVAL_SECONDS: ${SCHEDULER_INTERVAL_SECONDS:-60}
+    depends_on:
+      db:
+        condition: service_healthy
 
 volumes:
   postgres_data:

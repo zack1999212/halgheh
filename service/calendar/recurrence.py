@@ -6,7 +6,7 @@ transaction management. It only parses and expands RRULE strings.
 
 from __future__ import annotations
 
-from datetime import datetime, time, timedelta, timezone as _tz
+from datetime import date, datetime, time, timedelta, timezone as _tz
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from dateutil.rrule import rrulestr
@@ -89,6 +89,58 @@ def generate_timed_occurrences(event, *, range_start: datetime, range_end: datet
         if len(result) > MAX_OCCURRENCES:
             raise ValueError("Too many occurrences")
     return result
+
+
+def is_valid_occurrence(event, original_start) -> bool:
+    """Return True if ``original_start`` identifies a real occurrence of ``event``."""
+    if event.recurrence_rule is None:
+        return False
+
+    if event.is_all_day:
+        if isinstance(original_start, datetime):
+            target_date = original_start.date()
+        else:
+            target_date = original_start
+        if not isinstance(target_date, date):
+            return False
+        if target_date < event.start_date:
+            return False
+        if target_date > event.start_date + timedelta(days=3650):
+            return False
+        try:
+            rr = rrulestr(event.recurrence_rule, dtstart=event.start_date)
+        except Exception:
+            return False
+        target_dt = datetime.combine(target_date, time.min)
+        try:
+            occ = rr.after(target_dt - timedelta(microseconds=1), inc=True)
+        except Exception:
+            return False
+        return occ is not None and getattr(occ, "date", lambda: occ)() == target_date
+    else:
+        if not isinstance(original_start, datetime):
+            return False
+        try:
+            tz = _zone(event.timezone)
+        except ValueError:
+            return False
+        if original_start.tzinfo is None:
+            return False
+        target = original_start.astimezone(tz)
+        dtstart = event.start_at.astimezone(tz)
+        if target < dtstart:
+            return False
+        if target > dtstart + timedelta(days=3650):
+            return False
+        try:
+            rr = rrulestr(event.recurrence_rule, dtstart=dtstart)
+        except Exception:
+            return False
+        try:
+            occ = rr.after(target - timedelta(microseconds=1), inc=True)
+        except Exception:
+            return False
+        return occ is not None and occ == target
 
 
 def generate_allday_occurrences(event, *, local_start_date, local_end_date):

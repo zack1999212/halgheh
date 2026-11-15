@@ -6,6 +6,8 @@ from fastapi.responses import JSONResponse
 
 from .auth.router import router as auth_router
 from .calendar.router import router as calendar_router
+from .notifications.router import router as notifications_router
+import service.notifications.models  # noqa: F401
 from .docs.router import router as docs_router
 from .share.router import router as share_router
 from .task.router import router as task_router
@@ -30,6 +32,7 @@ app.add_middleware(
 app.include_router(auth_router)
 app.include_router(docs_router)
 app.include_router(calendar_router)
+app.include_router(notifications_router)
 app.include_router(task_router)
 app.include_router(share_router)
 

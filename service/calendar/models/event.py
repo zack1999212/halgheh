@@ -73,3 +73,19 @@ class Event(Base):
         cascade="all, delete-orphan",
         passive_deletes=True,
     )
+    reminders: Mapped[list["Reminder"]] = relationship(
+        "Reminder",
+        back_populates="event",
+        cascade="all, delete-orphan",
+        passive_deletes=True,
+    )
+    scheduled_reminders: Mapped[list["ScheduledReminder"]] = relationship(
+        "ScheduledReminder",
+        back_populates="event",
+        cascade="all, delete-orphan",
+        passive_deletes=True,
+    )
+    notifications: Mapped[list["Notification"]] = relationship(
+        "Notification",
+        back_populates="event",
+    )

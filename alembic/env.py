@@ -18,6 +18,7 @@ from service.core.database import DATABASE_URL, Base, engine
 # shared models package) so autogeneration can see them.
 import service.auth.models  # noqa: F401,E402
 import service.calendar.models  # noqa: F401,E402
+import service.notifications.models  # noqa: F401,E402
 
 config = context.config
 

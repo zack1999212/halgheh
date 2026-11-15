@@ -12,8 +12,16 @@ from .schemas import (
     CalendarResponse,
     CalendarUpdate,
     EventCreate,
+    EventExceptionCreate,
+    EventExceptionResponse,
+    EventExceptionUpdate,
     EventResponse,
+    OccurrenceEditRequest,
+    OccurrenceEditResponse,
     EventUpdate,
+    ReminderCreate,
+    ReminderResponse,
+    ReminderUpdate,
     OccurrenceResponse,
 )
 
@@ -158,3 +166,154 @@ def list_occurrences(
     return service.list_occurrences(
         db, calendar_id, current_user.id, start, end, timezone
     )
+
+
+# --- Event exception endpoints ---
+
+
+@router.post(
+    "/{calendar_id}/events/{event_id}/exceptions",
+    response_model=EventExceptionResponse,
+    status_code=status.HTTP_201_CREATED,
+)
+def create_exception(
+    calendar_id: int,
+    event_id: int,
+    data: EventExceptionCreate,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    return service.create_exception(db, calendar_id, event_id, current_user.id, data)
+
+
+@router.get(
+    "/{calendar_id}/events/{event_id}/exceptions",
+    response_model=list[EventExceptionResponse],
+)
+def list_exceptions(
+    calendar_id: int,
+    event_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    return service.list_exceptions(db, calendar_id, event_id, current_user.id)
+
+
+@router.get(
+    "/{calendar_id}/events/{event_id}/exceptions/{exception_id}",
+    response_model=EventExceptionResponse,
+)
+def get_exception(
+    calendar_id: int,
+    event_id: int,
+    exception_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    return service.get_exception(db, calendar_id, event_id, exception_id, current_user.id)
+
+
+@router.patch(
+    "/{calendar_id}/events/{event_id}/exceptions/{exception_id}",
+    response_model=EventExceptionResponse,
+)
+def update_exception(
+    calendar_id: int,
+    event_id: int,
+    exception_id: int,
+    data: EventExceptionUpdate,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    return service.update_exception(db, calendar_id, event_id, exception_id, current_user.id, data)
+
+
+@router.delete(
+    "/{calendar_id}/events/{event_id}/exceptions/{exception_id}",
+    status_code=status.HTTP_204_NO_CONTENT,
+)
+def delete_exception(
+    calendar_id: int,
+    event_id: int,
+    exception_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    service.delete_exception(db, calendar_id, event_id, exception_id, current_user.id)
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+
+@router.patch(
+    "/{calendar_id}/events/{event_id}/occurrences",
+    response_model=OccurrenceEditResponse,
+)
+def edit_occurrence(
+    calendar_id: int,
+    event_id: int,
+    data: OccurrenceEditRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    result = service.edit_occurrence(db, calendar_id, event_id, current_user.id, data)
+    return OccurrenceEditResponse(**result)
+
+
+# --- Reminder endpoints ---
+
+
+@router.post(
+    "/{calendar_id}/events/{event_id}/reminders",
+    response_model=ReminderResponse,
+    status_code=status.HTTP_201_CREATED,
+)
+def create_reminder(
+    calendar_id: int,
+    event_id: int,
+    data: ReminderCreate,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    return service.create_reminder(db, calendar_id, event_id, current_user.id, data)
+
+
+@router.get(
+    "/{calendar_id}/events/{event_id}/reminders",
+    response_model=list[ReminderResponse],
+)
+def list_reminders(
+    calendar_id: int,
+    event_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    return service.list_reminders(db, calendar_id, event_id, current_user.id)
+
+
+@router.patch(
+    "/{calendar_id}/events/{event_id}/reminders/{reminder_id}",
+    response_model=ReminderResponse,
+)
+def update_reminder(
+    calendar_id: int,
+    event_id: int,
+    reminder_id: int,
+    data: ReminderUpdate,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    return service.update_reminder(db, calendar_id, event_id, reminder_id, current_user.id, data)
+
+
+@router.delete(
+    "/{calendar_id}/events/{event_id}/reminders/{reminder_id}",
+    status_code=status.HTTP_204_NO_CONTENT,
+)
+def delete_reminder(
+    calendar_id: int,
+    event_id: int,
+    reminder_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    service.delete_reminder(db, calendar_id, event_id, reminder_id, current_user.id)
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
