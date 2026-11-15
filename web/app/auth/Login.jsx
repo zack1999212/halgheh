@@ -1,62 +1,95 @@
 import { useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
-
-const API = import.meta.env.VITE_API_URL || 'http://localhost:8001'
+import AuthLayout from './components/AuthLayout.jsx'
+import FormError from './components/FormError.jsx'
+import PasswordField from './components/PasswordField.jsx'
+import SubmitButton from './components/SubmitButton.jsx'
+import TextField from './components/TextField.jsx'
+import { login, storeSession } from './api.js'
+import { validatePassword, validateUsername } from './validation.js'
 
 export default function Login() {
   const [username, setUsername] = useState('')
   const [password, setPassword] = useState('')
+  const [fieldErrors, setFieldErrors] = useState({})
   const [error, setError] = useState('')
+  const [loading, setLoading] = useState(false)
   const navigate = useNavigate()
+
+  function updateField(field, value) {
+    if (field === 'username') setUsername(value)
+    if (field === 'password') setPassword(value)
+    if (fieldErrors[field]) {
+      setFieldErrors((current) => ({ ...current, [field]: '' }))
+    }
+    if (error) setError('')
+  }
 
   async function handleSubmit(e) {
     e.preventDefault()
+
+    const nextErrors = {
+      username: validateUsername(username),
+      password: validatePassword(password),
+    }
+    setFieldErrors(nextErrors)
     setError('')
+
+    if (nextErrors.username || nextErrors.password) {
+      return
+    }
+
+    setLoading(true)
     try {
-      const res = await fetch(`${API}/auth/login`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ username, password }),
-      })
-      if (!res.ok) {
-        const data = await res.json()
-        throw new Error(data.detail || 'Login failed')
-      }
-      const data = await res.json()
-      localStorage.setItem('token', data.access_token)
+      const data = await login({ username: username.trim(), password })
+      storeSession(data.access_token)
       navigate('/dashboard')
     } catch (err) {
       setError(err.message)
+      setLoading(false)
     }
   }
 
   return (
-    <div className="auth-page">
-      <form className="auth-card" onSubmit={handleSubmit}>
-        <h1>Login</h1>
-        {error && <p className="auth-error">{error}</p>}
-        <label>
-          Username
-          <input
-            value={username}
-            onChange={(e) => setUsername(e.target.value)}
-            required
-          />
-        </label>
-        <label>
-          Password
-          <input
-            type="password"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            required
-          />
-        </label>
-        <button type="submit">Login</button>
-        <p>
-          No account? <Link to="/register">Register</Link>
-        </p>
+    <AuthLayout
+      title="Welcome back"
+      description="Log in to your Halgheh workspace."
+      footer={
+        <>
+          New to Halgheh? <Link to="/register">Create an account</Link>
+        </>
+      }
+    >
+      <form className="auth-form" onSubmit={handleSubmit} noValidate>
+        <FormError>{error}</FormError>
+
+        <TextField
+          label="Username"
+          name="username"
+          autoComplete="username"
+          placeholder="your-username"
+          value={username}
+          onChange={(e) => updateField('username', e.target.value)}
+          error={fieldErrors.username}
+          disabled={loading}
+          autoFocus
+        />
+
+        <PasswordField
+          label="Password"
+          name="password"
+          autoComplete="current-password"
+          placeholder="Enter your password"
+          value={password}
+          onChange={(e) => updateField('password', e.target.value)}
+          error={fieldErrors.password}
+          disabled={loading}
+        />
+
+        <SubmitButton loading={loading} loadingLabel="Logging in…">
+          Login
+        </SubmitButton>
       </form>
-    </div>
+    </AuthLayout>
   )
 }

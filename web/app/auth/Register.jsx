@@ -1,65 +1,117 @@
 import { useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
-
-const API = import.meta.env.VITE_API_URL || 'http://localhost:8001'
+import AuthLayout from './components/AuthLayout.jsx'
+import FormError from './components/FormError.jsx'
+import PasswordField from './components/PasswordField.jsx'
+import SubmitButton from './components/SubmitButton.jsx'
+import TextField from './components/TextField.jsx'
+import { register } from './api.js'
+import {
+  validateName,
+  validatePassword,
+  validateUsername,
+} from './validation.js'
 
 export default function Register() {
   const [username, setUsername] = useState('')
   const [name, setName] = useState('')
   const [password, setPassword] = useState('')
+  const [fieldErrors, setFieldErrors] = useState({})
   const [error, setError] = useState('')
+  const [loading, setLoading] = useState(false)
   const navigate = useNavigate()
+
+  function updateField(field, value) {
+    if (field === 'username') setUsername(value)
+    if (field === 'name') setName(value)
+    if (field === 'password') setPassword(value)
+    if (fieldErrors[field]) {
+      setFieldErrors((current) => ({ ...current, [field]: '' }))
+    }
+    if (error) setError('')
+  }
 
   async function handleSubmit(e) {
     e.preventDefault()
+
+    const nextErrors = {
+      username: validateUsername(username),
+      name: validateName(name),
+      password: validatePassword(password),
+    }
+    setFieldErrors(nextErrors)
     setError('')
+
+    if (nextErrors.username || nextErrors.name || nextErrors.password) {
+      return
+    }
+
+    setLoading(true)
     try {
-      const res = await fetch(`${API}/auth/register`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ username, name, password }),
+      await register({
+        username: username.trim(),
+        name: name.trim(),
+        password,
       })
-      if (!res.ok) {
-        const data = await res.json()
-        throw new Error(data.detail || 'Registration failed')
-      }
       navigate('/login')
     } catch (err) {
       setError(err.message)
+      setLoading(false)
     }
   }
 
   return (
-    <div className="auth-page">
-      <form className="auth-card" onSubmit={handleSubmit}>
-        <h1>Register</h1>
-        {error && <p className="auth-error">{error}</p>}
-        <label>
-          Username
-          <input
-            value={username}
-            onChange={(e) => setUsername(e.target.value)}
-            required
-          />
-        </label>
-        <label>
-          Name
-          <input value={name} onChange={(e) => setName(e.target.value)} />
-        </label>
-        <label>
-          Password
-          <input
-            type="password"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            required
-          />
-        </label>
-        <button type="submit">Create account</button>
-        <p>
-          Already registered? <Link to="/login">Login</Link>
-        </p>
+    <AuthLayout
+      title="Create your account"
+      description="Set up your Halgheh workspace in a few seconds."
+      footer={
+        <>
+          Already have an account? <Link to="/login">Login</Link>
+        </>
+      }
+    >
+      <form className="auth-form" onSubmit={handleSubmit} noValidate>
+        <FormError>{error}</FormError>
+
+        <TextField
+          label="Username"
+          name="username"
+          autoComplete="username"
+          placeholder="your-username"
+          value={username}
+          onChange={(e) => updateField('username', e.target.value)}
+          error={fieldErrors.username}
+          disabled={loading}
+          autoFocus
+        />
+
+        <TextField
+          label="Name"
+          optional
+          name="name"
+          autoComplete="name"
+          placeholder="Your name"
+          value={name}
+          onChange={(e) => updateField('name', e.target.value)}
+          error={fieldErrors.name}
+          disabled={loading}
+        />
+
+        <PasswordField
+          label="Password"
+          name="password"
+          autoComplete="new-password"
+          placeholder="Choose a password"
+          value={password}
+          onChange={(e) => updateField('password', e.target.value)}
+          error={fieldErrors.password}
+          disabled={loading}
+        />
+
+        <SubmitButton loading={loading} loadingLabel="Creating account…">
+          Create account
+        </SubmitButton>
       </form>
-    </div>
+    </AuthLayout>
   )
 }
