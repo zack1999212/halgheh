@@ -1,0 +1,42 @@
+services:
+  db:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_USER: halgheh
+      POSTGRES_PASSWORD: halgheh
+      POSTGRES_DB: halgheh
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U halgheh"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  backend:
+    build: ./service
+    command: uvicorn main:app --host 0.0.0.0 --port 8000 --reload
+    volumes:
+      - ./service:/app
+    ports:
+      - "8000:8000"
+    environment:
+      DATABASE_URL: postgresql://halgheh:halgheh@db:5432/halgheh
+    depends_on:
+      db:
+        condition: service_healthy
+
+  web:
+    build: ./web/app
+    volumes:
+      - ./web/app:/app
+      - /app/node_modules
+    ports:
+      - "5173:5173"
+    depends_on:
+      - backend
+
+volumes:
+  postgres_data:
