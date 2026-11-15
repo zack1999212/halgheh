@@ -6,7 +6,7 @@ services:
       POSTGRES_PASSWORD: halgheh
       POSTGRES_DB: halgheh
     ports:
-      - "5432:5432"
+      - "5433:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
@@ -17,13 +17,13 @@ services:
 
   backend:
     build: ./service
-    command: uvicorn main:app --host 0.0.0.0 --port 8000 --reload
+    command: uvicorn service.main:app --host 0.0.0.0 --port 8000 --reload
     volumes:
-      - ./service:/app
+      - ./service:/app/service
     ports:
       - "8000:8000"
     environment:
-      DATABASE_URL: postgresql://halgheh:halgheh@db:5432/halgheh
+      DATABASE_URL: postgresql+psycopg2://halgheh:halgheh@db:5432/halgheh
     depends_on:
       db:
         condition: service_healthy
