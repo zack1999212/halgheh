@@ -328,6 +328,8 @@ class ReminderUpdate(BaseModel):
     def validate_not_empty(self):
         if not self.model_fields_set:
             raise ValueError("Update body must not be empty")
+        if "minutes_before" in self.model_fields_set and self.minutes_before is None:
+            raise ValueError("minutes_before must not be null")
         return self
 
 
@@ -337,5 +339,49 @@ class ReminderResponse(BaseModel):
     id: int
     event_id: int
     minutes_before: int
+    created_at: datetime
+    updated_at: datetime
+
+
+class EventCommentCreate(BaseModel):
+    content: str = Field(..., min_length=1, max_length=5000)
+
+    @field_validator("content")
+    @classmethod
+    def validate_content(cls, value: str) -> str:
+        trimmed = value.strip()
+        if not trimmed:
+            raise ValueError("Comment content must not be empty")
+        if len(trimmed) > 5000:
+            raise ValueError("Comment content must not exceed 5000 characters")
+        return trimmed
+
+
+class EventCommentUpdate(BaseModel):
+    content: str = Field(..., min_length=1, max_length=5000)
+
+    @field_validator("content")
+    @classmethod
+    def validate_content(cls, value: str) -> str:
+        trimmed = value.strip()
+        if not trimmed:
+            raise ValueError("Comment content must not be empty")
+        if len(trimmed) > 5000:
+            raise ValueError("Comment content must not exceed 5000 characters")
+        return trimmed
+
+    @model_validator(mode="after")
+    def validate_not_empty(self):
+        if not self.model_fields_set:
+            raise ValueError("Update body must not be empty")
+        return self
+
+
+class EventCommentResponse(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    event_id: int
+    content: str
     created_at: datetime
     updated_at: datetime

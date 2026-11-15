@@ -8,6 +8,7 @@ from ..core.database import Base
 
 if TYPE_CHECKING:
     from ..calendar.models import Calendar
+    from ..notifications.models import NotificationPreference
 
 
 class User(Base):
@@ -32,4 +33,11 @@ class User(Base):
         back_populates="user",
         cascade="all, delete-orphan",
         passive_deletes=True,
+    )
+    notification_preference: Mapped["NotificationPreference | None"] = relationship(
+        "NotificationPreference",
+        back_populates="user",
+        cascade="all, delete-orphan",
+        passive_deletes=True,
+        uselist=False,
     )

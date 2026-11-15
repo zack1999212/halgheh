@@ -20,6 +20,11 @@ class Notification(Base):
     __table_args__ = (
         Index("ix_notifications_user_id_created_at", "user_id", "created_at"),
         Index("ix_notifications_user_id_is_read", "user_id", "is_read"),
+        Index("ix_notifications_created_at", "created_at"),
+        CheckConstraint(
+            "(is_read = false AND read_at IS NULL) OR (is_read = true AND read_at IS NOT NULL)",
+            name="ck_notifications_read_state",
+        ),
         Index(
             "uq_notifications_scheduled_reminder",
             "scheduled_reminder_id",

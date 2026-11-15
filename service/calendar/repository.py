@@ -5,7 +5,7 @@ from datetime import date, datetime
 from sqlalchemy import and_, case, func, or_, select, text
 from sqlalchemy.orm import Session
 
-from .models import Calendar, Event, EventException, Reminder, ScheduledReminder
+from .models import Calendar, Event, EventException, Reminder, ScheduledReminder, CalendarEventComment
 
 
 # --- Calendar operations ---
@@ -303,3 +303,35 @@ def claim_due_scheduled_reminders(db: Session, *, now: datetime, limit: int) -> 
         .with_for_update(skip_locked=True)
     )
     return list(db.scalars(stmt).all())
+
+
+# --- Event comment operations ---
+
+
+def list_comments_for_event(db: Session, event_id: int, *, limit: int = 50, offset: int = 0) -> list[CalendarEventComment]:
+    stmt = (
+        select(CalendarEventComment)
+        .where(CalendarEventComment.event_id == event_id)
+        .order_by(CalendarEventComment.created_at.asc(), CalendarEventComment.id.asc())
+        .limit(limit)
+        .offset(offset)
+    )
+    return list(db.scalars(stmt).all())
+
+
+def get_comment_for_event(db: Session, event_id: int, comment_id: int) -> CalendarEventComment | None:
+    stmt = select(CalendarEventComment).where(
+        CalendarEventComment.id == comment_id,
+        CalendarEventComment.event_id == event_id,
+    )
+    return db.scalars(stmt).first()
+
+
+def create_comment(db: Session, *, event_id: int, user_id: int, content: str) -> CalendarEventComment:
+    comment = CalendarEventComment(event_id=event_id, user_id=user_id, content=content)
+    db.add(comment)
+    return comment
+
+
+def delete_comment(db: Session, comment: CalendarEventComment) -> None:
+    db.delete(comment)

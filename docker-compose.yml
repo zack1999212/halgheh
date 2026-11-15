@@ -50,6 +50,7 @@ services:
       DATABASE_URL: postgresql+psycopg2://halgheh:halgheh@db:5432/halgheh
       REMINDER_SCHEDULING_HORIZON_DAYS: ${REMINDER_SCHEDULING_HORIZON_DAYS:-30}
       SCHEDULER_INTERVAL_SECONDS: ${SCHEDULER_INTERVAL_SECONDS:-60}
+      NOTIFICATION_RETENTION_DAYS: ${NOTIFICATION_RETENTION_DAYS:-90}
     depends_on:
       db:
         condition: service_healthy

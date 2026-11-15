@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from datetime import date, datetime
 
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 
 class NotificationResponse(BaseModel):
@@ -26,3 +26,26 @@ class NotificationResponse(BaseModel):
 
 class UnreadCountResponse(BaseModel):
     count: int
+
+
+class NotificationPreferenceResponse(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    user_id: int
+    calendar_reminders_enabled: bool
+    created_at: datetime
+    updated_at: datetime
+
+
+class NotificationPreferenceUpdate(BaseModel):
+    calendar_reminders_enabled: bool | None = None
+
+    @model_validator(mode="after")
+    def validate_not_empty(self):
+        if not self.model_fields_set:
+            raise ValueError("Update body must not be empty")
+        return self
+
+
+class NotificationBulkResponse(BaseModel):
+    updated: int

@@ -22,6 +22,7 @@ from ...core.database import Base
 if TYPE_CHECKING:
     from .calendar import Calendar
     from .event_exception import EventException
+    from .event_comment import CalendarEventComment
 
 
 class Event(Base):
@@ -88,4 +89,10 @@ class Event(Base):
     notifications: Mapped[list["Notification"]] = relationship(
         "Notification",
         back_populates="event",
+    )
+    comments: Mapped[list["CalendarEventComment"]] = relationship(
+        "CalendarEventComment",
+        back_populates="event",
+        cascade="all, delete-orphan",
+        passive_deletes=True,
     )

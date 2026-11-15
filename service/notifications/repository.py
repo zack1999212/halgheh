@@ -2,10 +2,10 @@ from __future__ import annotations
 
 from datetime import datetime, timezone
 
-from sqlalchemy import func, select
+from sqlalchemy import delete, func, select, update
 from sqlalchemy.orm import Session
 
-from .models import Notification
+from .models import Notification, NotificationPreference
 
 
 def list_for_user(db: Session, user_id: int, *, limit: int, offset: int, unread_only: bool | None = None) -> list[Notification]:
@@ -43,10 +43,46 @@ def mark_read(db: Session, notification: Notification) -> Notification:
 
 
 def mark_all_read(db: Session, user_id: int) -> int:
-    stmt = select(Notification).where(Notification.user_id == user_id, Notification.is_read.is_(False))
-    items = list(db.scalars(stmt).all())
     now = datetime.now(timezone.utc)
-    for n in items:
-        n.is_read = True
-        n.read_at = now
-    return len(items)
+    stmt = (
+        update(Notification)
+        .where(Notification.user_id == user_id, Notification.is_read.is_(False))
+        .values(is_read=True, read_at=now, updated_at=now)
+    )
+    result = db.execute(stmt)
+    return int(result.rowcount or 0)
+
+
+def get_preference(db: Session, user_id: int) -> NotificationPreference | None:
+    stmt = select(NotificationPreference).where(NotificationPreference.user_id == user_id)
+    return db.scalars(stmt).first()
+
+
+def create_preference(db: Session, user_id: int, *, calendar_reminders_enabled: bool = True) -> NotificationPreference:
+    preference = NotificationPreference(user_id=user_id, calendar_reminders_enabled=calendar_reminders_enabled)
+    db.add(preference)
+    return preference
+
+
+def mark_unread(db: Session, notification: Notification) -> Notification:
+    if notification.is_read:
+        notification.is_read = False
+        notification.read_at = None
+    return notification
+
+
+def delete_notification(db: Session, notification: Notification) -> None:
+    db.delete(notification)
+
+
+def delete_all_for_user(db: Session, user_id: int) -> int:
+    stmt = delete(Notification).where(Notification.user_id == user_id)
+    result = db.execute(stmt)
+    return int(result.rowcount or 0)
+
+
+def delete_expired_batch(db: Session, cutoff: datetime, batch_size: int) -> int:
+    subq = select(Notification.id).where(Notification.created_at < cutoff).order_by(Notification.id).limit(batch_size)
+    stmt = delete(Notification).where(Notification.id.in_(subq))
+    result = db.execute(stmt)
+    return int(result.rowcount or 0)

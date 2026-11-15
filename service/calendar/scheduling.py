@@ -238,6 +238,17 @@ def process_due_scheduled_reminders(db: Session, *, now: datetime | None = None,
         calendar = event.calendar
         user_id = calendar.user_id
 
+        preference = notification_repository.get_preference(db, user_id)
+        reminders_enabled = True if preference is None else preference.calendar_reminders_enabled
+        if not reminders_enabled:
+            sr.status = "skipped"
+            try:
+                db.commit()
+            except Exception:
+                db.rollback()
+            processed_count += 1
+            continue
+
         existing = notification_repository.get_by_scheduled_reminder(db, sr.id)
         if existing is None:
             notification = Notification(

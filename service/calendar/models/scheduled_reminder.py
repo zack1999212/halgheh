@@ -40,7 +40,7 @@ class ScheduledReminder(Base):
             postgresql_where=text("occurrence_start_date IS NOT NULL"),
         ),
         CheckConstraint(
-            "status IN ('pending', 'processed', 'cancelled')",
+            "status IN ('pending', 'processed', 'cancelled', 'skipped')",
             name="ck_scheduled_reminders_status",
         ),
         CheckConstraint(

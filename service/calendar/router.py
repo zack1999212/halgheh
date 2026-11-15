@@ -12,9 +12,12 @@ from .schemas import (
     CalendarResponse,
     CalendarUpdate,
     EventCreate,
+    EventCommentCreate,
+    EventCommentUpdate,
     EventExceptionCreate,
     EventExceptionResponse,
     EventExceptionUpdate,
+    EventCommentResponse,
     EventResponse,
     OccurrenceEditRequest,
     OccurrenceEditResponse,
@@ -316,4 +319,67 @@ def delete_reminder(
     current_user: User = Depends(get_current_user),
 ):
     service.delete_reminder(db, calendar_id, event_id, reminder_id, current_user.id)
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+
+# --- Event comment endpoints ---
+
+
+@router.post(
+    "/{calendar_id}/events/{event_id}/comments",
+    response_model=EventCommentResponse,
+    status_code=status.HTTP_201_CREATED,
+)
+def create_comment(
+    calendar_id: int,
+    event_id: int,
+    data: EventCommentCreate,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    return service.create_comment(db, calendar_id, event_id, current_user.id, data)
+
+
+@router.get(
+    "/{calendar_id}/events/{event_id}/comments",
+    response_model=list[EventCommentResponse],
+)
+def list_comments(
+    calendar_id: int,
+    event_id: int,
+    limit: int = Query(default=50, ge=1, le=200),
+    offset: int = Query(default=0, ge=0),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    return service.list_comments(db, calendar_id, event_id, current_user.id, limit=limit, offset=offset)
+
+
+@router.patch(
+    "/{calendar_id}/events/{event_id}/comments/{comment_id}",
+    response_model=EventCommentResponse,
+)
+def update_comment(
+    calendar_id: int,
+    event_id: int,
+    comment_id: int,
+    data: EventCommentUpdate,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    return service.update_comment(db, calendar_id, event_id, comment_id, current_user.id, data)
+
+
+@router.delete(
+    "/{calendar_id}/events/{event_id}/comments/{comment_id}",
+    status_code=status.HTTP_204_NO_CONTENT,
+)
+def delete_comment(
+    calendar_id: int,
+    event_id: int,
+    comment_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    service.delete_comment(db, calendar_id, event_id, comment_id, current_user.id)
     return Response(status_code=status.HTTP_204_NO_CONTENT)

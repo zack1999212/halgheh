@@ -21,6 +21,8 @@ from .schemas import (
     ReminderCreate,
     ReminderUpdate,
     OccurrenceResponse,
+    EventCommentCreate,
+    EventCommentUpdate,
 )
 
 
@@ -1335,3 +1337,66 @@ def delete_reminder(db, calendar_id, event_id, reminder_id, user_id):
     except IntegrityError:
         db.rollback()
         raise HTTPException(status_code=409, detail="Could not delete reminder")
+
+
+# --- Event comments ---
+
+
+def list_comments(
+    db: Session, calendar_id: int, event_id: int, user_id: int, *, limit: int = 50, offset: int = 0
+):
+    _get_event_in_owned_calendar(db, calendar_id, event_id, user_id)
+    return repository.list_comments_for_event(db, event_id, limit=limit, offset=offset)
+
+
+def create_comment(
+    db: Session, calendar_id: int, event_id: int, user_id: int, data: EventCommentCreate
+):
+    _get_event_in_owned_calendar(db, calendar_id, event_id, user_id)
+    comment = repository.create_comment(db, event_id=event_id, user_id=user_id, content=data.content)
+    try:
+        db.commit()
+    except IntegrityError:
+        db.rollback()
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Could not create comment")
+    db.refresh(comment)
+    return comment
+
+
+def update_comment(
+    db: Session, calendar_id: int, event_id: int, comment_id: int, user_id: int, data: EventCommentUpdate
+):
+    _get_event_in_owned_calendar(db, calendar_id, event_id, user_id)
+    comment = repository.get_comment_for_event(db, event_id, comment_id)
+    if comment is None or comment.user_id != user_id:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Comment not found")
+
+    updates = data.model_dump(exclude_unset=True)
+    if not updates:
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="Update body must not be empty")
+
+    if "content" in updates:
+        comment.content = updates["content"]
+
+    try:
+        db.commit()
+    except IntegrityError:
+        db.rollback()
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Could not update comment")
+    db.refresh(comment)
+    return comment
+
+
+def delete_comment(
+    db: Session, calendar_id: int, event_id: int, comment_id: int, user_id: int
+) -> None:
+    _get_event_in_owned_calendar(db, calendar_id, event_id, user_id)
+    comment = repository.get_comment_for_event(db, event_id, comment_id)
+    if comment is None or comment.user_id != user_id:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Comment not found")
+    try:
+        repository.delete_comment(db, comment)
+        db.commit()
+    except IntegrityError:
+        db.rollback()
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Could not delete comment")
