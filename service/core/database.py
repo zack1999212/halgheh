@@ -22,10 +22,3 @@ def get_db():
         yield db
     finally:
         db.close()
-
-
-def create_all():
-    # Import models here so they are registered on Base before create_all
-    from ..auth.models import User  # noqa: F401
-
-    Base.metadata.create_all(bind=engine)

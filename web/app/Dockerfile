@@ -1,6 +1,10 @@
-FROM node:22-alpine
+ARG NODE_IMAGE=node:22-alpine
+FROM ${NODE_IMAGE}
 
 WORKDIR /app
+
+ARG NPM_REGISTRY=https://registry.npmjs.org/
+RUN npm config set registry "${NPM_REGISTRY}"
 
 COPY package.json ./
 RUN npm install

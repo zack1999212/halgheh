@@ -26,10 +26,3 @@ app.include_router(share_router)
 @app.get("/health")
 def health():
     return {"status": "ok"}
-
-
-@app.on_event("startup")
-def on_startup():
-    from .core.database import create_all
-
-    create_all()
