@@ -1,9 +1,23 @@
 from datetime import datetime, timedelta, timezone
 
+import os
+
 import jwt
 from passlib.context import CryptContext
 
-SECRET_KEY = "dev-secret-change-me"
+APP_ENV = (os.getenv("APP_ENV") or os.getenv("ENVIRONMENT") or "development").strip().lower()
+IS_PRODUCTION = APP_ENV in {"production", "prod"}
+
+_configured_secret = (os.getenv("SECRET_KEY") or "").strip()
+if _configured_secret:
+    SECRET_KEY = _configured_secret
+elif IS_PRODUCTION:
+    raise RuntimeError(
+        "SECRET_KEY must be set to a non-empty value when running in production "
+        "(APP_ENV=production). Refusing to start with the development fallback secret."
+    )
+else:
+    SECRET_KEY = "dev-secret-change-me"
 ALGORITHM = "HS256"
 TOKEN_EXPIRE_MINUTES = 60 * 24
 

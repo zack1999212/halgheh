@@ -1,8 +1,11 @@
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy import select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
+from ..calendar.service import create_default_calendar
 from ..core.database import get_db
+from .dependencies import get_current_user
 from .models import User
 from .schemas import UserCreate, UserLogin, UserOut
 from .security import create_token, hash_password, verify_password
@@ -22,7 +25,13 @@ def create_user(db: Session, data: UserCreate) -> User:
         hashed_password=hash_password(data.password),
     )
     db.add(user)
-    db.commit()
+    try:
+        db.flush()
+        create_default_calendar(db, user.id)
+        db.commit()
+    except IntegrityError:
+        db.rollback()
+        raise HTTPException(status_code=400, detail="Username already taken")
     db.refresh(user)
     return user
 
@@ -47,7 +56,7 @@ def delete_user(db: Session, user_id: int) -> bool:
 # --- Routes ---
 
 
-@router.post("/register", response_model=UserOut)
+@router.post("/register", response_model=UserOut, status_code=status.HTTP_201_CREATED)
 def register(data: UserCreate, db: Session = Depends(get_db)):
     return create_user(db, data)
 
@@ -61,12 +70,22 @@ def login(data: UserLogin, db: Session = Depends(get_db)):
 
 
 @router.get("/users", response_model=list[UserOut])
-def users(db: Session = Depends(get_db)):
-    return list_users(db)
+def users(
+    current_user: User = Depends(get_current_user),
+):
+    # Prevent user enumeration: an ordinary authenticated user may only see
+    # their own account. No admin/list-all capability is provided.
+    return [current_user]
 
 
 @router.delete("/users/{user_id}")
-def users_delete(user_id: int, db: Session = Depends(get_db)):
+def users_delete(
+    user_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    if user_id != current_user.id:
+        raise HTTPException(status_code=404, detail="User not found")
     if not delete_user(db, user_id):
         raise HTTPException(status_code=404, detail="User not found")
     return {"ok": True}

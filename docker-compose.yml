@@ -28,6 +28,9 @@ services:
     ports:
       - "8002:8000"
     environment:
+      APP_ENV: ${APP_ENV:-development}
+      # Set SECRET_KEY in the host environment for non-development deployments.
+      SECRET_KEY: ${SECRET_KEY:-}
       DATABASE_URL: postgresql+psycopg2://halgheh:halgheh@db:5432/halgheh
     depends_on:
       db:

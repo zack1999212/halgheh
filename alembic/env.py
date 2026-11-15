@@ -17,6 +17,7 @@ from service.core.database import DATABASE_URL, Base, engine
 # New backend modules with models must be added here (or imported from a
 # shared models package) so autogeneration can see them.
 import service.auth.models  # noqa: F401,E402
+import service.calendar.models  # noqa: F401,E402
 
 config = context.config
 
