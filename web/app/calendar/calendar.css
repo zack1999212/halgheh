@@ -726,6 +726,35 @@
   background: var(--cal-fill-soft);
 }
 
+/* Clickable month-view date cells */
+.fc .fc-daygrid-day {
+  cursor: pointer;
+}
+
+.fc .fc-daygrid-day-frame {
+  transition: background-color 120ms ease;
+}
+
+.fc .fc-daygrid-day:hover .fc-daygrid-day-frame {
+  background: var(--cal-fill);
+}
+
+.fc .fc-daygrid-day:focus-within .fc-daygrid-day-frame,
+.fc .fc-daygrid-day:focus .fc-daygrid-day-frame {
+  background: var(--cal-fill);
+}
+
+.fc .fc-daygrid-day:focus-within .fc-daygrid-day-number,
+.fc .fc-daygrid-day:focus .fc-daygrid-day-number {
+  outline: 2px solid var(--cal-ink);
+  outline-offset: -2px;
+  border-radius: var(--radius-sm);
+}
+
+.fc .fc-daygrid-day.fc-day-today:hover .fc-daygrid-day-frame {
+  background: var(--cal-fill);
+}
+
 .fc .fc-day-other .fc-daygrid-day-number {
   color: var(--cal-ink-muted);
   font-size: 11px;
