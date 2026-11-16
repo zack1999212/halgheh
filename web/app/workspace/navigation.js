@@ -1,4 +1,4 @@
-import { Calendar, FileText, LayoutGrid, ListChecks } from 'lucide-react'
+import { Calendar, FileText, LayoutGrid, ListChecks, Settings } from 'lucide-react'
 
 /** Primary application sections rendered in the sidebar. */
 export const NAV_ITEMS = [
@@ -6,6 +6,7 @@ export const NAV_ITEMS = [
   { to: '/calendar', label: 'Calendar', icon: Calendar },
   { to: '/tasks', label: 'Tasks', icon: ListChecks },
   { to: '/documents', label: 'Documents', icon: FileText },
+  { to: '/settings/ai', label: 'AI Settings', icon: Settings },
 ]
 
 /** Resolves the navigation entry for a pathname, for the header title. */

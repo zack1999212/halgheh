@@ -18,6 +18,7 @@ import { getBrowserTimeZone } from './time.js'
 import { clearToken } from '../src/api.js'
 import { DEFAULT_VIEW } from './views.js'
 import { categoryOf } from './categories.js'
+import CalendarAgent from './agent/CalendarAgent.jsx'
 import './calendar.css'
 
 export default function CalendarPage() {
@@ -61,6 +62,14 @@ export default function CalendarPage() {
     calendar: selectedCalendar,
     onUnauthorized: handleUnauthorized,
   })
+
+  // The assistant can change events in any calendar; refresh the current grid
+  // and the open detail panel without resetting the selected date or view.
+  const reloadEvents = eventsApi.reload
+  const handleAgentCalendarChange = useCallback(() => {
+    reloadEvents()
+    setDetailsRefreshKey((current) => current + 1)
+  }, [reloadEvents])
 
   function handleSelectCalendar(calendarId) {
     setSelectedOccurrence(null)
@@ -599,6 +608,9 @@ export default function CalendarPage() {
           {dragError}
         </div>
       )}
+
+      {/* Floating assistant is scoped to the Calendar page only. */}
+      <CalendarAgent onCalendarChanged={handleAgentCalendarChange} />
     </div>
   )
 }

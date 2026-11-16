@@ -16,6 +16,8 @@ from service.core.database import DATABASE_URL, Base, engine
 # Import every model module so its tables are registered on Base.metadata.
 # New backend modules with models must be added here (or imported from a
 # shared models package) so autogeneration can see them.
+import service.agent.models  # noqa: F401,E402
+import service.ai.models  # noqa: F401,E402
 import service.auth.models  # noqa: F401,E402
 import service.calendar.models  # noqa: F401,E402
 import service.notifications.models  # noqa: F401,E402
