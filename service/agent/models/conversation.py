@@ -3,16 +3,16 @@ from __future__ import annotations
 from datetime import datetime
 from typing import TYPE_CHECKING
 
-from sqlalchemy import DateTime, ForeignKey, Index, String, func
+from sqlalchemy import DateTime, ForeignKey, Index, JSON, String, func
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from ...core.database import Base
+from .diagnostic import ProviderDiagnostic
 
 if TYPE_CHECKING:
     from ...auth.models import User
     from .message import AgentMessage
     from .pending_action import AgentPendingAction
-
 
 class AgentConversation(Base):
     __tablename__ = "agent_conversations"
@@ -35,6 +35,11 @@ class AgentConversation(Base):
     )
     # IANA timezone supplied by the client for interpreting relative dates.
     timezone: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    # Provider/model pinned to this conversation. NULL means "no conversation
+    # selection", so the user preference and then the application default apply.
+    # Changing these never touches stored messages.
+    provider: Mapped[str | None] = mapped_column(String(50), nullable=True)
+    model: Mapped[str | None] = mapped_column(String(120), nullable=True)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, server_default=func.now()
     )
@@ -58,4 +63,9 @@ class AgentConversation(Base):
         back_populates="conversation",
         cascade="all, delete-orphan",
         passive_deletes=True,
+    )
+    provider_diagnostics: Mapped[list["ProviderDiagnostic"]] = relationship(
+        "ProviderDiagnostic",
+        back_populates="conversation",
+        cascade="all, delete-orphan",
     )

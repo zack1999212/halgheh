@@ -11,7 +11,9 @@ import os
 from dataclasses import dataclass, field
 
 DEFAULT_PROVIDER = "zai"
-DEFAULT_MODEL = "glm-4.5"
+# Z.ai's free Flash model is the initial default so a fresh install never
+# silently spends money on a paid model.
+DEFAULT_MODEL = "glm-4.5-flash"
 
 
 def _env(name: str, default: str = "") -> str:

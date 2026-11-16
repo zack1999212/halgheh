@@ -20,7 +20,12 @@ from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 from fastapi import HTTPException, status
 from sqlalchemy.orm import Session
 
-from ..ai.providers import build_request_config, get_provider
+from ..ai.providers import (
+    ProviderError,
+    build_request_config,
+    get_provider,
+    _post_json,
+)
 from ..ai.service import resolve_runtime_config
 from . import repository
 from .agents import AgentSpec
@@ -34,12 +39,6 @@ from .tools import (
     tool_definitions_for_agent,
     tools_for_agent,
 )
-
-
-class ProviderError(Exception):
-    def __init__(self, message: str):
-        super().__init__(message)
-        self.message = message
 
 
 @dataclass
@@ -74,49 +73,6 @@ def _provider_messages(history: list[AgentMessage]) -> list[dict[str, Any]]:
                 }
             )
     return messages
-
-
-def _post_json(
-    url: str, headers: dict[str, str], body: dict[str, Any], timeout: int
-) -> dict[str, Any]:
-    data = json.dumps(body).encode("utf-8")
-    request = urllib.request.Request(url, data=data, headers=headers, method="POST")
-    try:
-        with urllib.request.urlopen(request, timeout=timeout) as response:
-            raw = response.read()
-    except urllib.error.HTTPError as exc:
-        code = exc.code
-        if code in (401, 403):
-            raise ProviderError(
-                "The AI provider rejected the credentials. Check your AI settings."
-            )
-        if code == 404:
-            raise ProviderError(
-                "The AI provider endpoint or model was not found. Check your AI settings."
-            )
-        if code == 429:
-            raise ProviderError(
-                "The AI provider is rate limiting requests. Please try again shortly."
-            )
-        if code >= 500:
-            raise ProviderError(
-                "The AI provider is temporarily unavailable. Please try again."
-            )
-        if code == 400:
-            raise ProviderError(
-                "The AI provider rejected the request. The selected model may "
-                "not support the required operations."
-            )
-        raise ProviderError("The AI provider rejected the request.")
-    except (urllib.error.URLError, TimeoutError, socket.timeout):
-        raise ProviderError(
-            "Could not reach the AI provider. Check your connection and try again."
-        )
-
-    try:
-        return json.loads(raw)
-    except ValueError:
-        raise ProviderError("The AI provider returned an invalid response.")
 
 
 def _extract_message(data: dict[str, Any]) -> tuple[str | None, list[dict[str, Any]]]:
@@ -265,8 +221,9 @@ def run_turn(
     repository.touch_conversation(db, conversation, now=now)
     db.commit()
 
-    # Resolve the effective provider (personal first, then application default).
-    config = resolve_runtime_config(db, user.id)
+    # Resolve the effective provider/model: conversation selection, then the
+    # user's personal preference, then the application default.
+    config = resolve_runtime_config(db, user.id, conversation=conversation)
     if not config.api_key:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -289,14 +246,24 @@ def run_turn(
         )
 
     tool_specs = tools_for_agent(agent.id)
-    if tool_specs and config.capabilities.tool_calling is not True:
-        raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-            detail=(
-                "The selected model does not support tool calling. "
-                "Choose a compatible model in AI settings."
-            ),
-        )
+    if tool_specs:
+        if config.capabilities.tool_calling is False:
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail=(
+                    f"{config.model_label} does not support tool calling, which "
+                    "this agent requires. Choose a compatible model."
+                ),
+            )
+        if config.capabilities.tool_calling is None:
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail=(
+                    f"Tool calling has not been verified for "
+                    f"{config.model_label}. Run the compatibility check in AI "
+                    "settings or choose another model."
+                ),
+            )
 
     request_config = build_request_config(
         provider=provider,
@@ -382,6 +349,11 @@ def run_turn(
                 conversation.id,
                 role="assistant",
                 content=content or "",
+                execution_metadata={
+                    "provider": config.provider,
+                    "model": config.model,
+                    "model_label": config.model_label,
+                },
             )
             created.append(message)
             repository.touch_conversation(db, conversation, now=_now())
@@ -407,7 +379,7 @@ def run_turn(
             tool_calls_used += 1
             if tool_calls_used > limits.max_tool_calls_per_turn:
                 result = {
-                    "error": "Tool call limit reached for this turn. Ask the user to continue."
+                    "error": "Tool call limit reached for this turn. Ask the user to continue.",
                 }
                 appended = _append_tool_message(
                     db,

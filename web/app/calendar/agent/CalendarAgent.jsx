@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import {
+  ChevronDown,
   CircleAlert,
   History,
   LoaderCircle,
@@ -11,7 +12,7 @@ import {
   X,
 } from 'lucide-react'
 import { clearToken } from '../../src/api.js'
-import { getEffectiveConfig } from '../../ai/api.js'
+import { getEffectiveConfig, listModels } from '../../ai/api.js'
 import { getBrowserTimeZone } from '../time.js'
 import ConfirmationCard from './ConfirmationCard.jsx'
 import ConversationHistory from './ConversationHistory.jsx'
@@ -26,6 +27,7 @@ import {
   rejectPendingAction,
   renameConversation,
   sendMessage as sendAgentMessage,
+  setConversationModel,
 } from './api.js'
 import { formatTime, isWriteTool } from './format.js'
 import './agent.css'
@@ -68,6 +70,11 @@ export default function CalendarAgent({ onCalendarChanged }) {
   const [aiConfig, setAiConfig] = useState(null)
   const [aiConfigError, setAiConfigError] = useState('')
   const [needsToolCapableModel, setNeedsToolCapableModel] = useState(false)
+  const [models, setModels] = useState([])
+  const [modelsError, setModelsError] = useState('')
+  const [modelPickerOpen, setModelPickerOpen] = useState(false)
+  const [pendingModel, setPendingModel] = useState(null)
+  const [switchingModel, setSwitchingModel] = useState(false)
 
   const panelRef = useRef(null)
   const fabRef = useRef(null)
@@ -109,6 +116,24 @@ export default function CalendarAgent({ onCalendarChanged }) {
         return
       }
       setAiConfigError(err?.message || 'Could not load the AI provider.')
+    }
+  }, [handleUnauthorized])
+
+  // Only enabled models with verified tool calling may run the Calendar Agent.
+  const loadModels = useCallback(async () => {
+    setModelsError('')
+    try {
+      const rows = await listModels({
+        enabledOnly: true,
+        compatibleWithAgent: CALENDAR_AGENT_ID,
+      })
+      setModels(Array.isArray(rows) ? rows : [])
+    } catch (err) {
+      if (err?.status === 401) {
+        handleUnauthorized()
+        return
+      }
+      setModelsError(err?.message || 'Could not load the model list.')
     }
   }, [handleUnauthorized])
 
@@ -172,7 +197,8 @@ export default function CalendarAgent({ onCalendarChanged }) {
   // Provider information loads with the page; opening the panel refreshes it.
   useEffect(() => {
     loadConfig()
-  }, [loadConfig])
+    loadModels()
+  }, [loadConfig, loadModels])
 
   // Restore the most recent (or last selected) conversation on each open.
   useEffect(() => {
@@ -183,6 +209,7 @@ export default function CalendarAgent({ onCalendarChanged }) {
 
     async function bootstrap() {
       loadConfig()
+      loadModels()
       const rows = await refreshConversations()
       if (cancelled) return
       const storedId = readStoredId()
@@ -285,8 +312,11 @@ export default function CalendarAgent({ onCalendarChanged }) {
         const created = await createConversation(CALENDAR_AGENT_ID, {
           title: text.slice(0, 80),
           timezone: getBrowserTimeZone(),
+          provider: pendingModel?.provider,
+          model: pendingModel?.model,
         })
         conversationId = created.id
+        setPendingModel(null)
         setActiveId(created.id)
         localStorage.setItem(STORAGE_KEY, String(created.id))
         setConversations((current) => [
@@ -381,8 +411,71 @@ export default function CalendarAgent({ onCalendarChanged }) {
     }
   }
 
+  async function handleSelectModel(model) {
+    setModelPickerOpen(false)
+    setError('')
+    setErrorNeedsSettings(false)
+    setNotice('')
+
+    if (!activeId) {
+      setPendingModel({
+        provider: model.provider,
+        model: model.upstream_model_id,
+      })
+      setNotice(`New conversations will use ${model.label}.`)
+      return
+    }
+
+    setSwitchingModel(true)
+    try {
+      const updated = await setConversationModel(CALENDAR_AGENT_ID, activeId, {
+        provider: model.provider,
+        model: model.upstream_model_id,
+      })
+      setDetail((current) =>
+        current && current.conversation?.id === updated.id
+          ? {
+              ...current,
+              conversation: {
+                ...current.conversation,
+                provider: updated.provider,
+                model: updated.model,
+              },
+            }
+          : current,
+      )
+      setConversations((current) =>
+        current.map((conversation) =>
+          conversation.id === updated.id
+            ? {
+                ...conversation,
+                provider: updated.provider,
+                model: updated.model,
+              }
+            : conversation,
+        ),
+      )
+      setNotice(`This conversation now uses ${model.label}.`)
+    } catch (err) {
+      if (err?.status === 401) {
+        handleUnauthorized()
+        return
+      }
+      setError(
+        err?.message || 'Could not change the model for this conversation.',
+      )
+      if (err?.status === 409 || err?.status === 422) {
+        setErrorNeedsSettings(true)
+      }
+    } finally {
+      setSwitchingModel(false)
+    }
+  }
+
   function startNewChat() {
     setHistoryOpen(false)
+    setModelPickerOpen(false)
+    setPendingModel(null)
     setActiveId(null)
     setDetail(null)
     setError('')
@@ -538,11 +631,42 @@ export default function CalendarAgent({ onCalendarChanged }) {
   )
   const toolCallingUnsupported =
     needsToolCapableModel || aiConfig?.capabilities?.tool_calling === false
-  const providerText = aiConfig
-    ? `${aiConfig.provider_label} · ${aiConfig.model}`
+
+  // The conversation's own selection wins over the user/application default,
+  // matching the backend precedence exactly.
+  const conversationProvider = detail?.conversation?.provider || null
+  const conversationModel = detail?.conversation?.model || null
+  const conversationModelMeta = models.find(
+    (model) =>
+      model.provider === conversationProvider &&
+      model.upstream_model_id === conversationModel,
+  )
+  const inheritedModelMeta = models.find(
+    (model) =>
+      model.provider === aiConfig?.provider &&
+      model.upstream_model_id === aiConfig?.model,
+  )
+  const pendingModelMeta = pendingModel
+    ? models.find(
+        (model) =>
+          model.provider === pendingModel.provider &&
+          model.upstream_model_id === pendingModel.model,
+      )
+    : null
+  const activeModelMeta =
+    pendingModelMeta || conversationModelMeta || inheritedModelMeta || null
+  const activeModelLabel =
+    activeModelMeta?.label ||
+    conversationModel ||
+    aiConfig?.model_label ||
+    aiConfig?.model ||
+    ''
+  const providerText = activeModelLabel
+    ? `${aiConfig?.provider_label || 'Provider'} · ${activeModelLabel}`
     : aiConfigError
       ? 'Provider unavailable · Open settings'
       : 'Loading provider…'
+  const activePricing = activeModelMeta?.pricing_class || 'unknown'
   const statusTone = sending
     ? 'busy'
     : aiConfig?.has_credentials
@@ -605,11 +729,21 @@ export default function CalendarAgent({ onCalendarChanged }) {
                 </div>
                 <button
                   type="button"
-                  className="ca-provider"
-                  onClick={openSettings}
-                  title="Open AI provider settings"
+                  className={`ca-provider${modelPickerOpen ? ' is-open' : ''}`}
+                  onClick={() => setModelPickerOpen((current) => !current)}
+                  aria-expanded={modelPickerOpen}
+                  aria-haspopup="listbox"
+                  title="Change the model for this conversation"
                 >
-                  {providerText}
+                  <span className="ca-provider-text">{providerText}</span>
+                  <span className={`ca-model-price is-${activePricing}`}>
+                    {activePricing === 'free'
+                      ? 'Free'
+                      : activePricing === 'paid'
+                        ? 'Paid'
+                        : 'Unknown'}
+                  </span>
+                  <ChevronDown size={12} aria-hidden="true" />
                 </button>
               </div>
             </div>
@@ -654,6 +788,84 @@ export default function CalendarAgent({ onCalendarChanged }) {
               </button>
             </div>
           </header>
+
+          {modelPickerOpen && (
+            <section className="ca-model-menu" aria-label="Choose a model">
+              <div className="ca-model-menu-head">
+                <strong>
+                  {activeId
+                    ? 'Model for this conversation'
+                    : 'Model for new conversations'}
+                </strong>
+                <button
+                  type="button"
+                  className="ca-link"
+                  onClick={() => setModelPickerOpen(false)}
+                >
+                  Close
+                </button>
+              </div>
+              <p className="ca-model-note">
+                Switching keeps this conversation’s history. Only models with
+                tool calling are listed.
+              </p>
+              {modelsError && (
+                <p className="ca-model-note is-error">{modelsError}</p>
+              )}
+              {models.length === 0 && !modelsError && (
+                <p className="ca-model-note">
+                  No compatible models are available.
+                </p>
+              )}
+              <ul className="ca-model-list" role="listbox" aria-label="Available models">
+                {models.map((model) => {
+                  const isActive = activeId
+                    ? conversationModelMeta?.id === model.id
+                    : pendingModel
+                      ? pendingModelMeta?.id === model.id
+                      : aiConfig?.provider === model.provider &&
+                        aiConfig?.model === model.upstream_model_id
+                  return (
+                    <li key={model.id}>
+                      <button
+                        type="button"
+                        role="option"
+                        aria-selected={Boolean(isActive)}
+                        className={`ca-model-option${isActive ? ' is-active' : ''}`}
+                        onClick={() => handleSelectModel(model)}
+                        disabled={switchingModel}
+                      >
+                        <span className="ca-model-option-main">
+                          <span className="ca-model-name">{model.label}</span>
+                          <code className="ca-model-upstream">
+                            {model.upstream_model_id}
+                          </code>
+                        </span>
+                        <span
+                          className={`ca-model-price is-${model.pricing_class}`}
+                          title={
+                            model.pricing_class === 'paid' &&
+                            model.input_price_per_mtok != null
+                              ? `$${model.input_price_per_mtok} input / $${model.output_price_per_mtok} output per 1M tokens`
+                              : undefined
+                          }
+                        >
+                          {model.pricing_class === 'free'
+                            ? 'Free'
+                            : model.pricing_class === 'paid'
+                              ? 'Paid'
+                              : 'Unknown'}
+                        </span>
+                      </button>
+                    </li>
+                  )
+                })}
+              </ul>
+              <button type="button" className="ca-link" onClick={openSettings}>
+                Manage models in AI settings
+              </button>
+            </section>
+          )}
 
           {historyOpen && (
             <ConversationHistory

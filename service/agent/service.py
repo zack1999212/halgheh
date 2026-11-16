@@ -2,9 +2,9 @@ from __future__ import annotations
 
 import json
 from datetime import datetime, timezone
-from typing import Any
 
 from fastapi import HTTPException, status
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from . import repository
@@ -20,12 +20,13 @@ from .schemas import (
     PendingActionResponse,
     SendMessageResponse,
 )
-from .tools import (
-    ToolContext,
-    ToolError,
-    ensure_tool_available,
-    tools_for_agent,
-)
+from .tools import ToolContext, ToolError, ensure_tool_available, tools_for_agent
+from service.ai.catalog import require_selectable_model
+from service.ai.error_classification import classify_error
+from service.ai.service import resolve_runtime_config
+
+from typing import Any
+from uuid import uuid4
 
 
 def _now() -> datetime:
@@ -43,22 +44,14 @@ def _json_safe(value: Any) -> dict[str, Any]:
     return {"result": encoded}
 
 
-def _truncate(result: dict[str, Any], max_bytes: int) -> dict[str, Any]:
-    text = json.dumps(result)
-    if len(text.encode("utf-8")) <= max_bytes:
-        return result
-    return {"truncated": True, "preview": text[:max_bytes]}
-
-
-# --- Serializers ---
-
-
 def _conversation_response(conversation: AgentConversation) -> ConversationResponse:
     return ConversationResponse(
         id=conversation.id,
         agent_id=conversation.agent_id,
         title=conversation.title,
         timezone=conversation.timezone,
+        provider=conversation.provider,
+        model=conversation.model,
         created_at=conversation.created_at,
         updated_at=conversation.updated_at,
     )
@@ -98,7 +91,6 @@ def _pending_response(action: AgentPendingAction) -> PendingActionResponse:
 
 # --- Helpers ---
 
-
 def _conversation_not_found() -> HTTPException:
     return HTTPException(
         status_code=status.HTTP_404_NOT_FOUND, detail="Conversation not found"
@@ -112,7 +104,11 @@ def _pending_not_found() -> HTTPException:
 
 
 def _load_conversation(
-    db: Session, *, user_id: int, agent_id: str, conversation_id: int
+    db: Session,
+    *,
+    user_id: int,
+    agent_id: str,
+    conversation_id: int,
 ) -> AgentConversation:
     conversation = repository.get_conversation(
         db,
@@ -182,7 +178,6 @@ def _append_resolution(
 
 # --- Agents ---
 
-
 def list_agent_specs() -> list[AgentResponse]:
     return [
         AgentResponse(
@@ -200,6 +195,28 @@ def list_agent_specs() -> list[AgentResponse]:
 
 # --- Conversations ---
 
+def _validated_selection(
+    db: Session,
+    agent: AgentSpec,
+    provider: str | None,
+    model: str | None,
+) -> tuple[str, str] | None:
+    """Validate an explicit provider/model selection for an agent.
+
+    Returns ``None`` when no selection was supplied (inherit). Rejects models
+    that are missing, disabled or incompatible with the agent instead of
+    substituting another model.
+    """
+    if provider is None and model is None:
+        return None
+    if not provider or not model:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="Select both a provider and a model, or neither.",
+        )
+    record = require_selectable_model(db, provider, model, agent_id=agent.id)
+    return record.provider_id, record.upstream_model_id
+
 
 def create_conversation(
     db: Session,
@@ -207,15 +224,47 @@ def create_conversation(
     agent_id: str,
     title: str | None,
     timezone: str | None = None,
+    provider: str | None = None,
+    model: str | None = None,
 ) -> ConversationResponse:
-    require_agent(agent_id)
+    agent = require_agent(agent_id)
+    selection = _validated_selection(db, agent, provider, model)
     conversation = repository.create_conversation(
         db,
         user_id=user_id,
-        agent_id=agent_id,
+        agent_id=agent.id,
         title=title or "New conversation",
         timezone=timezone,
+        provider=selection[0] if selection else None,
+        model=selection[1] if selection else None,
     )
+    db.commit()
+    db.refresh(conversation)
+    return _conversation_response(conversation)
+
+
+def set_conversation_model(
+    db: Session,
+    user_id: int,
+    agent_id: str,
+    conversation_id: int,
+    provider: str | None,
+    model: str | None,
+) -> ConversationResponse:
+    """Pin this conversation to a model, or clear it with nulls.
+
+    Message history is never modified; only subsequent requests use the new
+    selection.
+    """
+    agent = require_agent(agent_id)
+    conversation = _load_conversation(
+        db, user_id=user_id, agent_id=agent.id, conversation_id=conversation_id
+    )
+    selection = _validated_selection(db, agent, provider, model)
+
+    conversation.provider = selection[0] if selection else None
+    conversation.model = selection[1] if selection else None
+    conversation.updated_at = _now()
     db.commit()
     db.refresh(conversation)
     return _conversation_response(conversation)
@@ -264,7 +313,11 @@ def get_conversation_detail(
 
 
 def rename_conversation(
-    db: Session, user_id: int, agent_id: str, conversation_id: int, title: str
+    db: Session,
+    user_id: int,
+    agent_id: str,
+    conversation_id: int,
+    title: str,
 ) -> ConversationResponse:
     require_agent(agent_id)
     conversation = _load_conversation(
@@ -278,7 +331,10 @@ def rename_conversation(
 
 
 def delete_conversation(
-    db: Session, user_id: int, agent_id: str, conversation_id: int
+    db: Session,
+    user_id: int,
+    agent_id: str,
+    conversation_id: int,
 ) -> None:
     require_agent(agent_id)
     conversation = _load_conversation(
@@ -289,7 +345,6 @@ def delete_conversation(
 
 
 # --- Messages ---
-
 
 def send_message(
     db: Session,
@@ -312,19 +367,49 @@ def send_message(
         )
     except ProviderError as exc:
         # Safe, actionable message; never the raw provider body or credentials.
+        classified = exc.classified or classify_error(
+            provider_error_message=exc.message
+        )
+        try:
+            runtime = resolve_runtime_config(db, user.id, conversation=conversation)
+            provider_id, model_id = runtime.provider, runtime.model
+        except Exception:
+            provider_id, model_id = "", ""
+        try:
+            repository.record_provider_diagnostic(
+                db,
+                request_id=uuid4().hex,
+                user_id=user.id,
+                agent_id=agent_id,
+                conversation_id=conversation.id,
+                provider=provider_id,
+                model=model_id,
+                status=classified.category.name,
+                duration_ms=None,
+                http_status_code=None,
+                provider_error_code=classified.provider_error_code,
+                provider_error_message=classified.human_message,
+                connected=None,
+                headers_received=None,
+                streaming_started=None,
+                streaming_completed=None,
+                connection_interrupted=None,
+                retry_attempted=False,
+                final_status=classified.category.name,
+            )
+        except Exception:
+            # A diagnostic failure must never block the user-facing error.
+            db.rollback()
         raise HTTPException(
             status_code=status.HTTP_502_BAD_GATEWAY, detail=exc.message
         )
     return SendMessageResponse(
         messages=[_message_response(message) for message in result.messages],
-        pending_actions=[
-            _pending_response(action) for action in result.pending_actions
-        ],
+        pending_actions=[_pending_response(action) for action in result.pending_actions],
     )
 
 
 # --- Pending actions ---
-
 
 def list_pending_actions(
     db: Session,
@@ -405,7 +490,8 @@ def approve_pending_action(
 
     try:
         raw_result = spec.handler(context, **arguments)
-        result = _truncate(_json_safe(raw_result), limits.max_tool_result_bytes)
+        result = _json_safe(raw_result)
+        result.setdefault("confirmation", "not_required")
     except ToolError as exc:
         action.status = "failed"
         action.error = exc.message

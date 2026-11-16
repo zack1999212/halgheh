@@ -9,6 +9,7 @@ from .schemas import (
     AgentResponse,
     ConversationCreate,
     ConversationDetailResponse,
+    ConversationModelUpdate,
     ConversationResponse,
     ConversationUpdate,
     PendingActionResponse,
@@ -44,7 +45,13 @@ def create_conversation(
     current_user: User = Depends(get_current_user),
 ):
     return service.create_conversation(
-        db, current_user.id, agent_id, data.title, data.timezone
+        db,
+        current_user.id,
+        agent_id,
+        data.title,
+        data.timezone,
+        data.provider,
+        data.model,
     )
 
 
@@ -75,6 +82,28 @@ def get_conversation(
 ):
     return service.get_conversation_detail(
         db, current_user.id, agent_id, conversation_id
+    )
+
+
+@router.patch(
+    "/{agent_id}/conversations/{conversation_id}/model",
+    response_model=ConversationResponse,
+)
+def set_conversation_model(
+    agent_id: str,
+    conversation_id: int,
+    data: ConversationModelUpdate,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Pin this conversation to a provider/model without touching its history."""
+    return service.set_conversation_model(
+        db,
+        current_user.id,
+        agent_id,
+        conversation_id,
+        data.provider,
+        data.model,
     )
 
 

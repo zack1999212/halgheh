@@ -1,13 +1,19 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import {
   activateCredential,
+  checkModelTools,
   createCredential,
+  createModel,
   deleteCredential,
+  deleteModel,
   getEffectiveConfig,
   listCredentials,
+  listModels,
   listProviders,
+  refreshModels,
   revertToDefault,
   updateCredential,
+  updateModel,
 } from './api.js'
 
 /**
@@ -22,6 +28,7 @@ export default function useAISettings({ onUnauthorized } = {}) {
   }, [onUnauthorized])
 
   const [providers, setProviders] = useState([])
+  const [models, setModels] = useState([])
   const [credentials, setCredentials] = useState([])
   const [effective, setEffective] = useState(null)
   const [loading, setLoading] = useState(true)
@@ -45,14 +52,16 @@ export default function useAISettings({ onUnauthorized } = {}) {
       }
       setError('')
       try {
-        const [catalog, creds, config] = await Promise.all([
+        const [catalog, creds, config, catalogueModels] = await Promise.all([
           listProviders(),
           listCredentials(),
           getEffectiveConfig(),
+          listModels(),
         ])
         setProviders(Array.isArray(catalog?.providers) ? catalog.providers : [])
         setCredentials(Array.isArray(creds) ? creds : [])
         setEffective(config || null)
+        setModels(Array.isArray(catalogueModels) ? catalogueModels : [])
       } catch (err) {
         report(err, setError)
       } finally {
@@ -114,6 +123,50 @@ export default function useAISettings({ onUnauthorized } = {}) {
     [run],
   )
 
+  // --- Model catalogue ---
+
+  const addModel = useCallback(
+    (providerId, payload) =>
+      run(() => createModel(providerId, payload), 'Model added to the catalogue.'),
+    [run],
+  )
+
+  const editModel = useCallback(
+    (modelId, payload) =>
+      run(() => updateModel(modelId, payload), 'Model updated.'),
+    [run],
+  )
+
+  const removeModel = useCallback(
+    (modelId) => run(() => deleteModel(modelId), 'Model removed.'),
+    [run],
+  )
+
+  const reloadModels = useCallback(
+    (providerId) =>
+      run(
+        async () => {
+          const result = await refreshModels(providerId)
+          if (result?.discovered === 0) {
+            throw new Error('The provider returned no models.')
+          }
+        },
+        'Model catalogue refreshed.',
+      ),
+    [run],
+  )
+
+  const probeTools = useCallback(
+    (modelId) =>
+      run(async () => {
+        const result = await checkModelTools(modelId)
+        if (!result?.supported) {
+          throw new Error(result?.message || 'Tool calling is not supported.')
+        }
+      }, 'Tool calling confirmed.'),
+    [run],
+  )
+
   const dismissMessages = useCallback(() => {
     setNotice('')
     setActionError('')
@@ -121,6 +174,7 @@ export default function useAISettings({ onUnauthorized } = {}) {
 
   return {
     providers,
+    models,
     credentials,
     effective,
     loading,
@@ -134,6 +188,11 @@ export default function useAISettings({ onUnauthorized } = {}) {
     remove,
     activate,
     revert,
+    addModel,
+    editModel,
+    removeModel,
+    reloadModels,
+    probeTools,
     dismissMessages,
   }
 }

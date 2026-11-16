@@ -2,10 +2,11 @@ from __future__ import annotations
 
 from typing import Any
 
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
-from .models import AICredential
+from ..agent.models import AgentConversation
+from .models import AICredential, ProviderModel
 
 
 def create(
@@ -81,3 +82,103 @@ def deactivate_all(db: Session, user_id: int) -> list[AICredential]:
 
 def delete(db: Session, credential: AICredential) -> None:
     db.delete(credential)
+
+
+# --- Provider model catalogue ---
+
+def list_models(
+    db: Session,
+    *,
+    provider_id: str | None = None,
+    enabled_only: bool = False,
+) -> list[ProviderModel]:
+    stmt = select(ProviderModel)
+    if provider_id is not None:
+        stmt = stmt.where(ProviderModel.provider_id == provider_id)
+    if enabled_only:
+        stmt = stmt.where(ProviderModel.enabled.is_(True))
+    stmt = stmt.order_by(
+        ProviderModel.provider_id.asc(),
+        ProviderModel.display_name.asc(),
+        ProviderModel.id.asc(),
+    )
+    return list(db.scalars(stmt).all())
+
+
+def get_model(db: Session, model_id: int) -> ProviderModel | None:
+    return db.get(ProviderModel, model_id)
+
+
+def get_model_by_upstream(
+    db: Session, provider_id: str, upstream_model_id: str
+) -> ProviderModel | None:
+    stmt = select(ProviderModel).where(
+        ProviderModel.provider_id == provider_id,
+        ProviderModel.upstream_model_id == upstream_model_id,
+    )
+    return db.scalars(stmt).first()
+
+
+def create_model(
+    db: Session,
+    *,
+    provider_id: str,
+    upstream_model_id: str,
+    display_name: str,
+    description: str | None,
+    context_window: int | None,
+    max_output_tokens: int | None,
+    supports_tools: bool | None,
+    supports_streaming: bool | None,
+    supports_vision: bool | None,
+    enabled: bool,
+    pricing_class: str,
+    input_price_per_mtok: Any = None,
+    output_price_per_mtok: Any = None,
+    is_custom: bool,
+) -> ProviderModel:
+    model = ProviderModel(
+        provider_id=provider_id,
+        upstream_model_id=upstream_model_id,
+        display_name=display_name,
+        description=description,
+        context_window=context_window,
+        max_output_tokens=max_output_tokens,
+        supports_tools=supports_tools,
+        supports_streaming=supports_streaming,
+        supports_vision=supports_vision,
+        enabled=enabled,
+        pricing_class=pricing_class,
+        input_price_per_mtok=input_price_per_mtok,
+        output_price_per_mtok=output_price_per_mtok,
+        is_custom=is_custom,
+    )
+    db.add(model)
+    return model
+
+
+def delete_model(db: Session, model: ProviderModel) -> None:
+    db.delete(model)
+
+
+def count_model_references(
+    db: Session, *, provider_id: str, upstream_model_id: str
+) -> tuple[int, int]:
+    """Count references from conversations and personal configurations."""
+    conversations = db.scalar(
+        select(func.count())
+        .select_from(AgentConversation)
+        .where(
+            AgentConversation.provider == provider_id,
+            AgentConversation.model == upstream_model_id,
+        )
+    )
+    credentials = db.scalar(
+        select(func.count())
+        .select_from(AICredential)
+        .where(
+            AICredential.provider == provider_id,
+            AICredential.model == upstream_model_id,
+        )
+    )
+    return int(conversations or 0), int(credentials or 0)

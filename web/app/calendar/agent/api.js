@@ -24,15 +24,35 @@ export function listConversations(
 
 export function createConversation(
   agentId = CALENDAR_AGENT_ID,
-  { title = null, timezone = null } = {},
+  { title = null, timezone = null, provider = null, model = null } = {},
 ) {
   const body = {}
   if (title) body.title = title
   if (timezone) body.timezone = timezone
+  if (provider && model) {
+    body.provider = provider
+    body.model = model
+  }
   return apiRequest(`${agentPath(agentId)}/conversations`, {
     method: 'POST',
     body,
     fallbackMessage: 'Could not start a conversation.',
+  })
+}
+
+/**
+ * Pin this conversation to a provider/model. History is never touched; only
+ * subsequent requests use the new selection.
+ */
+export function setConversationModel(
+  agentId,
+  conversationId,
+  { provider = null, model = null } = {},
+) {
+  return apiRequest(`${agentPath(agentId)}/conversations/${conversationId}/model`, {
+    method: 'PATCH',
+    body: { provider, model },
+    fallbackMessage: 'Could not change the model for this conversation.',
   })
 }
 
