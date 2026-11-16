@@ -813,6 +813,11 @@ export default function AISettingsPage() {
                     {model.is_custom && (
                       <span className="ai-badge">Custom</span>
                     )}
+                    {model.is_discovered && (
+                      <span className="ai-badge ai-badge--unknown">
+                        Discovered
+                      </span>
+                    )}
                     {!model.enabled && (
                       <span className="ai-badge ai-badge--off">Disabled</span>
                     )}
@@ -888,7 +893,7 @@ export default function AISettingsPage() {
                   >
                     <Pencil size={13} aria-hidden="true" />
                   </button>
-                  {model.is_custom &&
+                  {(model.is_custom || model.is_discovered) &&
                     (confirmingModelId === model.id ? (
                       <span className="ai-confirm">
                         <span>Remove?</span>
@@ -916,7 +921,7 @@ export default function AISettingsPage() {
                         onClick={() => setConfirmingModelId(model.id)}
                         disabled={saving}
                         aria-label={`Remove ${model.label}`}
-                        title="Remove custom model"
+                        title="Remove this model from the catalogue"
                       >
                         <Trash2 size={13} aria-hidden="true" />
                       </button>

@@ -75,6 +75,7 @@ def _model_out(model: ProviderModel) -> ModelOut:
             else None
         ),
         is_custom=model.is_custom,
+        is_discovered=model.is_discovered,
         capabilities=_caps_out(capabilities_of(model)),
         known=True,
     )
@@ -253,7 +254,9 @@ def update_model(db: Session, model_id: int, data: ModelUpdate) -> ModelOut:
 
 def delete_model(db: Session, model_id: int) -> None:
     model = _require_model_or_404(db, model_id)
-    if not model.is_custom:
+    # User-entered and discovery-added models may be removed; only the seeded
+    # catalogue is protected, and those can still be disabled.
+    if not (model.is_custom or model.is_discovered):
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
             detail=(
@@ -387,6 +390,7 @@ def refresh_models(
                 enabled=True,
                 pricing_class="unknown",
                 is_custom=False,
+                is_discovered=True,
             )
             added += 1
         else:

@@ -46,6 +46,7 @@ class ModelOut(BaseModel):
     input_price_per_mtok: float | None = None
     output_price_per_mtok: float | None = None
     is_custom: bool = False
+    is_discovered: bool = False
     capabilities: ModelCapabilitiesOut
     known: bool = True
 

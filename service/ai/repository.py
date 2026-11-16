@@ -136,6 +136,7 @@ def create_model(
     input_price_per_mtok: Any = None,
     output_price_per_mtok: Any = None,
     is_custom: bool,
+    is_discovered: bool = False,
 ) -> ProviderModel:
     model = ProviderModel(
         provider_id=provider_id,
@@ -152,6 +153,7 @@ def create_model(
         input_price_per_mtok=input_price_per_mtok,
         output_price_per_mtok=output_price_per_mtok,
         is_custom=is_custom,
+        is_discovered=is_discovered,
     )
     db.add(model)
     return model
