@@ -4,6 +4,7 @@ import FullCalendar from '@fullcalendar/react'
 import dayGridPlugin from '@fullcalendar/daygrid'
 import timeGridPlugin from '@fullcalendar/timegrid'
 import listPlugin from '@fullcalendar/list'
+import interactionPlugin from '@fullcalendar/interaction'
 import CalendarToolbar from './CalendarToolbar.jsx'
 import CalendarEvent from './CalendarEvent.jsx'
 import EventDetailPanel from './EventDetailPanel.jsx'
@@ -12,7 +13,7 @@ import CalendarDialog from './CalendarDialog.jsx'
 import ConfirmDialog from './ConfirmDialog.jsx'
 import useCalendars from './useCalendars.js'
 import useCalendarEvents, { occurrenceToSelection } from './useCalendarEvents.js'
-import { createException, deleteEvent } from './api.js'
+import { createException, deleteEvent, editOccurrence, updateEvent } from './api.js'
 import { getBrowserTimeZone } from './time.js'
 import { clearToken } from '../src/api.js'
 import { DEFAULT_VIEW } from './views.js'
@@ -36,6 +37,10 @@ export default function CalendarPage() {
   const [deleteScope, setDeleteScope] = useState('series')
   const [deleteBusy, setDeleteBusy] = useState(false)
   const [deleteError, setDeleteError] = useState('')
+  const [dragScopeTarget, setDragScopeTarget] = useState(null)
+  const [dragScope, setDragScope] = useState('occurrence')
+  const [dragBusy, setDragBusy] = useState(false)
+  const [dragError, setDragError] = useState('')
 
   const handleUnauthorized = useCallback(() => {
     clearToken()
@@ -86,6 +91,139 @@ export default function CalendarPage() {
     if (raw) {
       setSelectedOccurrence(occurrenceToSelection(raw))
     }
+  }
+
+  /** Build a description of a drag/resize change from a FullCalendar event. */
+  function describeChange(fcEvent, kind) {
+    const ext = fcEvent.extendedProps || {}
+    const raw = ext.raw || {}
+    const isAllDay = Boolean(fcEvent.allDay)
+    const timezone = ext.timezone || raw.timezone || getBrowserTimeZone()
+    if (isAllDay) {
+      return {
+        kind,
+        eventId: ext.eventId,
+        calendarId: ext.calendarId ?? selectedCalendarId,
+        isAllDay: true,
+        isRecurring: Boolean(ext.isRecurring),
+        originalStartAt: ext.originalStartAt || null,
+        originalStartDate: ext.originalStartDate || null,
+        timezone,
+        startDate: fcEvent.startStr,
+        endDate: fcEvent.endStr,
+      }
+    }
+    return {
+      kind,
+      eventId: ext.eventId,
+      calendarId: ext.calendarId ?? selectedCalendarId,
+      isAllDay: false,
+      isRecurring: Boolean(ext.isRecurring),
+      originalStartAt: ext.originalStartAt || null,
+      originalStartDate: ext.originalStartDate || null,
+      timezone,
+      startAt: fcEvent.start.toISOString(),
+      endAt: fcEvent.end.toISOString(),
+    }
+  }
+
+  async function persistNonRecurringChange(change) {
+    const calendarId = change.calendarId
+    const eventId = change.eventId
+    if (!calendarId || !eventId) return
+    const updates = {}
+    if (change.isAllDay) {
+      updates.start_date = change.startDate
+      updates.end_date = change.endDate
+    } else {
+      updates.start_at = change.startAt
+      updates.end_at = change.endAt
+      updates.timezone = change.timezone
+    }
+    try {
+      await updateEvent(calendarId, eventId, updates)
+      eventsApi.reload()
+      setDetailsRefreshKey((c) => c + 1)
+    } catch (err) {
+      setDragError(err?.message || 'Could not move the event.')
+      throw err
+    }
+  }
+
+  function handleEventDrop(info) {
+    const change = describeChange(info.event, 'drop')
+    if (change.isRecurring) {
+      info.revert()
+      setDragScope('occurrence')
+      setDragError('')
+      setDragScopeTarget(change)
+      return
+    }
+    // Non-recurring: keep visual, persist in background.
+    persistNonRecurringChange(change).catch(() => {
+      info.revert()
+    })
+  }
+
+  function handleEventResize(info) {
+    const change = describeChange(info.event, 'resize')
+    if (change.isRecurring) {
+      info.revert()
+      setDragScope('occurrence')
+      setDragError('')
+      setDragScopeTarget(change)
+      return
+    }
+    persistNonRecurringChange(change).catch(() => {
+      info.revert()
+    })
+  }
+
+  async function confirmDragScope() {
+    const change = dragScopeTarget
+    if (!change) return
+    setDragBusy(true)
+    setDragError('')
+    const calendarId = change.calendarId
+    const eventId = change.eventId
+    try {
+      const payload = {}
+      if (change.isAllDay) {
+        payload.start_date = change.startDate
+        payload.end_date = change.endDate
+      } else {
+        payload.start_at = change.startAt
+        payload.end_at = change.endAt
+        payload.timezone = change.timezone
+      }
+      if (change.isRecurring) {
+        const originalKey = change.isAllDay
+          ? change.originalStartDate
+          : change.originalStartAt
+        if (change.isAllDay) {
+          payload.original_start_date = originalKey
+        } else {
+          payload.original_start_at = originalKey
+        }
+        payload.scope = dragScope
+        await editOccurrence(calendarId, eventId, payload)
+      } else {
+        await updateEvent(calendarId, eventId, payload)
+      }
+      setDragScopeTarget(null)
+      eventsApi.reload()
+      setDetailsRefreshKey((c) => c + 1)
+      setSelectedOccurrence(null)
+    } catch (err) {
+      setDragError(err?.message || 'Could not update the event.')
+    } finally {
+      setDragBusy(false)
+    }
+  }
+
+  function cancelDragScope() {
+    setDragScopeTarget(null)
+    setDragError('')
   }
 
   function refreshAfterChange() {
@@ -170,7 +308,11 @@ export default function CalendarPage() {
       <div className="calendar-surface">
         <FullCalendar
           ref={calendarRef}
-          plugins={[dayGridPlugin, timeGridPlugin, listPlugin]}
+          plugins={[dayGridPlugin, timeGridPlugin, listPlugin, interactionPlugin]}
+          editable
+          eventStartEditable
+          eventDurationEditable
+          eventResizableFromStart={false}
           initialView={DEFAULT_VIEW}
           headerToolbar={false}
           footerToolbar={false}
@@ -190,6 +332,8 @@ export default function CalendarPage() {
             info.el.style.setProperty('--evc-text', cat.text)
           }}
           eventClick={handleEventClick}
+          eventDrop={handleEventDrop}
+          eventResize={handleEventResize}
           dayCellDidMount={(info) => {
             if (info.view.type !== 'dayGridMonth') {
               return
@@ -402,6 +546,59 @@ export default function CalendarPage() {
           </div>
         )}
       </ConfirmDialog>
+
+      <ConfirmDialog
+        open={Boolean(dragScopeTarget)}
+        title="Move recurring event"
+        description="This event repeats. Apply the change to:"
+        confirmLabel="Apply"
+        busyLabel="Saving…"
+        busy={dragBusy}
+        error={dragError}
+        onConfirm={confirmDragScope}
+        onClose={cancelDragScope}
+      >
+        <div className="scope-options">
+          <label className="scope-option">
+            <input
+              type="radio"
+              name="drag-scope"
+              value="occurrence"
+              checked={dragScope === 'occurrence'}
+              onChange={() => setDragScope('occurrence')}
+              disabled={dragBusy}
+            />
+            <span>
+              <span className="scope-option-label">This occurrence</span>
+              <span className="scope-option-hint">
+                Only the selected occurrence changes.
+              </span>
+            </span>
+          </label>
+          <label className="scope-option">
+            <input
+              type="radio"
+              name="drag-scope"
+              value="series"
+              checked={dragScope === 'series'}
+              onChange={() => setDragScope('series')}
+              disabled={dragBusy}
+            />
+            <span>
+              <span className="scope-option-label">Entire series</span>
+              <span className="scope-option-hint">
+                All occurrences move or resize together.
+              </span>
+            </span>
+          </label>
+        </div>
+      </ConfirmDialog>
+
+      {dragError && !dragScopeTarget && (
+        <div className="calendar-toast" role="alert">
+          {dragError}
+        </div>
+      )}
     </div>
   )
 }

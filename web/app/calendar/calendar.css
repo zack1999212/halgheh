@@ -751,6 +751,44 @@
   border-radius: var(--radius-sm);
 }
 
+/* Drag and resize visual feedback */
+.fc .fc-event.fc-event-dragging,
+.fc .fc-event.fc-event-resizing {
+  opacity: 0.7;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+}
+
+.fc .fc-event-resizer {
+  background: var(--cal-ink, #111);
+  border-radius: 2px;
+}
+
+.fc .fc-event-resizer-start,
+.fc .fc-event-resizer-end {
+  width: 6px;
+  opacity: 0;
+  transition: opacity 120ms ease;
+}
+
+.fc .fc-event:hover .fc-event-resizer,
+.fc .fc-event.fc-event-resizing .fc-event-resizer {
+  opacity: 1;
+}
+
+.calendar-toast {
+  position: fixed;
+  bottom: 24px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: var(--cal-ink, #111);
+  color: var(--cal-bg, #fff);
+  padding: 10px 16px;
+  border-radius: var(--radius-md, 8px);
+  font-size: 14px;
+  z-index: 1000;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+}
+
 .fc .fc-daygrid-day.fc-day-today:hover .fc-daygrid-day-frame {
   background: var(--cal-fill);
 }

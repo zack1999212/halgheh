@@ -5,6 +5,7 @@ export default function ConfirmDialog({
   title,
   description,
   confirmLabel = 'Delete',
+  busyLabel,
   busy = false,
   error = '',
   onConfirm,
@@ -32,7 +33,7 @@ export default function ConfirmDialog({
             onClick={onConfirm}
             disabled={busy}
           >
-            {busy ? 'Deleting…' : confirmLabel}
+            {busy ? (busyLabel || 'Saving…') : confirmLabel}
           </button>
         </>
       }
