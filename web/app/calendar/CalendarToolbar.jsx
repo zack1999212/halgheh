@@ -25,9 +25,35 @@ export default function CalendarToolbar({
 
   return (
     <div className="calendar-toolbar">
-      <div className="calendar-toolbar-group">
+      {/* Level 1: Primary header — title, calendar selector, create event */}
+      <div className="calendar-toolbar-header-1">
         <h2 className="calendar-toolbar-title">Calendar</h2>
 
+        <CalendarSelector
+          calendars={calendars}
+          selectedId={selectedCalendarId}
+          loading={calendarsLoading}
+          error={calendarsError}
+          onSelect={onSelectCalendar}
+          onRetry={onRetryCalendars}
+          onCreate={onCreateCalendar}
+          onManage={onManageCalendars}
+        />
+
+        <button
+          type="button"
+          className="button-primary calendar-create-button"
+          onClick={onCreateEvent}
+          disabled={!canCreate}
+          title={canCreate ? undefined : 'Create a calendar first'}
+        >
+          <Plus size={15} aria-hidden="true" />
+          Create event
+        </button>
+      </div>
+
+      {/* Level 2: Navigation toolbar — prev, today, next, date range, view selector */}
+      <div className="calendar-toolbar-header-2">
         <div className="calendar-nav">
           <button
             type="button"
@@ -57,32 +83,8 @@ export default function CalendarToolbar({
         <p className="calendar-range" aria-live="polite">
           {rangeLabel}
         </p>
-      </div>
-
-      <div className="calendar-toolbar-group calendar-toolbar-group--end">
-        <CalendarSelector
-          calendars={calendars}
-          selectedId={selectedCalendarId}
-          loading={calendarsLoading}
-          error={calendarsError}
-          onSelect={onSelectCalendar}
-          onRetry={onRetryCalendars}
-          onCreate={onCreateCalendar}
-          onManage={onManageCalendars}
-        />
 
         <CalendarViewSelector view={view} onChange={onViewChange} />
-
-        <button
-          type="button"
-          className="button-primary calendar-create-button"
-          onClick={onCreateEvent}
-          disabled={!canCreate}
-          title={canCreate ? undefined : 'Create a calendar first'}
-        >
-          <Plus size={15} aria-hidden="true" />
-          Create event
-        </button>
       </div>
     </div>
   )

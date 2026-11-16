@@ -57,6 +57,11 @@ class Event(Base):
     end_date: Mapped[date | None] = mapped_column(Date, nullable=True)
     timezone: Mapped[str | None] = mapped_column(String, nullable=True)
     recurrence_rule: Mapped[str | None] = mapped_column(Text, nullable=True)
+    # Stable category identifier (work/personal/meeting/focus/important/other);
+    # colors live in the frontend mapping, never in the database.
+    category: Mapped[str] = mapped_column(
+        String, nullable=False, default="other", server_default=text("'other'")
+    )
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, server_default=func.now()
     )

@@ -15,6 +15,7 @@ import useEventDetails from './useEventDetails.js'
 import { describeRecurrence } from './recurrence.js'
 import { formatEventWhen, formatReminder } from './eventDetail.js'
 import { parseDateOnly } from './time.js'
+import { categoryOf, categoryLabel, categoryStyleVars } from './categories.js'
 
 const REMINDER_PRESETS = [0, 5, 10, 15, 30, 60, 120, 1440, 2880, 10080]
 
@@ -170,6 +171,12 @@ export default function EventDetailPanel({
               Modified
             </span>
           )}
+          <span
+            className="event-detail-badge event-detail-badge--category"
+            style={categoryStyleVars(occurrence.category)}
+          >
+            {categoryLabel(occurrence.category)}
+          </span>
         </div>
 
         {details.loading && !event ? (

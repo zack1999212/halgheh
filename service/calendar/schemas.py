@@ -69,6 +69,25 @@ def _validate_iana_timezone(value: str) -> str:
     return value
 
 
+# Stable category identifiers stored on events; display labels and colors are
+# frontend concerns. "other" is the default and the fallback for unknown values.
+ALLOWED_EVENT_CATEGORIES = (
+    "work",
+    "personal",
+    "meeting",
+    "focus",
+    "important",
+    "other",
+)
+DEFAULT_EVENT_CATEGORY = "other"
+
+
+def _validate_event_category(value: str) -> str:
+    if value not in ALLOWED_EVENT_CATEGORIES:
+        raise ValueError("category must be one of: " + ", ".join(ALLOWED_EVENT_CATEGORIES))
+    return value
+
+
 class EventCreate(BaseModel):
     title: str = Field(..., min_length=1, max_length=255)
     description: str | None = None
@@ -80,6 +99,7 @@ class EventCreate(BaseModel):
     end_date: date | None = None
     timezone: str | None = None
     recurrence_rule: str | None = None
+    category: str = DEFAULT_EVENT_CATEGORY
 
     @field_validator("title")
     @classmethod
@@ -88,6 +108,11 @@ class EventCreate(BaseModel):
         if not trimmed:
             raise ValueError("Event title must not be empty")
         return trimmed
+
+    @field_validator("category")
+    @classmethod
+    def validate_category(cls, value: str) -> str:
+        return _validate_event_category(value)
 
     @field_validator("timezone")
     @classmethod
@@ -129,6 +154,7 @@ class EventUpdate(BaseModel):
     end_date: date | None = None
     timezone: str | None = None
     recurrence_rule: str | None = None
+    category: str | None = None
 
     @field_validator("title")
     @classmethod
@@ -139,6 +165,13 @@ class EventUpdate(BaseModel):
         if not trimmed:
             raise ValueError("Event title must not be empty")
         return trimmed
+
+    @field_validator("category")
+    @classmethod
+    def validate_category(cls, value: str | None) -> str | None:
+        if value is None:
+            return value
+        return _validate_event_category(value)
 
     @field_validator("timezone")
     @classmethod
@@ -176,6 +209,7 @@ class EventResponse(BaseModel):
     end_date: date | None
     timezone: str | None
     recurrence_rule: str | None
+    category: str
     created_at: datetime
     updated_at: datetime
 
@@ -229,6 +263,7 @@ class OccurrenceEditRequest(BaseModel):
     end_date: date | None = None
     timezone: str | None = None
     recurrence_rule: str | None = None
+    category: str | None = None
 
     @field_validator("title")
     @classmethod
@@ -239,6 +274,13 @@ class OccurrenceEditRequest(BaseModel):
         if not trimmed:
             raise ValueError("Event title must not be empty")
         return trimmed
+
+    @field_validator("category")
+    @classmethod
+    def validate_category(cls, value: str | None) -> str | None:
+        if value is None:
+            return value
+        return _validate_event_category(value)
 
     @field_validator("timezone")
     @classmethod
@@ -269,6 +311,7 @@ class OccurrenceEditRequest(BaseModel):
             "end_date",
             "timezone",
             "recurrence_rule",
+            "category",
         ]
         if not any(getattr(self, f) is not None for f in fields):
             raise ValueError("Update payload must not be empty")
@@ -315,6 +358,7 @@ class OccurrenceResponse(BaseModel):
     original_start_date: date | None
     is_recurring: bool
     is_exception: bool
+    category: str
 
 
 class ReminderCreate(BaseModel):

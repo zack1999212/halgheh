@@ -16,6 +16,7 @@ import { createException, deleteEvent } from './api.js'
 import { getBrowserTimeZone } from './time.js'
 import { clearToken } from '../src/api.js'
 import { DEFAULT_VIEW } from './views.js'
+import { categoryOf } from './categories.js'
 import './calendar.css'
 
 export default function CalendarPage() {
@@ -132,8 +133,10 @@ export default function CalendarPage() {
   const showCalendarPlaceholder =
     !calendarsLoading && !calendarsError && calendars.length === 0
   const showEventsLoading =
-    hasCalendar && eventsApi.loading && eventsApi.events.length === 0
+    hasCalendar && eventsApi.loading
   const showEventsError = hasCalendar && Boolean(eventsApi.error)
+  const showNoEvents =
+    hasCalendar && !eventsApi.loading && eventsApi.events.length === 0
 
   return (
     <div className="calendar-page">
@@ -178,9 +181,19 @@ export default function CalendarPage() {
           timeZone="local"
           events={eventsApi.events}
           eventContent={(arg) => <CalendarEvent arg={arg} />}
+          eventDidMount={(info) => {
+            const category = info.event.extendedProps?.category
+            const cat = categoryOf(category)
+            info.el.style.setProperty('--evc-bg', cat.background)
+            info.el.style.setProperty('--evc-accent', cat.accent)
+            info.el.style.setProperty('--evc-text', cat.text)
+          }}
           eventClick={handleEventClick}
           datesSet={handleDatesSet}
           noEventsText="No events scheduled"
+          listDayFormat={{ weekday: 'short', month: 'short', day: 'numeric' }}
+          listDaySideFormat={false}
+          allDayText="All day"
         />
 
         {showCalendarPlaceholder && (
@@ -247,6 +260,16 @@ export default function CalendarPage() {
               >
                 Retry
               </button>
+            </div>
+          </div>
+        )}
+        {showNoEvents && (
+          <div className="calendar-overlay" role="alert">
+            <div className="calendar-state">
+              <p className="calendar-state-title">No events scheduled</p>
+              <p className="calendar-state-text">
+                Create an event to get started.
+              </p>
             </div>
           </div>
         )}

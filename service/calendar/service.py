@@ -11,6 +11,7 @@ from sqlalchemy.orm import Session
 from . import recurrence, repository, scheduling
 from .models import Calendar, Event
 from .schemas import (
+    ALLOWED_EVENT_CATEGORIES,
     CalendarCreate,
     CalendarUpdate,
     EventCreate,
@@ -319,8 +320,15 @@ def _apply_event_update(event: Event, data: EventUpdate) -> None:
         "end_date": event.end_date,
         "timezone": event.timezone,
         "recurrence_rule": event.recurrence_rule,
+        "category": event.category,
     }
     resulting.update(updates)
+
+    # Category cannot be null/unknown in resulting state.
+    if resulting["category"] is None:
+        raise HTTPException(status_code=422, detail="Category cannot be cleared")
+    if resulting["category"] not in ALLOWED_EVENT_CATEGORIES:
+        raise HTTPException(status_code=422, detail="Unknown event category")
 
     # Title cannot be null/empty in resulting state.
     if resulting["title"] is None or not str(resulting["title"]).strip():
@@ -511,6 +519,7 @@ def list_occurrences(
                     original_start_date=None,
                     is_recurring=False,
                     is_exception=False,
+                    category=event.category,
                 )
             )
 
@@ -532,6 +541,7 @@ def list_occurrences(
                     original_start_date=None,
                     is_recurring=False,
                     is_exception=False,
+                    category=event.category,
                 )
             )
 
@@ -581,6 +591,7 @@ def list_occurrences(
                             original_start_date=orig_key if isinstance(orig_key, date) else None,
                             is_recurring=True,
                             is_exception=True,
+                            category=event.category,
                         )
                     )
                 else:
@@ -600,6 +611,7 @@ def list_occurrences(
                                 original_start_date=orig_key if isinstance(orig_key, date) else None,
                                 is_recurring=True,
                                 is_exception=False,
+                                category=event.category,
                             )
                         )
         else:
@@ -633,6 +645,7 @@ def list_occurrences(
                             original_start_date=None,
                             is_recurring=True,
                             is_exception=True,
+                            category=event.category,
                         )
                     )
                 else:
@@ -652,6 +665,7 @@ def list_occurrences(
                                 original_start_date=None,
                                 is_recurring=True,
                                 is_exception=False,
+                                category=event.category,
                             )
                         )
 
@@ -689,6 +703,7 @@ def list_occurrences(
                         original_start_date=orig_key if isinstance(orig_key, date) else None,
                         is_recurring=True,
                         is_exception=True,
+                        category=event.category,
                     )
                 )
             else:
@@ -721,6 +736,7 @@ def list_occurrences(
                         original_start_date=None,
                         is_recurring=True,
                         is_exception=True,
+                        category=event.category,
                     )
                 )
 
@@ -1176,6 +1192,7 @@ def edit_occurrence(db, calendar_id, event_id, user_id, data):
                 "end_date": new_end_date,
                 "timezone": None,
                 "recurrence_rule": new_rule,
+                "category": event.category,
             }
         else:
             sel_dt = original.astimezone(ZoneInfo(event.timezone)) if isinstance(original, datetime) else original
@@ -1191,6 +1208,7 @@ def edit_occurrence(db, calendar_id, event_id, user_id, data):
                 "end_at": new_end,
                 "timezone": new_timezone,
                 "recurrence_rule": new_rule,
+                "category": event.category,
             }
 
         # Migrate exceptions.

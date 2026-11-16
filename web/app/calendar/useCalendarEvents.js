@@ -19,11 +19,12 @@ export function occurrenceToSelection(occurrence) {
     endAt: occurrence.end_at,
     startDate: occurrence.start_date,
     endDate: occurrence.end_date,
-    timezone: occurrence.timezone,
-    originalStartAt: occurrence.original_start_at,
-    originalStartDate: occurrence.original_start_date,
+    timezone: occurrence.timezone || '',
+    originalStartAt: occurrence.original_start_at || null,
+    originalStartDate: occurrence.original_start_date || null,
     isRecurring: Boolean(occurrence.is_recurring),
     isException: Boolean(occurrence.is_exception),
+    category: occurrence.category || 'other',
   }
 }
 
@@ -40,18 +41,18 @@ export function occurrenceToSelection(occurrence) {
  * `extendedProps.eventId` for editing/cancellation logic.
  */
 export function occurrenceToCalendarEvent(occurrence, calendar) {
-  const originalKey =
-    occurrence.original_start_at ?? occurrence.original_start_date ?? ''
+  const originalKey = occurrence.original_start_at ?? occurrence.original_start_date
   
   // Use the occurrence's own start time/date for a unique ID per occurrence.
   // original_start_at/date are the same for all occurrences in a series,
   // FullCalendar to deduplicate them into one event.
   const occurrenceKey = occurrence.is_all_day
-    ? (occurrence.start_date ?? originalKey)
-    : (occurrence.start_at ?? originalKey)
+    ? occurrence.start_date
+    : occurrence.start_at
   
+  // Ensure a unique ID per occurrence by using event_id with a differentiator
   const id = occurrence.is_recurring
-    ? `${occurrence.event_id}:${occurrenceKey}`
+    ? `${occurrence.event_id}:${occurrenceKey || occurrence.event_id}`
     : String(occurrence.event_id)
 
   const extendedProps = {
@@ -66,6 +67,7 @@ export function occurrenceToCalendarEvent(occurrence, calendar) {
     calendarId: calendar?.id ?? null,
     calendarName: calendar?.name || '',
     calendarColor: calendar?.color || '',
+    category: occurrence.category || 'other',
   }
 
   if (occurrence.is_all_day) {
@@ -75,18 +77,19 @@ export function occurrenceToCalendarEvent(occurrence, calendar) {
       id,
       title: occurrence.title,
       allDay: true,
-      start: occurrence.start_date,
-      end: occurrence.end_date,
+      start: occurrence.start_date || '',
+      end: occurrence.end_date || '',
       extendedProps,
     }
   }
 
+  // For timed events, ensure start/end are always present
   return {
     id,
     title: occurrence.title,
     allDay: false,
-    start: occurrence.start_at,
-    end: occurrence.end_at,
+    start: occurrence.start_at || '',
+    end: occurrence.end_at || '',
     extendedProps,
   }
 }

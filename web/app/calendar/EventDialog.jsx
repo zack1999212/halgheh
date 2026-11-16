@@ -10,6 +10,7 @@ import {
   wallToIso,
 } from './time.js'
 import { createEvent, editOccurrence, updateEvent } from './api.js'
+import { CATEGORIES, DEFAULT_CATEGORY } from './categories.js'
 
 const EMPTY_RECURRENCE = {
   frequency: '',
@@ -104,6 +105,7 @@ export default function EventDialog({
   // cannot express is never silently rewritten on save.
   const [recurrenceDirty, setRecurrenceDirty] = useState(false)
   const [scope, setScope] = useState('occurrence')
+  const [category, setCategory] = useState(DEFAULT_CATEGORY)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
   const [fieldErrors, setFieldErrors] = useState({})
@@ -143,6 +145,7 @@ export default function EventDialog({
       }
       setRecurrence(parseRecurrenceRule(event.recurrence_rule))
       setScope(event.recurrence_rule ? 'occurrence' : 'series')
+      setCategory(event.category || DEFAULT_CATEGORY)
     } else {
       setTitle('')
       setDescription('')
@@ -155,6 +158,7 @@ export default function EventDialog({
       setTimeZone(getBrowserTimeZone())
       setRecurrence(EMPTY_RECURRENCE)
       setScope('occurrence')
+      setCategory(DEFAULT_CATEGORY)
     }
   }, [open, isEdit, event, calendarId])
 
@@ -314,6 +318,7 @@ export default function EventDialog({
             start_date: startDate,
             end_date: endDate,
             recurrence_rule: rule,
+            category,
           }
         : {
             ...base,
@@ -322,6 +327,7 @@ export default function EventDialog({
             end_at: wallToIso(effectiveEndWall(), timeZone),
             timezone: timeZone,
             recurrence_rule: rule,
+            category,
           }
       await submit(() => createEvent(targetId, payload))
       return
@@ -363,6 +369,9 @@ export default function EventDialog({
     }
 
     const patch = { ...base }
+    if (category !== (event.category || DEFAULT_CATEGORY)) {
+      patch.category = category
+    }
     if (event.is_all_day) {
       if (startDate !== event.start_date) patch.start_date = startDate
       if (endDate !== event.end_date) patch.end_date = endDate
@@ -499,6 +508,44 @@ export default function EventDialog({
             <p className="form-hint">
               A single occurrence can only change its title, description and
               time.
+            </p>
+          )}
+        </div>
+
+        <div className="form-field">
+          <label className="form-label" htmlFor="event-category">
+            Category
+          </label>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <span
+              aria-hidden="true"
+              style={{
+                width: '14px',
+                height: '14px',
+                borderRadius: '3px',
+                background: CATEGORIES.find((c) => c.id === category)?.background,
+                border: `2px solid ${CATEGORIES.find((c) => c.id === category)?.accent}`,
+                flexShrink: 0,
+              }}
+            />
+            <select
+              id="event-category"
+              className="form-select"
+              value={category}
+              disabled={saving || detailsDisabled}
+              onChange={(event) => setCategory(event.target.value)}
+              style={{ flex: 1 }}
+            >
+              {CATEGORIES.map((cat) => (
+                <option key={cat.id} value={cat.id}>
+                  {cat.label}
+                </option>
+              ))}
+            </select>
+          </div>
+          {detailsDisabled && (
+            <p className="form-hint">
+              Category follows the series for a single occurrence.
             </p>
           )}
         </div>

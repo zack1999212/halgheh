@@ -2,12 +2,15 @@
 export default function CalendarEvent({ arg }) {
   const { event, timeText } = arg
   const isRecurring = Boolean(event.extendedProps?.isRecurring)
+  const isAllDay = event.allDay
 
   return (
     <div
-      className={`calendar-event${event.allDay ? ' calendar-event--all-day' : ''}`}
+      className={isAllDay ? 'calendar-event calendar-event--all-day' : 'calendar-event'}
     >
-      {timeText && <span className="calendar-event-time">{timeText}</span>}
+      {!isAllDay && timeText && (
+        <span className="calendar-event-time">{timeText}</span>
+      )}
       <span className="calendar-event-title">{event.title}</span>
       {isRecurring && (
         <span className="calendar-event-recurring" aria-label="Repeating">
