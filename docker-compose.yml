@@ -26,7 +26,7 @@ services:
       - ./alembic.ini:/app/alembic.ini
       - ./alembic:/app/alembic
     ports:
-      - "8002:8000"
+      - "8001:8000"
     environment:
       APP_ENV: ${APP_ENV:-development}
       # Set SECRET_KEY in the host environment for non-development deployments.
