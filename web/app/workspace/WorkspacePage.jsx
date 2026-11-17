@@ -8,11 +8,14 @@ import { createException, deleteEvent } from '../calendar/api.js'
 import { clearSession } from '../auth/api.js'
 import useWorkspaceCalendarData from './hooks/useWorkspaceCalendarData.js'
 import useWorkspaceDocumentsData from './hooks/useWorkspaceDocumentsData.js'
+import useWorkspaceTasksData from './hooks/useWorkspaceTasksData.js'
 import WorkspaceHeader from './components/WorkspaceHeader.jsx'
 import OverviewCards from './components/OverviewCards.jsx'
 import QuickActions from './components/QuickActions.jsx'
 import TodaySchedule from './components/sections/TodaySchedule.jsx'
+import TodayTasks from './components/sections/TodayTasks.jsx'
 import UpcomingEvents from './components/sections/UpcomingEvents.jsx'
+import UpcomingTasks from './components/sections/UpcomingTasks.jsx'
 import RecentDocuments from './components/sections/RecentDocuments.jsx'
 import './workspace.css'
 
@@ -26,6 +29,7 @@ export default function WorkspacePage() {
 
   const calendar = useWorkspaceCalendarData({ onUnauthorized: handleUnauthorized })
   const documents = useWorkspaceDocumentsData({ onUnauthorized: handleUnauthorized })
+  const tasks = useWorkspaceTasksData({ onUnauthorized: handleUnauthorized })
 
   const [selectedItem, setSelectedItem] = useState(null)
   const [detailsRefreshKey, setDetailsRefreshKey] = useState(0)
@@ -136,28 +140,38 @@ export default function WorkspacePage() {
         calendarError={calendar.error}
         documentsLoading={documents.loading}
         documentsError={documents.error}
+        tasksLoading={tasks.loading}
+        tasksError={tasks.error}
         timeZone={calendar.timeZone}
         todayCount={calendar.todayCount}
         nextTodayEvent={calendar.nextTodayEvent}
         upcomingCount={calendar.upcomingCount}
         nearestUpcoming={calendar.nearestUpcoming}
         documentsTotal={documents.total}
+        activeTasksCount={tasks.activeCount}
+        overdueTasksCount={tasks.overdueCount}
       />
 
-      {/* Primary schedule + secondary panels. Extensible: a future Tasks section
-          can be added without restructuring existing sections or data hooks. */}
+      {/* Balanced dashboard: Today's Schedule and Today's Tasks are primary;
+          upcoming, documents, and quick actions follow. Each section handles
+          its own loading/empty/error state independently. */}
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-2 lg:items-start">
-        <div className="lg:row-span-2">
-          <TodaySchedule
-            loading={calendar.loading}
-            error={calendar.error}
-            items={calendar.todayItems}
-            timeZone={calendar.timeZone}
-            onRetry={calendar.reload}
-            onOpenEvent={openEvent}
-            onCreateEvent={canCreateEvent ? openCreateEvent : undefined}
-          />
-        </div>
+        <TodaySchedule
+          loading={calendar.loading}
+          error={calendar.error}
+          items={calendar.todayItems}
+          timeZone={calendar.timeZone}
+          onRetry={calendar.reload}
+          onOpenEvent={openEvent}
+          onCreateEvent={canCreateEvent ? openCreateEvent : undefined}
+        />
+        <TodayTasks
+          loading={tasks.loading}
+          error={tasks.error}
+          items={tasks.todayTasks}
+          todayStr={tasks.todayStr}
+          onRetry={tasks.reload}
+        />
         <UpcomingEvents
           loading={calendar.loading}
           error={calendar.error}
@@ -167,15 +181,19 @@ export default function WorkspacePage() {
           onOpenEvent={openEvent}
           onCreateEvent={canCreateEvent ? openCreateEvent : undefined}
         />
+        <UpcomingTasks
+          loading={tasks.loading}
+          error={tasks.error}
+          items={tasks.upcomingTasks}
+          onRetry={tasks.reload}
+        />
+        <RecentDocuments
+          loading={documents.loading}
+          error={documents.error}
+          documents={documents.documents}
+          onRetry={documents.reload}
+        />
         <QuickActions onCreateEvent={openCreateEvent} canCreateEvent={canCreateEvent} />
-        <div className="lg:col-span-2">
-          <RecentDocuments
-            loading={documents.loading}
-            error={documents.error}
-            documents={documents.documents}
-            onRetry={documents.reload}
-          />
-        </div>
       </div>
 
       {selectedOccurrence && selectedCalendar && (

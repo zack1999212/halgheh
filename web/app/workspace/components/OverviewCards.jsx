@@ -1,5 +1,5 @@
 import { useNavigate } from 'react-router-dom'
-import { CalendarDays, Clock3, FileText } from 'lucide-react'
+import { CalendarDays, CheckSquare2, Clock3, FileText } from 'lucide-react'
 import { Card, CardContent } from '@/components/ui/card'
 import { Skeleton } from '@/components/ui/skeleton'
 
@@ -69,12 +69,16 @@ export default function OverviewCards({
   calendarError,
   documentsLoading,
   documentsError,
+  tasksLoading,
+  tasksError,
   timeZone,
   todayCount,
   nextTodayEvent,
   upcomingCount,
   nearestUpcoming,
   documentsTotal,
+  activeTasksCount,
+  overdueTasksCount,
 }) {
   const navigate = useNavigate()
   const today = new Date()
@@ -105,10 +109,18 @@ export default function OverviewCards({
     return when ? `Nearest: ${when}` : 'Upcoming soon'
   })()
 
+  const tasksLabel = (() => {
+    if (tasksLoading || tasksError) return null
+    if (typeof overdueTasksCount === 'number' && overdueTasksCount > 0) {
+      return `${overdueTasksCount} overdue`
+    }
+    return 'Active tasks'
+  })()
+
   const showDocuments = typeof documentsTotal === 'number'
 
   return (
-    <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+    <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
       <CardShell
         icon={CalendarDays}
         title="Today's Events"
@@ -147,7 +159,26 @@ export default function OverviewCards({
         )}
       </CardShell>
 
-      {showDocuments && (
+      <CardShell
+        icon={CheckSquare2}
+        title="Active Tasks"
+        onClick={() => navigate('/tasks')}
+      >
+        {tasksLoading ? (
+          <MetricSkeleton />
+        ) : tasksError ? (
+          <p className="text-sm text-muted-foreground">Unavailable</p>
+        ) : (
+          <>
+            <div className="text-3xl font-semibold leading-none tracking-tight text-foreground">
+              {typeof activeTasksCount === 'number' ? activeTasksCount : '—'}
+            </div>
+            <p className="text-xs text-muted-foreground">{tasksLabel}</p>
+          </>
+        )}
+      </CardShell>
+
+      {showDocuments ? (
         <CardShell icon={FileText} title="Documents" onClick={() => navigate('/documents')}>
           {documentsLoading ? (
             <MetricSkeleton />
@@ -161,6 +192,10 @@ export default function OverviewCards({
               <p className="text-xs text-muted-foreground">Total documents</p>
             </>
           )}
+        </CardShell>
+      ) : (
+        <CardShell icon={FileText} title="Documents">
+          <p className="text-sm text-muted-foreground">Count unavailable</p>
         </CardShell>
       )}
     </div>

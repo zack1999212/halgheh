@@ -1,4 +1,4 @@
-import { apiRequest } from '../../src/api.js'
+import { apiRequest } from '../../../src/api.js'
 
 /**
  * Documents API client.
