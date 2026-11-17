@@ -6,7 +6,7 @@ import AppLayout from '../workspace/AppLayout.jsx'
 import WorkspacePage from '../workspace/WorkspacePage.jsx'
 import CalendarPage from '../calendar/CalendarPage.jsx'
 import TasksPage from '../task/TasksPage.jsx'
-import DocumentsPage from '../docs/DocumentsPage.jsx'
+import DocumentsPage from '../features/documents/DocumentsPage.jsx'
 
 export default function App() {
   return (
@@ -25,6 +25,7 @@ export default function App() {
         <Route path="/calendar" element={<CalendarPage />} />
         <Route path="/tasks" element={<TasksPage />} />
         <Route path="/documents" element={<DocumentsPage />} />
+        <Route path="/documents/:documentId" element={<DocumentsPage />} />
       </Route>
 
       {/* The previous login destination now resolves to the workspace page. */}
