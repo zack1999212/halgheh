@@ -290,6 +290,14 @@
   margin: 2px 4px 2px 0;
   padding: 3px 6px;
 }
+/* Time-grid (Week/Day) events must span exactly their time range: the
+   generic chip margin above adds 2px at the top and bottom, which shrinks
+   the box away from its true start and end hour lines. Horizontal spacing
+   between adjacent columns stays. */
+.fc .fc-timegrid-event {
+  margin-top: 0;
+  margin-bottom: 0;
+}
 /* Event content styling */
 .fc .fc-event .fc-event-main {
   padding: 2px 6px;
@@ -732,6 +740,39 @@
   align-items: baseline;
   gap: 4px;
 }
+
+/* --- Week/Day guide lines --------------------------------------------- */
+/* Faint hairlines that connect each timed event's start and end edges to the
+   hour labels on the left axis. The overlay is appended to the time grid body
+   by timeGridGuides.js; it must not intercept clicks or drags. */
+.fc .fc-timegrid-body {
+  position: relative;
+}
+.tg-guides-overlay {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  pointer-events: none;
+}
+.tg-guide-line {
+  position: absolute;
+  left: 0;
+  height: 0;
+  border-top: 1px dashed var(--cal-ink-muted, #737373);
+}
+/* A small tick where the line meets the hour axis, so an edge that falls
+   exactly on an hour stays readable against the solid hour grid line. */
+.tg-guide-line::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: -3.5px;
+  width: 3px;
+  height: 7px;
+  background: var(--cal-ink-muted, #737373);
+  border-radius: 1px;
+}
+
 /* --- Agenda view: clean schedule list per the reference --- */
 /* Remove FullCalendar's default column header row and blue dot markers. */
 .fc .fc-list-table thead, .fc .fc-list-event-graphic {

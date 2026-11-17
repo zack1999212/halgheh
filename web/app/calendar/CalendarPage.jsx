@@ -1,4 +1,4 @@
-import { useCallback, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import EmptyState from '@/components/shared/EmptyState'
 import ErrorState from '@/components/shared/ErrorState'
@@ -24,6 +24,7 @@ import { clearToken } from '../src/api.js'
 import { DEFAULT_VIEW } from './views.js'
 import { categoryOf } from './categories.js'
 import CalendarAgent from './agent/CalendarAgent.jsx'
+import { createTimeGridGuides } from './timeGridGuides.js'
 import './calendar.css'
 
 /** Centered overlay used for the calendar's loading, empty and error states. */
@@ -39,6 +40,8 @@ function CalendarOverlay({ children }) {
 
 export default function CalendarPage() {
   const calendarRef = useRef(null)
+  const surfaceRef = useRef(null)
+  const guidesRef = useRef(null)
   const navigate = useNavigate()
 
   const [view, setView] = useState(DEFAULT_VIEW)
@@ -65,6 +68,24 @@ export default function CalendarPage() {
   }, [navigate])
 
   const calendarsApi = useCalendars({ onUnauthorized: handleUnauthorized })
+
+  // Guide lines for the Week/Day time grids: faint hairlines connecting each
+  // timed event's start and end edges to the hour axis. The guides module
+  // watches the surface for FullCalendar's own DOM mutations (event drag and
+  // resize rewrite inline styles), so the lines follow those gestures live.
+  useEffect(() => {
+    const surface = surfaceRef.current
+    if (!surface) {
+      return undefined
+    }
+    const guides = createTimeGridGuides(surface)
+    guidesRef.current = guides
+    return () => {
+      guides.destroy()
+      guidesRef.current = null
+    }
+  }, [])
+
   const {
     calendars,
     selectedCalendarId,
@@ -330,7 +351,7 @@ export default function CalendarPage() {
         onCreateEvent={() => setEditor({ open: true, mode: 'create' })}
       />
 
-      <div className="calendar-surface">
+      <div className="calendar-surface" ref={surfaceRef}>
         <FullCalendar
           ref={calendarRef}
           plugins={[dayGridPlugin, timeGridPlugin, listPlugin, interactionPlugin]}
@@ -355,6 +376,10 @@ export default function CalendarPage() {
             info.el.style.setProperty('--evc-bg', cat.background)
             info.el.style.setProperty('--evc-accent', cat.accent)
             info.el.style.setProperty('--evc-text', cat.text)
+            // FullCalendar re-mounts events on view changes; make sure the
+            // guide lines are redrawn with the fresh event geometry even if
+            // the DOM observer's last paint ran before the events mounted.
+            guidesRef.current?.refresh()
           }}
           eventClick={handleEventClick}
           eventDrop={handleEventDrop}
