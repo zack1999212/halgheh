@@ -1,0 +1,229 @@
+.
+├── alembic
+│   ├── env.py
+│   ├── script.py.mako
+│   └── versions
+│       ├── 001_initial_schema.py
+│       ├── 002_drop_legacy_schema_migrations.py
+│       ├── 003_calendar_domain_foundation.py
+│       ├── 004_reminder_table.py
+│       ├── 005_scheduling_notifications.py
+│       ├── 006_phase_3_6_preferences_lifecycle.py
+│       ├── 007_event_comments.py
+│       ├── 008_event_category.py
+│       ├── 009_ai_provider_config.py
+│       ├── 010_agent_foundation.py
+│       └── 011_agent_conversation_timezone.py
+├── alembic.ini
+├── docker-compose.yml
+├── .gitignore
+├── project_structure.txt
+├── service
+│   ├── agent
+│   │   ├── agents.py
+│   │   ├── calendar_tools.py
+│   │   ├── config.py
+│   │   ├── engine.py
+│   │   ├── __init__.py
+│   │   ├── models
+│   │   │   ├── conversation.py
+│   │   │   ├── __init__.py
+│   │   │   ├── message.py
+│   │   │   └── pending_action.py
+│   │   ├── repository.py
+│   │   ├── router.py
+│   │   ├── schemas.py
+│   │   ├── service.py
+│   │   └── tools.py
+│   ├── ai
+│   │   ├── config.py
+│   │   ├── crypto.py
+│   │   ├── __init__.py
+│   │   ├── models
+│   │   │   ├── credential.py
+│   │   │   └── __init__.py
+│   │   ├── providers.py
+│   │   ├── repository.py
+│   │   ├── router.py
+│   │   ├── schemas.py
+│   │   └── service.py
+│   ├── auth
+│   │   ├── dependencies.py
+│   │   ├── __init__.py
+│   │   ├── models.py
+│   │   ├── router.py
+│   │   ├── schemas.py
+│   │   └── security.py
+│   ├── calendar
+│   │   ├── __init__.py
+│   │   ├── models
+│   │   │   ├── calendar.py
+│   │   │   ├── event_comment.py
+│   │   │   ├── event_exception.py
+│   │   │   ├── event.py
+│   │   │   ├── __init__.py
+│   │   │   ├── reminder.py
+│   │   │   └── scheduled_reminder.py
+│   │   ├── recurrence.py
+│   │   ├── repository.py
+│   │   ├── router.py
+│   │   ├── scheduling.py
+│   │   ├── schemas.py
+│   │   └── service.py
+│   ├── core
+│   │   ├── database.py
+│   │   └── __init__.py
+│   ├── Dockerfile
+│   ├── .dockerignore
+│   ├── docs
+│   │   ├── __init__.py
+│   │   ├── models
+│   │   │   └── __init__.py
+│   │   └── router.py
+│   ├── .env.example
+│   ├── .gitignore
+│   ├── main.py
+│   ├── notifications
+│   │   ├── cleanup.py
+│   │   ├── __init__.py
+│   │   ├── models
+│   │   │   ├── __init__.py
+│   │   │   ├── notification_preference.py
+│   │   │   └── notification.py
+│   │   ├── repository.py
+│   │   ├── router.py
+│   │   ├── schemas.py
+│   │   └── service.py
+│   ├── README.md
+│   ├── reminder_worker.py
+│   ├── requirements.txt
+│   ├── share
+│   │   ├── __init__.py
+│   │   ├── models
+│   │   │   └── __init__.py
+│   │   └── router.py
+│   └── task
+│       ├── __init__.py
+│       ├── models
+│       │   └── __init__.py
+│       └── router.py
+└── web
+    └── app
+        ├── ai
+        │   ├── ai-settings.css
+        │   ├── AISettingsPage.jsx
+        │   ├── api.js
+        │   └── useAISettings.js
+        ├── auth
+        │   ├── api.js
+        │   ├── auth.css
+        │   ├── components
+        │   │   ├── AuthLayout.jsx
+        │   │   ├── FormError.jsx
+        │   │   ├── PasswordField.jsx
+        │   │   ├── SubmitButton.jsx
+        │   │   └── TextField.jsx
+        │   ├── Login.jsx
+        │   ├── ProtectedRoute.jsx
+        │   ├── Register.jsx
+        │   └── validation.js
+        ├── calendar
+        │   ├── agent
+        │   │   ├── agent.css
+        │   │   ├── api.js
+        │   │   ├── CalendarAgent.jsx
+        │   │   ├── ConfirmationCard.jsx
+        │   │   ├── ConversationHistory.jsx
+        │   │   ├── format.js
+        │   │   └── ToolActivity.jsx
+        │   ├── api.js
+        │   ├── calendar.css
+        │   ├── CalendarDialog.jsx
+        │   ├── CalendarEvent.jsx
+        │   ├── CalendarPage.jsx
+        │   ├── CalendarSelector.jsx
+        │   ├── CalendarToolbar.jsx
+        │   ├── CalendarViewSelector.jsx
+        │   ├── categories.js
+        │   ├── ConfirmDialog.jsx
+        │   ├── eventDetail.js
+        │   ├── EventDetailPanel.jsx
+        │   ├── EventDialog.jsx
+        │   ├── Modal.jsx
+        │   ├── RecurrenceFields.jsx
+        │   ├── recurrence.js
+        │   ├── time.js
+        │   ├── useCalendarEvents.js
+        │   ├── useCalendars.js
+        │   ├── useEventDetails.js
+        │   └── views.js
+        ├── Dockerfile
+        ├── .dockerignore
+        ├── docs
+        │   └── DocumentsPage.jsx
+        ├── .gitignore
+        ├── index.html
+        ├── notifications
+        │   ├── api.js
+        │   ├── format.js
+        │   ├── NotificationItem.jsx
+        │   ├── NotificationMenu.jsx
+        │   ├── NotificationPreferences.jsx
+        │   ├── notifications.css
+        │   └── useNotifications.js
+        ├── package.json
+        ├── package-lock.json
+        ├── README.md
+        ├── src
+        │   ├── api.js
+        │   ├── App.jsx
+        │   ├── index.css
+        │   └── main.jsx
+        ├── task
+        │   └── TasksPage.jsx
+        ├── .vite
+        │   └── deps
+        │       ├── chunk-22OWXBIE.js
+        │       ├── chunk-22OWXBIE.js.map
+        │       ├── chunk-32E4H3EV.js
+        │       ├── chunk-32E4H3EV.js.map
+        │       ├── chunk-G3PMV62Z.js
+        │       ├── chunk-G3PMV62Z.js.map
+        │       ├── chunk-QGAAA2AU.js
+        │       ├── chunk-QGAAA2AU.js.map
+        │       ├── chunk-T7UM46HU.js
+        │       ├── chunk-T7UM46HU.js.map
+        │       ├── chunk-TNTPHDQH.js
+        │       ├── chunk-TNTPHDQH.js.map
+        │       ├── @fullcalendar_daygrid.js
+        │       ├── @fullcalendar_daygrid.js.map
+        │       ├── @fullcalendar_interaction.js
+        │       ├── @fullcalendar_interaction.js.map
+        │       ├── @fullcalendar_list.js
+        │       ├── @fullcalendar_list.js.map
+        │       ├── @fullcalendar_react.js
+        │       ├── @fullcalendar_react.js.map
+        │       ├── @fullcalendar_timegrid.js
+        │       ├── @fullcalendar_timegrid.js.map
+        │       ├── lucide-react.js
+        │       ├── lucide-react.js.map
+        │       ├── _metadata.json
+        │       ├── package.json
+        │       ├── react-dom_client.js
+        │       ├── react-dom_client.js.map
+        │       ├── react.js
+        │       ├── react.js.map
+        │       ├── react-router-dom.js
+        │       └── react-router-dom.js.map
+        ├── vite.config.js
+        └── workspace
+            ├── AppLayout.jsx
+            ├── components
+            │   ├── AppHeader.jsx
+            │   ├── ProfileMenu.jsx
+            │   └── Sidebar.jsx
+            ├── navigation.js
+            ├── shell.css
+            └── WorkspacePage.jsx
+
+35 directories, 192 files
