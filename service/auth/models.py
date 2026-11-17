@@ -7,6 +7,8 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 from ..core.database import Base
 
 if TYPE_CHECKING:
+    from ..agent.models import AgentConversation
+    from ..ai.models import AICredential
     from ..calendar.models import Calendar
     from ..notifications.models import NotificationPreference
 
@@ -30,6 +32,18 @@ class User(Base):
     )
     notifications: Mapped[list["Notification"]] = relationship(
         "Notification",
+        back_populates="user",
+        cascade="all, delete-orphan",
+        passive_deletes=True,
+    )
+    ai_credentials: Mapped[list["AICredential"]] = relationship(
+        "AICredential",
+        back_populates="user",
+        cascade="all, delete-orphan",
+        passive_deletes=True,
+    )
+    agent_conversations: Mapped[list["AgentConversation"]] = relationship(
+        "AgentConversation",
         back_populates="user",
         cascade="all, delete-orphan",
         passive_deletes=True,

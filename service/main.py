@@ -4,7 +4,9 @@ from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
+from .agent.router import router as agent_router
 from .auth.router import router as auth_router
+from .ai.router import router as ai_router
 from .calendar.router import router as calendar_router
 from .notifications.router import router as notifications_router
 import service.notifications.models  # noqa: F401
@@ -30,6 +32,8 @@ app.add_middleware(
 )
 
 app.include_router(auth_router)
+app.include_router(ai_router)
+app.include_router(agent_router)
 app.include_router(docs_router)
 app.include_router(calendar_router)
 app.include_router(notifications_router)

@@ -7,6 +7,7 @@ import WorkspacePage from '../workspace/WorkspacePage.jsx'
 import CalendarPage from '../calendar/CalendarPage.jsx'
 import TasksPage from '../task/TasksPage.jsx'
 import DocumentsPage from '../features/documents/DocumentsPage.jsx'
+import AISettingsPage from '../ai/AISettingsPage.jsx'
 
 export default function App() {
   return (
@@ -26,6 +27,7 @@ export default function App() {
         <Route path="/tasks" element={<TasksPage />} />
         <Route path="/documents" element={<DocumentsPage />} />
         <Route path="/documents/:documentId" element={<DocumentsPage />} />
+        <Route path="/settings/ai" element={<AISettingsPage />} />
       </Route>
 
       {/* The previous login destination now resolves to the workspace page. */}

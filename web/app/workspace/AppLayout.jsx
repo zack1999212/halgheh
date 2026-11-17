@@ -4,11 +4,20 @@ import { getCurrentUser, clearSession } from '../auth/api.js'
 import { NAV_ITEMS, findNavItem } from './navigation.js'
 import Sidebar from './components/Sidebar.jsx'
 import AppHeader from './components/AppHeader.jsx'
+import { SidebarInset, SidebarProvider } from '@/components/ui/sidebar'
 import './shell.css'
 
+/**
+ * Shared application shell.
+ *
+ * `SidebarProvider` owns the collapse state (cookie-persisted by the shadcn
+ * component) and swaps the sidebar for a Sheet below the 1024px breakpoint.
+ * `SidebarInset` is the main column: header plus the page outlet, whose
+ * padding stays in `shell.css` so the Calendar keeps the viewport height it
+ * measures against.
+ */
 export default function AppLayout() {
   const [user, setUser] = useState(null)
-  const [navOpen, setNavOpen] = useState(false)
   const location = useLocation()
   const navigate = useNavigate()
 
@@ -42,54 +51,30 @@ export default function AppLayout() {
     }
   }, [handleUnauthorized])
 
-  // Close the mobile drawer whenever the route changes.
-  useEffect(() => {
-    setNavOpen(false)
-  }, [location.pathname])
-
-  useEffect(() => {
-    if (!navOpen) {
-      return undefined
-    }
-
-    function handleKeyDown(event) {
-      if (event.key === 'Escape') {
-        setNavOpen(false)
-      }
-    }
-
-    document.addEventListener('keydown', handleKeyDown)
-    return () => document.removeEventListener('keydown', handleKeyDown)
-  }, [navOpen])
-
   const activeItem = findNavItem(location.pathname)
 
   return (
-    <div className="app-shell">
-      <Sidebar items={NAV_ITEMS} open={navOpen} />
+    <SidebarProvider
+      style={{
+        '--sidebar-width': 'var(--app-sidebar-width)',
+        '--sidebar-width-icon': 'var(--app-sidebar-width-icon)',
+      }}
+      className="bg-background"
+    >
+      <Sidebar items={NAV_ITEMS} />
 
-      {navOpen && (
-        <button
-          type="button"
-          className="app-nav-overlay"
-          onClick={() => setNavOpen(false)}
-          aria-label="Close navigation"
-        />
-      )}
-
-      <div className="app-main">
+      <SidebarInset className="min-w-0">
         <AppHeader
           title={activeItem?.label || 'Halgheh'}
           user={user}
-          onOpenNavigation={() => setNavOpen(true)}
           onLogout={handleLogout}
           onUnauthorized={handleUnauthorized}
         />
 
-        <main className="app-content">
+        <div className="app-content">
           <Outlet />
-        </main>
-      </div>
-    </div>
+        </div>
+      </SidebarInset>
+    </SidebarProvider>
   )
 }

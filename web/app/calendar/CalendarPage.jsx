@@ -1,26 +1,47 @@
-import { useCallback, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
+import EmptyState from '@/components/shared/EmptyState'
+import ErrorState from '@/components/shared/ErrorState'
+import LoadingState from '@/components/shared/LoadingState'
+import ConfirmDialog from '@/components/shared/ConfirmDialog'
+import RadioOption from '@/components/shared/RadioOption'
+import { Button } from '@/components/ui/button'
 import FullCalendar from '@fullcalendar/react'
 import dayGridPlugin from '@fullcalendar/daygrid'
 import timeGridPlugin from '@fullcalendar/timegrid'
 import listPlugin from '@fullcalendar/list'
+import interactionPlugin from '@fullcalendar/interaction'
 import CalendarToolbar from './CalendarToolbar.jsx'
 import CalendarEvent from './CalendarEvent.jsx'
 import EventDetailPanel from './EventDetailPanel.jsx'
 import EventDialog from './EventDialog.jsx'
 import CalendarDialog from './CalendarDialog.jsx'
-import ConfirmDialog from './ConfirmDialog.jsx'
 import useCalendars from './useCalendars.js'
 import useCalendarEvents, { occurrenceToSelection } from './useCalendarEvents.js'
-import { createException, deleteEvent } from './api.js'
+import { createException, deleteEvent, editOccurrence, updateEvent } from './api.js'
 import { getBrowserTimeZone } from './time.js'
 import { clearToken } from '../src/api.js'
 import { DEFAULT_VIEW } from './views.js'
 import { categoryOf } from './categories.js'
+import CalendarAgent from './agent/CalendarAgent.jsx'
+import { createTimeGridGuides } from './timeGridGuides.js'
 import './calendar.css'
+
+/** Centered overlay used for the calendar's loading, empty and error states. */
+function CalendarOverlay({ children }) {
+  return (
+    <div className="absolute inset-0 z-10 flex items-center justify-center bg-card/70 p-4">
+      <div className="w-full max-w-[320px] rounded-[var(--radius-lg)] border border-border bg-card p-5 text-center shadow-sm">
+        {children}
+      </div>
+    </div>
+  )
+}
 
 export default function CalendarPage() {
   const calendarRef = useRef(null)
+  const surfaceRef = useRef(null)
+  const guidesRef = useRef(null)
   const navigate = useNavigate()
 
   const [view, setView] = useState(DEFAULT_VIEW)
@@ -36,6 +57,10 @@ export default function CalendarPage() {
   const [deleteScope, setDeleteScope] = useState('series')
   const [deleteBusy, setDeleteBusy] = useState(false)
   const [deleteError, setDeleteError] = useState('')
+  const [dragScopeTarget, setDragScopeTarget] = useState(null)
+  const [dragScope, setDragScope] = useState('occurrence')
+  const [dragBusy, setDragBusy] = useState(false)
+  const [dragError, setDragError] = useState('')
 
   const handleUnauthorized = useCallback(() => {
     clearToken()
@@ -43,6 +68,24 @@ export default function CalendarPage() {
   }, [navigate])
 
   const calendarsApi = useCalendars({ onUnauthorized: handleUnauthorized })
+
+  // Guide lines for the Week/Day time grids: faint hairlines connecting each
+  // timed event's start and end edges to the hour axis. The guides module
+  // watches the surface for FullCalendar's own DOM mutations (event drag and
+  // resize rewrite inline styles), so the lines follow those gestures live.
+  useEffect(() => {
+    const surface = surfaceRef.current
+    if (!surface) {
+      return undefined
+    }
+    const guides = createTimeGridGuides(surface)
+    guidesRef.current = guides
+    return () => {
+      guides.destroy()
+      guidesRef.current = null
+    }
+  }, [])
+
   const {
     calendars,
     selectedCalendarId,
@@ -56,6 +99,14 @@ export default function CalendarPage() {
     calendar: selectedCalendar,
     onUnauthorized: handleUnauthorized,
   })
+
+  // The assistant can change events in any calendar; refresh the current grid
+  // and the open detail panel without resetting the selected date or view.
+  const reloadEvents = eventsApi.reload
+  const handleAgentCalendarChange = useCallback(() => {
+    reloadEvents()
+    setDetailsRefreshKey((current) => current + 1)
+  }, [reloadEvents])
 
   function handleSelectCalendar(calendarId) {
     setSelectedOccurrence(null)
@@ -81,10 +132,144 @@ export default function CalendarPage() {
 
   function handleEventClick(info) {
     info.jsEvent.preventDefault()
+    info.jsEvent.stopPropagation()
     const raw = info.event.extendedProps?.raw
     if (raw) {
       setSelectedOccurrence(occurrenceToSelection(raw))
     }
+  }
+
+  /** Build a description of a drag/resize change from a FullCalendar event. */
+  function describeChange(fcEvent, kind) {
+    const ext = fcEvent.extendedProps || {}
+    const raw = ext.raw || {}
+    const isAllDay = Boolean(fcEvent.allDay)
+    const timezone = ext.timezone || raw.timezone || getBrowserTimeZone()
+    if (isAllDay) {
+      return {
+        kind,
+        eventId: ext.eventId,
+        calendarId: ext.calendarId ?? selectedCalendarId,
+        isAllDay: true,
+        isRecurring: Boolean(ext.isRecurring),
+        originalStartAt: ext.originalStartAt || null,
+        originalStartDate: ext.originalStartDate || null,
+        timezone,
+        startDate: fcEvent.startStr,
+        endDate: fcEvent.endStr,
+      }
+    }
+    return {
+      kind,
+      eventId: ext.eventId,
+      calendarId: ext.calendarId ?? selectedCalendarId,
+      isAllDay: false,
+      isRecurring: Boolean(ext.isRecurring),
+      originalStartAt: ext.originalStartAt || null,
+      originalStartDate: ext.originalStartDate || null,
+      timezone,
+      startAt: fcEvent.start.toISOString(),
+      endAt: fcEvent.end.toISOString(),
+    }
+  }
+
+  async function persistNonRecurringChange(change) {
+    const calendarId = change.calendarId
+    const eventId = change.eventId
+    if (!calendarId || !eventId) return
+    const updates = {}
+    if (change.isAllDay) {
+      updates.start_date = change.startDate
+      updates.end_date = change.endDate
+    } else {
+      updates.start_at = change.startAt
+      updates.end_at = change.endAt
+      updates.timezone = change.timezone
+    }
+    try {
+      await updateEvent(calendarId, eventId, updates)
+      eventsApi.reload()
+      setDetailsRefreshKey((c) => c + 1)
+    } catch (err) {
+      setDragError(err?.message || 'Could not move the event.')
+      throw err
+    }
+  }
+
+  function handleEventDrop(info) {
+    const change = describeChange(info.event, 'drop')
+    if (change.isRecurring) {
+      info.revert()
+      setDragScope('occurrence')
+      setDragError('')
+      setDragScopeTarget(change)
+      return
+    }
+    // Non-recurring: keep visual, persist in background.
+    persistNonRecurringChange(change).catch(() => {
+      info.revert()
+    })
+  }
+
+  function handleEventResize(info) {
+    const change = describeChange(info.event, 'resize')
+    if (change.isRecurring) {
+      info.revert()
+      setDragScope('occurrence')
+      setDragError('')
+      setDragScopeTarget(change)
+      return
+    }
+    persistNonRecurringChange(change).catch(() => {
+      info.revert()
+    })
+  }
+
+  async function confirmDragScope() {
+    const change = dragScopeTarget
+    if (!change) return
+    setDragBusy(true)
+    setDragError('')
+    const calendarId = change.calendarId
+    const eventId = change.eventId
+    try {
+      const payload = {}
+      if (change.isAllDay) {
+        payload.start_date = change.startDate
+        payload.end_date = change.endDate
+      } else {
+        payload.start_at = change.startAt
+        payload.end_at = change.endAt
+        payload.timezone = change.timezone
+      }
+      if (change.isRecurring) {
+        const originalKey = change.isAllDay
+          ? change.originalStartDate
+          : change.originalStartAt
+        if (change.isAllDay) {
+          payload.original_start_date = originalKey
+        } else {
+          payload.original_start_at = originalKey
+        }
+        payload.scope = dragScope
+        await editOccurrence(calendarId, eventId, payload)
+      } else {
+        await updateEvent(calendarId, eventId, payload)
+      }
+      setDragScopeTarget(null)
+      eventsApi.reload()
+      setDetailsRefreshKey((c) => c + 1)
+      setSelectedOccurrence(null)
+    } catch (err) {
+      setDragError(err?.message || 'Could not update the event.')
+    } finally {
+      setDragBusy(false)
+    }
+  }
+
+  function cancelDragScope() {
+    setDragScopeTarget(null)
+    setDragError('')
   }
 
   function refreshAfterChange() {
@@ -166,10 +351,14 @@ export default function CalendarPage() {
         onCreateEvent={() => setEditor({ open: true, mode: 'create' })}
       />
 
-      <div className="calendar-surface">
+      <div className="calendar-surface" ref={surfaceRef}>
         <FullCalendar
           ref={calendarRef}
-          plugins={[dayGridPlugin, timeGridPlugin, listPlugin]}
+          plugins={[dayGridPlugin, timeGridPlugin, listPlugin, interactionPlugin]}
+          editable
+          eventStartEditable
+          eventDurationEditable
+          eventResizableFromStart={false}
           initialView={DEFAULT_VIEW}
           headerToolbar={false}
           footerToolbar={false}
@@ -187,8 +376,53 @@ export default function CalendarPage() {
             info.el.style.setProperty('--evc-bg', cat.background)
             info.el.style.setProperty('--evc-accent', cat.accent)
             info.el.style.setProperty('--evc-text', cat.text)
+            // FullCalendar re-mounts events on view changes; make sure the
+            // guide lines are redrawn with the fresh event geometry even if
+            // the DOM observer's last paint ran before the events mounted.
+            guidesRef.current?.refresh()
           }}
           eventClick={handleEventClick}
+          eventDrop={handleEventDrop}
+          eventResize={handleEventResize}
+          dayCellDidMount={(info) => {
+            if (info.view.type !== 'dayGridMonth') {
+              return
+            }
+            const cell = info.el
+            cell.style.cursor = 'pointer'
+            cell.setAttribute('tabindex', '0')
+            cell.setAttribute(
+              'aria-label',
+              info.date.toLocaleDateString(undefined, {
+                weekday: 'long',
+                year: 'numeric',
+                month: 'long',
+                day: 'numeric',
+              })
+            )
+            const handleClick = (e) => {
+              if (e.target?.closest?.('.fc-event, .fc-more-link, .fc-daygrid-more-link')) {
+                return
+              }
+              const api = calendarRef.current?.getApi()
+              if (!api) return
+              setView('timeGridDay')
+              api.changeView('timeGridDay', info.date)
+              setSelectedOccurrence(null)
+            }
+            cell.addEventListener('click', handleClick)
+            const handleKeyDown = (e) => {
+              if (e.key === 'Enter' || e.key === ' ') {
+                e.preventDefault()
+                const api = calendarRef.current?.getApi()
+                if (!api) return
+                setView('timeGridDay')
+                api.changeView('timeGridDay', info.date)
+                setSelectedOccurrence(null)
+              }
+            }
+            cell.addEventListener('keydown', handleKeyDown)
+          }}
           datesSet={handleDatesSet}
           noEventsText="No events scheduled"
           listDayFormat={{ weekday: 'short', month: 'short', day: 'numeric' }}
@@ -197,81 +431,65 @@ export default function CalendarPage() {
         />
 
         {showCalendarPlaceholder && (
-          <div className="calendar-overlay">
-            <div className="calendar-state">
-              <p className="calendar-state-title">No calendars yet</p>
-              <p className="calendar-state-text">
-                Create a calendar to start adding events.
-              </p>
-              <button
+          <CalendarOverlay>
+            <EmptyState
+              title="No calendars yet"
+              description="Create a calendar to start adding events."
+            >
+              <Button
                 type="button"
-                className="button-primary"
+                size="sm"
+                className="h-8"
                 onClick={() =>
                   setCalendarDialog({ open: true, calendar: null })
                 }
               >
                 Create calendar
-              </button>
-            </div>
-          </div>
+              </Button>
+            </EmptyState>
+          </CalendarOverlay>
         )}
 
         {calendarsLoading && (
-          <div className="calendar-overlay">
-            <div className="calendar-state">
-              <p className="calendar-state-text">Loading calendars…</p>
-            </div>
-          </div>
+          <CalendarOverlay>
+            <LoadingState label="Loading calendars…" />
+          </CalendarOverlay>
         )}
 
         {!calendarsLoading && calendarsError && (
-          <div className="calendar-overlay" role="alert">
-            <div className="calendar-state">
-              <p className="calendar-state-title">Calendars unavailable</p>
-              <p className="calendar-state-text">{calendarsError}</p>
-              <button
-                type="button"
-                className="button-secondary"
-                onClick={() => calendarsApi.reload()}
-              >
-                Retry
-              </button>
-            </div>
-          </div>
+          <CalendarOverlay>
+            <ErrorState
+              title="Calendars unavailable"
+              message={calendarsError}
+              onRetry={() => calendarsApi.reload()}
+            />
+          </CalendarOverlay>
         )}
 
         {showEventsLoading && (
-          <div className="calendar-overlay">
-            <div className="calendar-state">
-              <p className="calendar-state-text">Loading events…</p>
-            </div>
-          </div>
+          <CalendarOverlay>
+            <LoadingState label="Loading events…" />
+          </CalendarOverlay>
         )}
 
         {showEventsError && (
-          <div className="calendar-overlay" role="alert">
-            <div className="calendar-state">
-              <p className="calendar-state-title">Could not load events</p>
-              <p className="calendar-state-text">{eventsApi.error}</p>
-              <button
-                type="button"
-                className="button-secondary"
-                onClick={eventsApi.reload}
-              >
-                Retry
-              </button>
-            </div>
-          </div>
+          <CalendarOverlay>
+            <ErrorState
+              title="Could not load events"
+              message={eventsApi.error}
+              onRetry={eventsApi.reload}
+            />
+          </CalendarOverlay>
         )}
+
         {showNoEvents && (
-          <div className="calendar-overlay" role="alert">
-            <div className="calendar-state">
-              <p className="calendar-state-title">No events scheduled</p>
-              <p className="calendar-state-text">
-                Create an event to get started.
-              </p>
-            </div>
-          </div>
+          <CalendarOverlay>
+            <EmptyState
+              title="No events scheduled"
+              description="Create an event to get started."
+              role="status"
+            />
+          </CalendarOverlay>
         )}
       </div>
 
@@ -328,40 +546,72 @@ export default function CalendarPage() {
         }}
       >
         {deleteTarget?.event?.recurrence_rule && (
-          <div className="scope-options">
-            <label className="scope-option">
-              <input
-                type="radio"
-                name="delete-scope"
-                value="occurrence"
-                checked={deleteScope === 'occurrence'}
-                onChange={() => setDeleteScope('occurrence')}
-              />
-              <span>
-                <span className="scope-option-label">This occurrence</span>
-                <span className="scope-option-hint">
-                  Cancels only the selected occurrence.
-                </span>
-              </span>
-            </label>
-            <label className="scope-option">
-              <input
-                type="radio"
-                name="delete-scope"
-                value="series"
-                checked={deleteScope === 'series'}
-                onChange={() => setDeleteScope('series')}
-              />
-              <span>
-                <span className="scope-option-label">All occurrences</span>
-                <span className="scope-option-hint">
-                  Deletes the whole series.
-                </span>
-              </span>
-            </label>
+          <div className="grid gap-2">
+            <RadioOption
+              name="delete-scope"
+              value="occurrence"
+              title="This occurrence"
+              description="Cancels only the selected occurrence."
+              checked={deleteScope === 'occurrence'}
+              onChange={() => setDeleteScope('occurrence')}
+            />
+            <RadioOption
+              name="delete-scope"
+              value="series"
+              title="All occurrences"
+              description="Deletes the whole series."
+              checked={deleteScope === 'series'}
+              onChange={() => setDeleteScope('series')}
+            />
           </div>
         )}
       </ConfirmDialog>
+
+      <ConfirmDialog
+        open={Boolean(dragScopeTarget)}
+        title="Move recurring event"
+        description="This event repeats. Apply the change to:"
+        confirmLabel="Apply"
+        busyLabel="Saving…"
+        destructive={false}
+        busy={dragBusy}
+        error={dragError}
+        onConfirm={confirmDragScope}
+        onClose={cancelDragScope}
+      >
+        <div className="grid gap-2">
+          <RadioOption
+            name="drag-scope"
+            value="occurrence"
+            title="This occurrence"
+            description="Only the selected occurrence changes."
+            checked={dragScope === 'occurrence'}
+            onChange={() => setDragScope('occurrence')}
+            disabled={dragBusy}
+          />
+          <RadioOption
+            name="drag-scope"
+            value="series"
+            title="Entire series"
+            description="All occurrences move or resize together."
+            checked={dragScope === 'series'}
+            onChange={() => setDragScope('series')}
+            disabled={dragBusy}
+          />
+        </div>
+      </ConfirmDialog>
+
+      {dragError && !dragScopeTarget && (
+        <div
+          className="fixed bottom-6 left-1/2 z-50 -translate-x-1/2 rounded-[var(--radius-md)] border border-destructive/30 bg-card px-3.5 py-2 text-[13px] text-destructive shadow-md"
+          role="alert"
+        >
+          {dragError}
+        </div>
+      )}
+
+      {/* Floating assistant is scoped to the Calendar page only. */}
+      <CalendarAgent onCalendarChanged={handleAgentCalendarChange} />
     </div>
   )
 }

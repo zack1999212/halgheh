@@ -1,4 +1,23 @@
 import { FREQUENCY_OPTIONS, WEEKDAYS } from './recurrence.js'
+import {
+  FieldMessage,
+  fieldInputClass,
+} from '@/components/shared/FormField'
+import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
+import { cn } from '@/lib/utils'
+
+
+/** Radix Select cannot hold an empty value, so "no repeat" uses a sentinel. */
+const NO_REPEAT = 'NONE'
 
 export default function RecurrenceFields({
   value,
@@ -26,56 +45,61 @@ export default function RecurrenceFields({
   }[value.frequency]
 
   return (
-    <div className="form-section">
-      <h3 className="form-section-title">Repeat</h3>
+    <section className="grid gap-3">
+      <h3 className="text-[13px] font-semibold">Repeat</h3>
 
-      <div className="form-row">
-        <div className="form-field">
-          <label className="form-label" htmlFor="event-frequency">
+      <div className="grid gap-4 sm:grid-cols-[1fr_auto]">
+        <div className="grid gap-2">
+          <Label htmlFor="event-frequency" className="text-[13px] font-medium">
             Frequency
-          </label>
-          <select
-            id="event-frequency"
-            className="form-select"
-            value={value.frequency}
+          </Label>
+          <Select
+            value={value.frequency || NO_REPEAT}
             disabled={disabled}
-            onChange={(event) =>
+            onValueChange={(next) => {
+              const frequency = next === NO_REPEAT ? '' : next
               update({
-                frequency: event.target.value,
+                frequency,
                 byDay:
-                  event.target.value === 'WEEKLY' && value.byDay.length === 0
+                  frequency === 'WEEKLY' && value.byDay.length === 0
                     ? []
                     : value.byDay,
               })
-            }
+            }}
           >
-            {FREQUENCY_OPTIONS.map((option) => (
-              <option key={option.value} value={option.value}>
-                {option.label}
-              </option>
-            ))}
-          </select>
+            <SelectTrigger id="event-frequency">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {FREQUENCY_OPTIONS.map((option) => (
+                <SelectItem
+                  key={option.value || NO_REPEAT}
+                  value={option.value || NO_REPEAT}
+                >
+                  {option.label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
         </div>
 
         {value.frequency && (
-          <div className="form-field form-field--narrow">
-            <label className="form-label" htmlFor="event-interval">
+          <div className="grid gap-2">
+            <Label htmlFor="event-interval" className="text-[13px] font-medium">
               Every
-            </label>
-            <div className="form-inline">
-              <input
+            </Label>
+            <div className="flex items-center gap-2">
+              <Input
                 id="event-interval"
-                className="form-input"
+                className={cn(fieldInputClass, 'w-20')}
                 type="number"
                 min="1"
                 max="99"
                 value={value.interval}
                 disabled={disabled}
-                onChange={(event) =>
-                  update({ interval: event.target.value })
-                }
+                onChange={(event) => update({ interval: event.target.value })}
               />
-              <span className="form-inline-suffix">
+              <span className="text-[13px] text-muted-foreground">
                 {unit}
                 {Number(value.interval) === 1 ? '' : 's'}
               </span>
@@ -85,53 +109,61 @@ export default function RecurrenceFields({
       </div>
 
       {value.frequency === 'WEEKLY' && (
-        <div className="form-field">
-          <span className="form-label">On</span>
-          <div className="weekday-picker">
-            {WEEKDAYS.map((day) => (
-              <button
-                key={day.code}
-                type="button"
-                className={`weekday-button${value.byDay.includes(day.code) ? ' is-active' : ''}`}
-                aria-pressed={value.byDay.includes(day.code)}
-                disabled={disabled}
-                onClick={() => toggleDay(day.code)}
-              >
-                {day.label}
-              </button>
-            ))}
+        <div className="grid gap-2">
+          <span className="text-[13px] font-medium">On</span>
+          <div className="flex flex-wrap gap-1.5">
+            {WEEKDAYS.map((day) => {
+              const active = value.byDay.includes(day.code)
+              return (
+                <Button
+                  key={day.code}
+                  type="button"
+                  size="sm"
+                  variant={active ? 'default' : 'outline'}
+                  className="h-8 min-w-9 px-2 text-[12.5px]"
+                  aria-pressed={active}
+                  disabled={disabled}
+                  onClick={() => toggleDay(day.code)}
+                >
+                  {day.label}
+                </Button>
+              )
+            })}
           </div>
         </div>
       )}
 
       {value.frequency && (
-        <div className="form-field">
-          <span className="form-label">Ends</span>
-          <div className="radio-row">
-            <label className="radio-option">
+        <div className="grid gap-2">
+          <span className="text-[13px] font-medium">Ends</span>
+          <div className="flex flex-wrap items-center gap-4">
+            <label className="flex items-center gap-2 text-[13px]">
               <input
                 type="radio"
                 name="recurrence-end"
+                className="size-3.5 accent-foreground"
                 checked={value.endMode === 'never'}
                 disabled={disabled}
                 onChange={() => update({ endMode: 'never' })}
               />
               Never
             </label>
-            <label className="radio-option">
+            <label className="flex items-center gap-2 text-[13px]">
               <input
                 type="radio"
                 name="recurrence-end"
+                className="size-3.5 accent-foreground"
                 checked={value.endMode === 'until'}
                 disabled={disabled}
                 onChange={() => update({ endMode: 'until' })}
               />
               On date
             </label>
-            <label className="radio-option">
+            <label className="flex items-center gap-2 text-[13px]">
               <input
                 type="radio"
                 name="recurrence-end"
+                className="size-3.5 accent-foreground"
                 checked={value.endMode === 'count'}
                 disabled={disabled}
                 onChange={() => update({ endMode: 'count' })}
@@ -141,9 +173,9 @@ export default function RecurrenceFields({
           </div>
 
           {value.endMode === 'until' && (
-            <input
+            <Input
               type="date"
-              className="form-input form-input--inline"
+              className={cn(fieldInputClass, 'w-fit')}
               value={value.untilDate}
               disabled={disabled}
               onChange={(event) => update({ untilDate: event.target.value })}
@@ -152,29 +184,29 @@ export default function RecurrenceFields({
           )}
 
           {value.endMode === 'count' && (
-            <div className="form-inline form-input--inline">
-              <input
+            <div className="flex items-center gap-2">
+              <Input
                 type="number"
                 min="1"
-                className="form-input"
+                className={cn(fieldInputClass, 'w-24')}
                 value={value.count}
                 disabled={disabled}
                 onChange={(event) => update({ count: event.target.value })}
                 aria-label="Number of occurrences"
               />
-              <span className="form-inline-suffix">times</span>
+              <span className="text-[13px] text-muted-foreground">times</span>
             </div>
           )}
         </div>
       )}
 
-      {error && <p className="form-error">{error}</p>}
+      <FieldMessage id="event-recurrence-error" error={error} />
       {value.frequency && (
-        <p className="form-hint">
+        <p className="text-[12.5px] text-muted-foreground">
           Rules are stored as RFC 5545 RRULEs
           {isAllDay ? ' using date-only UNTIL values' : ''}.
         </p>
       )}
-    </div>
+    </section>
   )
 }

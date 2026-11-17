@@ -1,4 +1,9 @@
-import { useId } from 'react'
+import { Input } from '@/components/ui/input'
+import FormField, {
+  fieldInputClass,
+  fieldInvalidClass,
+} from '@/components/shared/FormField'
+import { cn } from '@/lib/utils'
 
 /** Single-line text input with a label, optional hint and inline error. */
 export default function TextField({
@@ -7,32 +12,28 @@ export default function TextField({
   error,
   hint,
   id,
-  className = '',
+  className,
   ...inputProps
 }) {
-  const generatedId = useId()
-  const inputId = id || `field-${generatedId}`
-  const errorId = `${inputId}-error`
-
   return (
-    <div className="auth-field">
-      <label className="auth-field-label" htmlFor={inputId}>
-        {label}
-        {optional && <span className="auth-field-optional"> (optional)</span>}
-      </label>
-      <input
-        id={inputId}
-        className={`auth-input${error ? ' auth-input--invalid' : ''} ${className}`.trim()}
-        aria-invalid={error ? true : undefined}
-        aria-describedby={error ? errorId : undefined}
-        {...inputProps}
-      />
-      {error && (
-        <p className="auth-field-error" id={errorId}>
-          {error}
-        </p>
+    <FormField
+      id={id}
+      label={label}
+      optional={optional}
+      error={error}
+      hint={hint}
+    >
+      {(field) => (
+        <Input
+          {...field}
+          className={cn(
+            fieldInputClass,
+            error && fieldInvalidClass,
+            className,
+          )}
+          {...inputProps}
+        />
       )}
-      {!error && hint && <p className="auth-field-hint">{hint}</p>}
-    </div>
+    </FormField>
   )
 }
