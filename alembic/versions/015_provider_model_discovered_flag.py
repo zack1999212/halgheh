@@ -1,6 +1,6 @@
 """mark discovered provider models as removable
 
-Revision ID: 015
+Revision ID: 016
 Revises: 014
 Create Date: 2026-11-16 16:20:00.000000
 
@@ -15,8 +15,8 @@ from alembic import op
 import sqlalchemy as sa
 
 
-revision: str = "015"
-down_revision: Union[str, Sequence[str], None] = "014"
+revision: str = "016"
+down_revision: Union[str, Sequence[str], None] = "015"
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 

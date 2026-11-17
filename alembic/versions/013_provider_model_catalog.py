@@ -1,6 +1,6 @@
 """add provider model catalogue
 
-Revision ID: 013
+Revision ID: 014
 Revises: 012
 Create Date: 2026-11-16 15:10:00.000000
 
@@ -14,8 +14,8 @@ from alembic import op
 import sqlalchemy as sa
 
 
-revision: str = "013"
-down_revision: Union[str, Sequence[str], None] = "012"
+revision: str = "014"
+down_revision: Union[str, Sequence[str], None] = "013"
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 

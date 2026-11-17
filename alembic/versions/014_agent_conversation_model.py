@@ -1,6 +1,6 @@
 """add conversation model selection
 
-Revision ID: 014
+Revision ID: 015
 Revises: 013
 Create Date: 2026-11-16 15:20:00.000000
 
@@ -14,8 +14,8 @@ from alembic import op
 import sqlalchemy as sa
 
 
-revision: str = "014"
-down_revision: Union[str, Sequence[str], None] = "013"
+revision: str = "015"
+down_revision: Union[str, Sequence[str], None] = "014"
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 

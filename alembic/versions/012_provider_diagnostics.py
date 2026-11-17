@@ -1,6 +1,6 @@
 """add provider diagnostics table
 
-Revision ID: 012
+Revision ID: 013
 Revises: 011
 Create Date: 2026-11-16 14:00:00.000000
 
@@ -11,8 +11,8 @@ from alembic import op
 import sqlalchemy as sa
 
 
-revision: str = "012"
-down_revision: Union[str, Sequence[str], None] = "011"
+revision: str = "013"
+down_revision: Union[str, Sequence[str], None] = "012"
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 
