@@ -1,161 +1,23 @@
-.app-shell {
-  display: flex;
-  min-height: 100vh;
-  min-height: 100dvh;
-  background: var(--color-bg);
-}
-
-/* --- Sidebar --- */
-
-.app-sidebar {
-  position: sticky;
-  top: 0;
-  z-index: 40;
-  display: flex;
-  flex: none;
-  flex-direction: column;
-  width: var(--sidebar-width);
-  height: 100vh;
-  height: 100dvh;
-  padding: var(--space-5) var(--space-3);
-  background: var(--color-sidebar);
-  border-right: 1px solid var(--color-sidebar-border);
-  color: var(--color-sidebar-muted);
-  overflow-y: auto;
-}
-
-.sidebar-brand {
-  display: flex;
-  align-items: center;
-  gap: var(--space-2);
-  padding: 0 var(--space-2) var(--space-6);
-  color: #fff;
-}
-
-.sidebar-brand-mark {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 30px;
-  height: 30px;
-  border-radius: var(--radius-sm);
-  border: 1px solid rgba(255, 255, 255, 0.14);
-  background: rgba(255, 255, 255, 0.08);
-}
-
-.sidebar-brand-mark svg {
-  width: 18px;
-  height: 18px;
-}
-
-.sidebar-brand-name {
-  font-size: 15px;
-  font-weight: 600;
-  letter-spacing: -0.01em;
-}
-
-.sidebar-nav ul {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-  margin: 0;
-  padding: 0;
-  list-style: none;
-}
-
-.sidebar-link {
-  position: relative;
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  padding: 9px var(--space-3);
-  border-radius: var(--radius-sm);
-  color: var(--color-sidebar-muted);
-  font-size: 13.5px;
-  font-weight: 500;
-  text-decoration: none;
-  transition: background-color var(--transition), color var(--transition);
-}
-
-.sidebar-link:hover {
-  background: var(--color-sidebar-hover);
-  color: #fff;
-}
-
-.sidebar-link.is-active {
-  background: var(--color-sidebar-active);
-  color: #fff;
-}
-
-.sidebar-link.is-active::before {
-  content: '';
-  position: absolute;
-  top: 50%;
-  left: 0;
-  width: 2px;
-  height: 16px;
-  border-radius: 2px;
-  background: var(--color-sidebar-accent);
-  transform: translateY(-50%);
-}
-
-.sidebar-link:focus-visible {
-  outline: none;
-  box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.3);
-}
-
-/* --- Main area --- */
-
-.app-main {
-  display: flex;
-  flex: 1;
-  flex-direction: column;
-  min-width: 0;
-}
-
-.app-header {
-  position: sticky;
-  top: 0;
-  z-index: 30;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--space-4);
-  height: var(--header-height);
-  padding: 0 var(--space-6);
-  background: var(--color-surface);
-  border-bottom: 1px solid var(--color-border);
-}
-
-.app-header-left,
-.app-header-right {
-  display: flex;
-  align-items: center;
-  gap: var(--space-2);
-  min-width: 0;
-}
-
-.app-header-title {
-  font-size: 15px;
-  font-weight: 600;
-  letter-spacing: -0.01em;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-.app-header-divider {
-  width: 1px;
-  height: 20px;
-  background: var(--color-border);
-}
+/*
+ * Halgheh application shell styles.
+ *
+ * The shell chrome — sidebar, collapsible rail, header, profile menu — is now
+ * built from shadcn/ui primitives plus Tailwind utilities (see
+ * workspace/AppLayout.jsx and workspace/components/*). What stays here is the
+ * shared page area and the small controls reused by feature pages.
+ *
+ * `.app-content` intentionally keeps its original padding: the Calendar page
+ * measures its own height as `100dvh - header - top padding - bottom padding`,
+ * so changing these values would push its grid out of the viewport.
+ */
 
 .app-content {
   flex: 1;
+  min-width: 0;
   padding: var(--space-8) var(--space-6) var(--space-10);
 }
 
-/* --- Shared icon button --- */
+/* --- Shared icon button (notifications, calendar modals) --- */
 
 .icon-button {
   position: relative;
@@ -198,163 +60,6 @@
   height: 26px;
 }
 
-.app-nav-toggle {
-  display: none;
-}
-
-/* --- Profile menu --- */
-
-.profile-menu {
-  position: relative;
-}
-
-.profile-trigger {
-  display: flex;
-  align-items: center;
-  gap: var(--space-2);
-  padding: 3px 6px 3px 3px;
-  border: 1px solid transparent;
-  border-radius: 999px;
-  background: transparent;
-  color: var(--color-text);
-  cursor: pointer;
-  transition: background-color var(--transition);
-}
-
-.profile-trigger:hover,
-.profile-trigger.is-active {
-  background: var(--color-surface-muted);
-}
-
-.profile-trigger:focus-visible {
-  outline: none;
-  box-shadow: var(--ring-accent);
-}
-
-.profile-avatar {
-  display: inline-flex;
-  flex: none;
-  align-items: center;
-  justify-content: center;
-  width: 28px;
-  height: 28px;
-  border-radius: 50%;
-  background: var(--color-text);
-  color: #fff;
-  font-size: 11px;
-  font-weight: 600;
-  letter-spacing: 0.02em;
-}
-
-.profile-trigger-name {
-  max-width: 140px;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  font-size: 13px;
-  font-weight: 500;
-}
-
-.profile-chevron {
-  color: var(--color-text-muted);
-}
-
-.profile-panel {
-  position: absolute;
-  top: calc(100% + 8px);
-  right: 0;
-  z-index: 60;
-  width: 248px;
-  padding: var(--space-2);
-  background: var(--color-surface);
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-md);
-  box-shadow: 0 24px 48px -24px rgba(16, 24, 40, 0.32),
-    0 2px 8px rgba(16, 24, 40, 0.06);
-}
-
-.profile-panel-head {
-  display: flex;
-  align-items: flex-start;
-  gap: var(--space-3);
-  padding: var(--space-2) var(--space-2) var(--space-3);
-}
-
-.profile-panel-identity {
-  display: flex;
-  flex-direction: column;
-  gap: 1px;
-  min-width: 0;
-}
-
-.profile-panel-name {
-  font-size: 13px;
-  font-weight: 600;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.profile-panel-handle {
-  font-size: 12px;
-  color: var(--color-text-muted);
-}
-
-.profile-panel-since {
-  margin-top: 2px;
-  font-size: 11px;
-  color: var(--color-text-subtle);
-}
-
-.profile-panel-divider {
-  height: 1px;
-  margin: var(--space-2) 0;
-  background: var(--color-border);
-}
-
-.profile-panel-item {
-  display: flex;
-  align-items: center;
-  gap: var(--space-2);
-  width: 100%;
-  padding: 7px var(--space-2);
-  border: none;
-  border-radius: var(--radius-sm);
-  background: transparent;
-  color: var(--color-text);
-  font-size: 13px;
-  text-align: left;
-  cursor: pointer;
-}
-
-.profile-panel-item:hover:not(:disabled) {
-  background: var(--color-surface-muted);
-}
-
-.profile-panel-item:focus-visible {
-  outline: none;
-  box-shadow: var(--ring-accent);
-}
-
-.profile-panel-item:disabled {
-  color: var(--color-text-muted);
-  cursor: default;
-}
-
-.profile-panel-hint {
-  margin-left: auto;
-  font-size: 10.5px;
-  color: var(--color-text-subtle);
-}
-
-.profile-panel-item--danger {
-  color: var(--color-danger);
-}
-
-.profile-panel-item--danger:hover:not(:disabled) {
-  background: var(--color-danger-soft);
-}
-
 /* --- Page placeholder used by sections owned by other tasks --- */
 
 .page-placeholder {
@@ -379,62 +84,14 @@
 /* --- Responsive --- */
 
 @media (max-width: 1024px) {
-  .app-sidebar {
-    position: fixed;
-    inset: 0 auto 0 0;
-    height: 100dvh;
-    visibility: hidden;
-    transform: translateX(-100%);
-    box-shadow: 0 24px 60px rgba(0, 0, 0, 0.35);
-    transition: transform 180ms ease, visibility 180ms ease;
-  }
-
-  .app-sidebar.is-open {
-    visibility: visible;
-    transform: translateX(0);
-  }
-
-  .app-nav-toggle {
-    display: inline-flex;
-  }
-
-  .app-nav-overlay {
-    position: fixed;
-    inset: 0;
-    z-index: 35;
-    padding: 0;
-    border: none;
-    background: rgba(16, 24, 40, 0.4);
-    cursor: pointer;
-  }
-
-  .app-header {
-    padding: 0 var(--space-4);
-  }
-
   .app-content {
     padding: var(--space-6) var(--space-5) var(--space-8);
   }
 }
 
 @media (max-width: 640px) {
-  .app-header-title {
-    font-size: 14px;
-  }
-
   .app-content {
     padding: var(--space-5) var(--space-4) var(--space-8);
-  }
-
-  .profile-trigger-name {
-    display: none;
-  }
-
-  .profile-panel {
-    position: fixed;
-    top: calc(var(--header-height) + 8px);
-    right: 12px;
-    width: min(260px, calc(100vw - 24px));
   }
 
   .page-placeholder {
@@ -442,8 +99,15 @@
   }
 }
 
+/*
+ * The previous shell disabled its drawer animation for reduced motion; the
+ * shadcn sidebar animates its own width and offset, so carry the rule over to
+ * those elements (and only those).
+ */
 @media (prefers-reduced-motion: reduce) {
-  .app-sidebar {
-    transition: none;
+  .group\/peer > div,
+  .group\/peer [data-sidebar='sidebar'],
+  [data-sidebar='rail'] {
+    transition: none !important;
   }
 }

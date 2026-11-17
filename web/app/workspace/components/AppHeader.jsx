@@ -1,31 +1,28 @@
-import { Menu } from 'lucide-react'
+import { SidebarTrigger } from '@/components/ui/sidebar'
+import { Separator } from '@/components/ui/separator'
 import NotificationMenu from '../../notifications/NotificationMenu.jsx'
 import ProfileMenu from './ProfileMenu.jsx'
 
-export default function AppHeader({
-  title,
-  user,
-  onOpenNavigation,
-  onLogout,
-  onUnauthorized,
-}) {
+/**
+ * Shared application header.
+ *
+ * The navigation control comes from the sidebar context (`SidebarTrigger`), so
+ * it collapses the docked sidebar on desktop and opens the mobile Sheet without
+ * any extra responsive state here.
+ */
+export default function AppHeader({ title, user, onLogout, onUnauthorized }) {
   return (
-    <header className="app-header">
-      <div className="app-header-left">
-        <button
-          type="button"
-          className="icon-button app-nav-toggle"
-          onClick={onOpenNavigation}
-          aria-label="Open navigation"
-        >
-          <Menu size={18} aria-hidden="true" />
-        </button>
-        <h1 className="app-header-title">{title}</h1>
+    <header className="sticky top-0 z-30 flex h-[var(--header-height)] shrink-0 items-center justify-between gap-4 border-b border-border bg-card px-6 max-lg:px-4">
+      <div className="flex min-w-0 items-center gap-2">
+        <SidebarTrigger className="size-[34px] text-muted-foreground hover:bg-accent hover:text-foreground" />
+        <h1 className="truncate text-[15px] font-semibold tracking-[-0.01em] max-sm:text-sm">
+          {title}
+        </h1>
       </div>
 
-      <div className="app-header-right">
+      <div className="flex min-w-0 items-center gap-2">
         <NotificationMenu onUnauthorized={onUnauthorized} />
-        <span className="app-header-divider" aria-hidden="true" />
+        <Separator orientation="vertical" className="h-5" />
         <ProfileMenu user={user} onLogout={onLogout} />
       </div>
     </header>

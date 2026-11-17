@@ -1,5 +1,12 @@
 import { useEffect, useState } from 'react'
-import Modal from './Modal.jsx'
+import DialogShell from '@/components/shared/DialogShell'
+import FormError from '@/components/shared/FormError'
+import {
+  FieldMessage,
+  fieldInputClass,
+  fieldInvalidClass,
+} from '@/components/shared/FormField'
+import RadioOption from '@/components/shared/RadioOption'
 import RecurrenceFields from './RecurrenceFields.jsx'
 import { buildRecurrenceRule, parseRecurrenceRule } from './recurrence.js'
 import {
@@ -11,6 +18,19 @@ import {
 } from './time.js'
 import { createEvent, editOccurrence, updateEvent } from './api.js'
 import { CATEGORIES, DEFAULT_CATEGORY } from './categories.js'
+import { Button } from '@/components/ui/button'
+import { Checkbox } from '@/components/ui/checkbox'
+import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
+import { Textarea } from '@/components/ui/textarea'
+import { cn } from '@/lib/utils'
 
 const EMPTY_RECURRENCE = {
   frequency: '',
@@ -75,6 +95,14 @@ function localDate(offsetDays) {
   const date = new Date(Date.now() + offsetDays * 24 * 60 * 60 * 1000)
   const pad = (value) => String(value).padStart(2, '0')
   return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`
+}
+
+function FieldError({ id, children }) {
+  return <FieldMessage id={id} error={children} />
+}
+
+function FieldHint({ id, children }) {
+  return <FieldMessage id={id} hint={children} />
 }
 
 export default function EventDialog({
@@ -396,27 +424,41 @@ export default function EventDialog({
     await submit(() => updateEvent(calendarId, event.id, patch))
   }
 
+  const selectedCategory =
+    CATEGORIES.find((cat) => cat.id === category) ?? CATEGORIES[0]
+
+  function handleAllDayChange(next) {
+    setAllDay(next)
+    if (next) {
+      setStartDate(localDate(0))
+      setEndDate(nextDay(localDate(0)))
+    } else {
+      setStartAt(localWall(1))
+      setEndAt(localWall(2))
+    }
+  }
+
   return (
-    <Modal
+    <DialogShell
       open={open}
       wide
       title={isEdit ? 'Edit event' : 'New event'}
       onClose={saving ? () => {} : onClose}
       footer={
         <>
-          <span className="dialog-footer-spacer" />
-          <button
+          <Button
             type="button"
-            className="button-secondary"
+            variant="outline"
+            className="h-9"
             onClick={onClose}
             disabled={saving}
           >
             Cancel
-          </button>
-          <button
+          </Button>
+          <Button
             type="submit"
             form="event-form"
-            className="button-primary"
+            className="h-9"
             disabled={saving}
           >
             {saving
@@ -424,286 +466,296 @@ export default function EventDialog({
               : isEdit
                 ? 'Save changes'
                 : 'Create event'}
-          </button>
+          </Button>
         </>
       }
     >
-      <form id="event-form" className="form" onSubmit={handleSubmit}>
-        {error && (
-          <div className="form-alert" role="alert">
-            {error}
-          </div>
-        )}
+      <form id="event-form" className="grid gap-5" onSubmit={handleSubmit}>
+        <FormError>{error}</FormError>
 
         {isRecurringEvent && (
-          <div className="form-section">
-            <h3 className="form-section-title">Apply changes to</h3>
-            <div className="scope-options">
+          <section className="grid gap-2">
+            <h3 className="text-[13px] font-semibold">Apply changes to</h3>
+            <div className="grid gap-2">
               {SCOPES.map((option) => (
-                <label
+                <RadioOption
                   key={option.value}
-                  className={`scope-option${scope === option.value ? ' is-active' : ''}`}
-                >
-                  <input
-                    type="radio"
-                    name="event-scope"
-                    value={option.value}
-                    checked={scope === option.value}
-                    onChange={() => setScope(option.value)}
-                  />
-                  <span>
-                    <span className="scope-option-label">{option.label}</span>
-                    <span className="scope-option-hint">{option.hint}</span>
-                  </span>
-                </label>
+                  name="event-scope"
+                  value={option.value}
+                  title={option.label}
+                  description={option.hint}
+                  checked={scope === option.value}
+                  onChange={() => setScope(option.value)}
+                />
               ))}
             </div>
-          </div>
+          </section>
         )}
 
-        <div className="form-field">
-          <label className="form-label" htmlFor="event-title">
-            Title
-          </label>
-          <input
+        <div className="grid gap-2">
+          <Label htmlFor="event-title" className="text-[13px] font-medium">
+            Title <span className="text-destructive">*</span>
+          </Label>
+          <Input
             id="event-title"
-            className={`form-input${fieldErrors.title ? ' form-input--invalid' : ''}`}
+            className={cn(fieldInputClass, fieldErrors.title && fieldInvalidClass)}
             value={title}
             maxLength={255}
             disabled={saving}
             autoFocus
-            onChange={(event) => setTitle(event.target.value)}
+            aria-invalid={fieldErrors.title ? true : undefined}
+            aria-describedby={
+              fieldErrors.title ? 'event-title-error' : undefined
+            }
+            onChange={(changeEvent) => setTitle(changeEvent.target.value)}
           />
-          {fieldErrors.title && (
-            <p className="form-error">{fieldErrors.title}</p>
-          )}
+          <FieldError id="event-title-error">{fieldErrors.title}</FieldError>
         </div>
 
-        <div className="form-field">
-          <label className="form-label" htmlFor="event-description">
-            Description <span className="form-optional">(optional)</span>
-          </label>
-          <textarea
+        <div className="grid gap-2">
+          <Label
+            htmlFor="event-description"
+            className="text-[13px] font-medium"
+          >
+            Description{' '}
+            <span className="font-normal text-muted-foreground">
+              (optional)
+            </span>
+          </Label>
+          <Textarea
             id="event-description"
-            className="form-textarea"
+            className="min-h-[76px] rounded-[var(--radius-md)] px-3 py-2 text-base md:text-[15px]"
             rows={3}
             value={description}
             disabled={saving}
-            onChange={(event) => setDescription(event.target.value)}
+            onChange={(changeEvent) => setDescription(changeEvent.target.value)}
           />
         </div>
 
-        <div className="form-field">
-          <label className="form-label" htmlFor="event-location">
-            Location <span className="form-optional">(optional)</span>
-          </label>
-          <input
+        <div className="grid gap-2">
+          <Label htmlFor="event-location" className="text-[13px] font-medium">
+            Location{' '}
+            <span className="font-normal text-muted-foreground">
+              (optional)
+            </span>
+          </Label>
+          <Input
             id="event-location"
-            className="form-input"
+            className={fieldInputClass}
             value={location}
             disabled={saving || detailsDisabled}
-            onChange={(event) => setLocation(event.target.value)}
+            onChange={(changeEvent) => setLocation(changeEvent.target.value)}
           />
           {detailsDisabled && (
-            <p className="form-hint">
+            <FieldHint>
               A single occurrence can only change its title, description and
               time.
-            </p>
+            </FieldHint>
           )}
         </div>
 
-        <div className="form-field">
-          <label className="form-label" htmlFor="event-category">
+        <div className="grid gap-2">
+          <Label htmlFor="event-category" className="text-[13px] font-medium">
             Category
-          </label>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+          </Label>
+          <div className="flex items-center gap-2">
             <span
               aria-hidden="true"
+              className="size-3.5 shrink-0 rounded-[3px]"
               style={{
-                width: '14px',
-                height: '14px',
-                borderRadius: '3px',
-                background: CATEGORIES.find((c) => c.id === category)?.background,
-                border: `2px solid ${CATEGORIES.find((c) => c.id === category)?.accent}`,
-                flexShrink: 0,
+                background: selectedCategory.background,
+                border: `2px solid ${selectedCategory.accent}`,
               }}
             />
-            <select
-              id="event-category"
-              className="form-select"
+            <Select
               value={category}
               disabled={saving || detailsDisabled}
-              onChange={(event) => setCategory(event.target.value)}
-              style={{ flex: 1 }}
+              onValueChange={setCategory}
             >
-              {CATEGORIES.map((cat) => (
-                <option key={cat.id} value={cat.id}>
-                  {cat.label}
-                </option>
-              ))}
-            </select>
+              <SelectTrigger id="event-category" className="flex-1">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {CATEGORIES.map((cat) => (
+                  <SelectItem key={cat.id} value={cat.id}>
+                    {cat.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </div>
           {detailsDisabled && (
-            <p className="form-hint">
+            <FieldHint>
               Category follows the series for a single occurrence.
-            </p>
+            </FieldHint>
           )}
         </div>
 
         {!isEdit && calendars.length > 1 && (
-          <div className="form-field">
-            <label className="form-label" htmlFor="event-calendar">
+          <div className="grid gap-2">
+            <Label htmlFor="event-calendar" className="text-[13px] font-medium">
               Calendar
-            </label>
-            <select
-              id="event-calendar"
-              className="form-select"
-              value={targetCalendarId ?? ''}
+            </Label>
+            <Select
+              value={targetCalendarId ? String(targetCalendarId) : undefined}
               disabled={saving}
-              onChange={(event) =>
-                setTargetCalendarId(Number(event.target.value))
-              }
+              onValueChange={(next) => setTargetCalendarId(Number(next))}
             >
-              {calendars.map((calendar) => (
-                <option key={calendar.id} value={calendar.id}>
-                  {calendar.name}
-                </option>
-              ))}
-            </select>
+              <SelectTrigger id="event-calendar">
+                <SelectValue placeholder="Select calendar" />
+              </SelectTrigger>
+              <SelectContent>
+                {calendars.map((calendar) => (
+                  <SelectItem key={calendar.id} value={String(calendar.id)}>
+                    {calendar.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </div>
         )}
 
-        <div className="form-section">
-          <h3 className="form-section-title">When</h3>
+        <section className="grid gap-3">
+          <h3 className="text-[13px] font-semibold">When</h3>
 
-          <label className="form-checkbox">
-            <input
-              type="checkbox"
-              checked={allDay}
-              disabled={saving || allDayToggleDisabled}
-              onChange={(event) => {
-                const next = event.target.checked
-                setAllDay(next)
-                if (next) {
-                  setStartDate(localDate(0))
-                  setEndDate(nextDay(localDate(0)))
-                } else {
-                  setStartAt(localWall(1))
-                  setEndAt(localWall(2))
-                }
-              }}
-            />
-            All-day event
-          </label>
-          {allDayToggleDisabled && (
-            <p className="form-hint">
-              An event's all-day setting cannot be changed after creation.
-            </p>
-          )}
+          <div className="grid gap-2">
+            <div className="flex items-center gap-2">
+              <Checkbox
+                id="event-all-day"
+                checked={allDay}
+                disabled={saving || allDayToggleDisabled}
+                onCheckedChange={(next) => handleAllDayChange(next === true)}
+              />
+              <Label
+                htmlFor="event-all-day"
+                className="text-[13px] font-medium"
+              >
+                All-day event
+              </Label>
+            </div>
+            {allDayToggleDisabled && (
+              <FieldHint>
+                An event's all-day setting cannot be changed after creation.
+              </FieldHint>
+            )}
+          </div>
 
           {allDay ? (
-            <div className="form-row">
-              <div className="form-field">
-                <label className="form-label" htmlFor="event-start-date">
+            <div className="grid gap-4 sm:grid-cols-2">
+              <div className="grid gap-2">
+                <Label
+                  htmlFor="event-start-date"
+                  className="text-[13px] font-medium"
+                >
                   Start date
-                </label>
-                <input
+                </Label>
+                <Input
                   id="event-start-date"
                   type="date"
-                  className="form-input"
+                  className={fieldInputClass}
                   value={startDate}
                   disabled={saving || datesDisabled}
-                  onChange={(event) => setStartDate(event.target.value)}
+                  onChange={(changeEvent) => setStartDate(changeEvent.target.value)}
                 />
               </div>
-              <div className="form-field">
-                <label className="form-label" htmlFor="event-end-date">
+              <div className="grid gap-2">
+                <Label
+                  htmlFor="event-end-date"
+                  className="text-[13px] font-medium"
+                >
                   End date
-                </label>
-                <input
+                </Label>
+                <Input
                   id="event-end-date"
                   type="date"
-                  className="form-input"
+                  className={fieldInputClass}
                   value={endDate}
                   disabled={saving || datesDisabled}
-                  onChange={(event) => setEndDate(event.target.value)}
+                  onChange={(changeEvent) => setEndDate(changeEvent.target.value)}
                 />
-                <p className="form-hint">
+                <FieldHint>
                   End dates are exclusive: a one-day event ends the next day.
-                </p>
+                </FieldHint>
               </div>
             </div>
           ) : (
-            <div className="form-row">
-              <div className="form-field">
-                <label className="form-label" htmlFor="event-start">
+            <div className="grid gap-4 sm:grid-cols-2">
+              <div className="grid gap-2">
+                <Label htmlFor="event-start" className="text-[13px] font-medium">
                   Starts
-                </label>
-                <input
+                </Label>
+                <Input
                   id="event-start"
                   type="datetime-local"
-                  className="form-input"
+                  className={fieldInputClass}
                   value={startAt}
                   disabled={saving || datesDisabled}
-                  onChange={(event) => setStartAt(event.target.value)}
+                  onChange={(changeEvent) => setStartAt(changeEvent.target.value)}
                 />
               </div>
-              <div className="form-field">
-                <label className="form-label" htmlFor="event-end">
+              <div className="grid gap-2">
+                <Label htmlFor="event-end" className="text-[13px] font-medium">
                   {repeatingTimed ? 'Ends (each day)' : 'Ends'}
-                </label>
-                <input
+                </Label>
+                <Input
                   id="event-end"
                   type={repeatingTimed ? 'time' : 'datetime-local'}
-                  className="form-input"
+                  className={fieldInputClass}
                   value={repeatingTimed ? wallTimePart(endAt) : endAt}
                   disabled={saving || datesDisabled}
-                  onChange={(event) => {
+                  onChange={(changeEvent) => {
                     if (repeatingTimed) {
-                      const value = event.target.value
+                      const value = changeEvent.target.value
                       setEndAt(
                         `${startAt ? wallDatePart(startAt) : ''}T${value}`.replace(/^T$/, ''),
                       )
                     } else {
-                      setEndAt(event.target.value)
+                      setEndAt(changeEvent.target.value)
                     }
                   }}
                 />
                 {repeatingTimed && (
-                  <p className="form-hint">
+                  <FieldHint>
                     Each occurrence ends at this time on its own day. When the
                     series stops is set by the repeat options below.
-                  </p>
+                  </FieldHint>
                 )}
               </div>
             </div>
           )}
 
-          {fieldErrors.dates && (
-            <p className="form-error">{fieldErrors.dates}</p>
-          )}
+          <FieldError>{fieldErrors.dates}</FieldError>
 
           {!allDay && (
-            <div className="form-field">
-              <label className="form-label" htmlFor="event-timezone">
+            <div className="grid gap-2">
+              <Label
+                htmlFor="event-timezone"
+                className="text-[13px] font-medium"
+              >
                 Timezone
-              </label>
-              <input
+              </Label>
+              <Input
                 id="event-timezone"
-                className={`form-input${fieldErrors.timeZone ? ' form-input--invalid' : ''}`}
+                className={cn(fieldInputClass, fieldErrors.timeZone && fieldInvalidClass)}
                 value={timeZone}
                 disabled={saving || timezoneDisabled}
-                onChange={(event) => setTimeZone(event.target.value)}
+                aria-invalid={fieldErrors.timeZone ? true : undefined}
+                aria-describedby={
+                  fieldErrors.timeZone
+                    ? 'event-timezone-error'
+                    : 'event-timezone-hint'
+                }
+                onChange={(changeEvent) => setTimeZone(changeEvent.target.value)}
               />
-              <p className="form-hint">
+              <FieldHint id="event-timezone-hint">
                 IANA timezone used to interpret the times above.
-              </p>
-              {fieldErrors.timeZone && (
-                <p className="form-error">{fieldErrors.timeZone}</p>
-              )}
+              </FieldHint>
+              <FieldError id="event-timezone-error">
+                {fieldErrors.timeZone}
+              </FieldError>
             </div>
           )}
-        </div>
+        </section>
 
         <RecurrenceFields
           value={recurrence}
@@ -716,6 +768,6 @@ export default function EventDialog({
           error={fieldErrors.recurrence}
         />
       </form>
-    </Modal>
+    </DialogShell>
   )
 }

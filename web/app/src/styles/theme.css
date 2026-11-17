@@ -1,0 +1,192 @@
+/*
+ * Halgheh central theme tokens.
+ *
+ * Two token sets live here:
+ *
+ * 1. Legacy `--color-*` tokens used by the existing feature stylesheets
+ *    (auth, workspace shell, calendar, agent, notifications, AI settings).
+ *    They are unchanged, they were only moved out of `src/index.css` so all
+ *    theme variables have a single home.
+ *
+ * 2. shadcn/ui tokens (`--background`, `--primary`, ...) as raw HSL channels.
+ *    `tailwind.config.js` maps them onto Tailwind color utilities, so
+ *    `bg-primary`, `text-muted-foreground`, `border-border` all follow the
+ *    tokens below.
+ *
+ * The palette is intentionally monochrome: neutral black, white and gray with
+ * subtle borders and restrained shadows. Calendar event category colors are
+ * defined per category in `calendar/categories.js` and stay separate from this
+ * theme.
+ *
+ * Dark mode: the `.dark` block is prepared but nothing toggles it yet, so the
+ * application keeps its current single (light) appearance.
+ */
+
+:root {
+  /* ---------------------------------------------------------------- */
+  /* Legacy Halgheh tokens (existing pages and feature stylesheets)    */
+  /* ---------------------------------------------------------------- */
+
+  /* Typography */
+  --font-sans: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto,
+    "Helvetica Neue", Arial, sans-serif;
+
+  /* Surfaces */
+  --color-bg: #f6f7f9;
+  --color-surface: #ffffff;
+  --color-surface-muted: #f8f9fb;
+
+  /* Lines */
+  --color-border: #e6e8ec;
+  --color-border-input: #d5d9e0;
+
+  /* Text */
+  --color-text: #12141a;
+  --color-text-muted: #6b7280;
+  --color-text-subtle: #9aa1ad;
+
+  /* Application shell */
+  --color-sidebar: #0f1626;
+  --color-sidebar-muted: #97a1b5;
+  --color-sidebar-hover: rgba(255, 255, 255, 0.05);
+  --color-sidebar-active: rgba(255, 255, 255, 0.09);
+  --color-sidebar-border: rgba(255, 255, 255, 0.07);
+  --color-sidebar-accent: #8fb0ff;
+  /*
+   * Sidebar footprint: expanded width and icon-rail width. The shadcn Sidebar
+   * reads them through the inline tokens set in AppLayout, so the sidebar
+   * geometry stays in this file with the rest of the theme.
+   */
+  --app-sidebar-width: 248px;
+  --app-sidebar-width-icon: 48px;
+  --sidebar-width: var(--app-sidebar-width);
+  --header-height: 60px;
+
+  /* Accent */
+  --color-accent: #2563eb;
+  --color-accent-hover: #1d4ed8;
+  --color-accent-soft: #eff4ff;
+
+  /* Feedback */
+  --color-danger: #b42318;
+  --color-danger-soft: #fef3f2;
+  --color-danger-border: #fecdca;
+
+  /* Radii */
+  --radius-sm: 8px;
+  --radius-md: 10px;
+  --radius-lg: 14px;
+
+  /* Spacing */
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 20px;
+  --space-6: 24px;
+  --space-8: 32px;
+  --space-10: 40px;
+
+  /* Elevation and focus */
+  --shadow-card: 0 1px 2px rgba(16, 24, 40, 0.04),
+    0 16px 40px -20px rgba(16, 24, 40, 0.18);
+  --shadow-button: 0 1px 2px rgba(16, 24, 40, 0.08);
+  --ring-accent: 0 0 0 3px rgba(37, 99, 235, 0.18);
+  --ring-danger: 0 0 0 3px rgba(180, 35, 24, 0.12);
+  --transition: 140ms ease;
+
+  font-family: var(--font-sans);
+  line-height: 1.5;
+  color: var(--color-text);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+
+  /* ---------------------------------------------------------------- */
+  /* shadcn/ui tokens — monochrome, HSL channels                      */
+  /* ---------------------------------------------------------------- */
+
+  --background: 220 20% 97.1%;
+  --foreground: 225 18% 8.6%;
+
+  --card: 0 0% 100%;
+  --card-foreground: 225 18% 8.6%;
+
+  --popover: 0 0% 100%;
+  --popover-foreground: 225 18% 8.6%;
+
+  /* Primary action: near-black, not a colored brand accent. */
+  --primary: 225 18% 8.6%;
+  --primary-foreground: 0 0% 100%;
+
+  --secondary: 220 16% 95.3%;
+  --secondary-foreground: 225 18% 8.6%;
+
+  --muted: 220 25% 97.8%;
+  --muted-foreground: 220 9% 46.1%;
+
+  --accent: 220 16% 95.3%;
+  --accent-foreground: 225 18% 8.6%;
+
+  /* Destructive stays a restrained red so errors remain recognizable. */
+  --destructive: 4 77% 40%;
+  --destructive-foreground: 0 0% 100%;
+
+  --border: 220 14% 91.4%;
+  --input: 218 15% 85.7%;
+  --ring: 220 9% 55%;
+
+  /* Base radius; `rounded-lg` = 10px, `md` = 8px, `sm` = 6px. */
+  --radius: 10px;
+
+  /* Sidebar tokens mirror the existing dark application shell. */
+  --sidebar: 222 43% 10.4%;
+  --sidebar-foreground: 220 20% 92%;
+  --sidebar-primary: 0 0% 98%;
+  --sidebar-primary-foreground: 222 43% 10.4%;
+  --sidebar-accent: 222 33% 16.5%;
+  --sidebar-accent-foreground: 0 0% 98%;
+  --sidebar-border: 222 28% 20%;
+  --sidebar-ring: 220 9% 55%;
+}
+
+/*
+ * Dark theme, prepared for a future toggle. Nothing adds the `dark` class yet.
+ */
+.dark {
+  --background: 225 18% 8.6%;
+  --foreground: 220 20% 96%;
+
+  --card: 225 16% 11.5%;
+  --card-foreground: 220 20% 96%;
+
+  --popover: 225 16% 11.5%;
+  --popover-foreground: 220 20% 96%;
+
+  --primary: 220 20% 96%;
+  --primary-foreground: 225 18% 8.6%;
+
+  --secondary: 222 14% 18%;
+  --secondary-foreground: 220 20% 96%;
+
+  --muted: 222 14% 18%;
+  --muted-foreground: 220 9% 64%;
+
+  --accent: 222 14% 18%;
+  --accent-foreground: 220 20% 96%;
+
+  --destructive: 4 70% 45%;
+  --destructive-foreground: 0 0% 100%;
+
+  --border: 222 14% 20%;
+  --input: 222 14% 26%;
+  --ring: 220 9% 55%;
+
+  --sidebar: 225 22% 7%;
+  --sidebar-foreground: 220 20% 92%;
+  --sidebar-primary: 0 0% 98%;
+  --sidebar-primary-foreground: 225 22% 7%;
+  --sidebar-accent: 222 16% 14%;
+  --sidebar-accent-foreground: 0 0% 98%;
+  --sidebar-border: 222 14% 18%;
+  --sidebar-ring: 220 9% 55%;
+}

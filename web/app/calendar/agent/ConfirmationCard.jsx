@@ -6,6 +6,16 @@ import {
   formatDateTime,
   parseActionSummary,
 } from './format.js'
+import { Alert, AlertDescription } from '@/components/ui/alert'
+import { Badge } from '@/components/ui/badge'
+import { Button } from '@/components/ui/button'
+import {
+  Card,
+  CardContent,
+  CardHeader,
+  CardTitle,
+} from '@/components/ui/card'
+import { cn } from '@/lib/utils'
 
 function scopeLabel(scope) {
   if (!scope) return ''
@@ -65,65 +75,84 @@ export default function ConfirmationCard({
   ].filter(Boolean)
 
   return (
-    <article
-      className={`ca-confirm${expired ? ' is-expired' : ''}`}
+    <Card
+      className={cn(
+        'border-border bg-card shadow-none',
+        expired && 'opacity-70',
+      )}
       aria-label={`${operation} for ${title}`}
     >
-      <header className="ca-confirm-head">
-        <span className="ca-confirm-kind">{operation}</span>
-        {scope && <span className="ca-confirm-scope">{scopeLabel(scope)}</span>}
-      </header>
+      <CardHeader className="gap-1 p-3 pb-2">
+        <div className="flex flex-wrap items-center gap-1.5">
+          <Badge variant="secondary" className="px-1.5 py-0 text-[10px] font-medium">
+            {operation}
+          </Badge>
+          {scope && (
+            <Badge variant="outline" className="px-1.5 py-0 text-[10px] font-medium">
+              {scopeLabel(scope)}
+            </Badge>
+          )}
+        </div>
+        <CardTitle className="text-[13px] font-semibold leading-snug">
+          {title}
+        </CardTitle>
+      </CardHeader>
 
-      <h4 className="ca-confirm-title">{title}</h4>
+      <CardContent className="grid gap-2 p-3 pt-0">
+        {details.length > 0 && (
+          <dl className="grid gap-1">
+            {details.map(([label, value]) => (
+              <div key={label} className="flex gap-2 text-[11.5px]">
+                <dt className="w-20 shrink-0 text-muted-foreground">{label}</dt>
+                <dd className="min-w-0 break-words">{value}</dd>
+              </div>
+            ))}
+          </dl>
+        )}
 
-      {details.length > 0 && (
-        <dl className="ca-confirm-details">
-          {details.map(([label, value]) => (
-            <div key={label} className="ca-confirm-detail">
-              <dt>{label}</dt>
-              <dd>{value}</dd>
-            </div>
-          ))}
-        </dl>
-      )}
-
-      <p className="ca-confirm-consequence">
-        {expired
-          ? 'This request expired and can no longer be approved.'
-          : actionConsequence(action?.tool_name)}
-      </p>
-
-      {!expired && expiresAt && (
-        <p className="ca-confirm-expiry">
-          Expires {formatDateTime(action.expires_at)}
+        <p className="text-[11.5px] leading-relaxed text-muted-foreground">
+          {expired
+            ? 'This request expired and can no longer be approved.'
+            : actionConsequence(action?.tool_name)}
         </p>
-      )}
 
-      {error && (
-        <p className="ca-confirm-error" role="alert">
-          <CircleAlert size={12} aria-hidden="true" />
-          {error}
-        </p>
-      )}
+        {!expired && expiresAt && (
+          <p className="text-[10.5px] text-muted-foreground/80">
+            Expires {formatDateTime(action.expires_at)}
+          </p>
+        )}
 
-      <div className="ca-confirm-actions">
-        <button
-          type="button"
-          className="ca-btn ca-btn--ghost"
-          onClick={onReject}
-          disabled={busy || expired}
-        >
-          {busy && busyLabel.startsWith('Reject') ? busyLabel : 'Reject'}
-        </button>
-        <button
-          type="button"
-          className="ca-btn ca-btn--solid"
-          onClick={onApprove}
-          disabled={busy || expired}
-        >
-          {busy && busyLabel.startsWith('Approv') ? busyLabel : 'Approve'}
-        </button>
-      </div>
-    </article>
+        {error && (
+          <Alert variant="destructive" className="px-2.5 py-2">
+            <CircleAlert aria-hidden="true" />
+            <AlertDescription className="text-[11.5px]">
+              {error}
+            </AlertDescription>
+          </Alert>
+        )}
+
+        <div className="flex items-center justify-end gap-2 pt-0.5">
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            className="h-8"
+            onClick={onReject}
+            disabled={busy || expired}
+          >
+            {busy && busyLabel.startsWith('Reject') ? busyLabel : 'Reject'}
+          </Button>
+          <Button
+            type="button"
+            size="sm"
+            className="h-8"
+            onClick={onApprove}
+            disabled={busy || expired}
+          >
+            {busy && busyLabel.startsWith('Approv') ? busyLabel : 'Approve'}
+          </Button>
+        </div>
+      </CardContent>
+    </Card>
   )
 }

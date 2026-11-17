@@ -1,13 +1,11 @@
 import { useState } from 'react'
-import {
-  Check,
-  LoaderCircle,
-  Pencil,
-  Plus,
-  Trash2,
-  X,
-} from 'lucide-react'
+import { Check, LoaderCircle, Pencil, Plus, Trash2, X } from 'lucide-react'
 import { formatConversationTime } from './format.js'
+import ConfirmDialog from '@/components/shared/ConfirmDialog'
+import IconButton from '@/components/shared/IconButton'
+import { Input } from '@/components/ui/input'
+import { ScrollArea } from '@/components/ui/scroll-area'
+import { cn } from '@/lib/utils'
 
 /** Compact conversation switcher with inline rename and delete. */
 export default function ConversationHistory({
@@ -24,6 +22,10 @@ export default function ConversationHistory({
   const [confirmingId, setConfirmingId] = useState(null)
   const [busyId, setBusyId] = useState(null)
   const [error, setError] = useState('')
+
+  const confirming = conversations.find(
+    (conversation) => conversation.id === confirmingId,
+  )
 
   function startRename(conversation) {
     setError('')
@@ -62,149 +64,142 @@ export default function ConversationHistory({
   }
 
   return (
-    <div className="ca-history" role="dialog" aria-label="Conversation history">
-      <header className="ca-history-head">
-        <span className="ca-history-heading">Recent conversations</span>
-        <button
-          type="button"
-          className="ca-icon-btn"
+    <section
+      className="border-b border-border bg-muted/20"
+      aria-label="Conversation history"
+    >
+      <div className="flex items-center justify-between gap-2 px-3 pt-2 pb-1">
+        <span className="text-[10.5px] font-medium uppercase tracking-[0.07em] text-muted-foreground">
+          Recent conversations
+        </span>
+        <IconButton
+          label="Start a new conversation"
+          tooltip="New conversation"
+          className="size-6"
           onClick={onNew}
-          aria-label="Start a new conversation"
-          title="New conversation"
         >
-          <Plus size={15} aria-hidden="true" />
-        </button>
-      </header>
+          <Plus size={14} aria-hidden="true" />
+        </IconButton>
+      </div>
 
       {error && (
-        <p className="ca-history-error" role="alert">
+        <p className="px-3 pb-1.5 text-[11.5px] text-destructive" role="alert">
           {error}
         </p>
       )}
 
       {loading && conversations.length === 0 && (
-        <p className="ca-history-empty">
-          <LoaderCircle size={13} className="ca-spin" aria-hidden="true" />
+        <p className="flex items-center gap-1.5 px-3 pb-2 text-[11.5px] text-muted-foreground">
+          <LoaderCircle size={12} className="animate-spin" aria-hidden="true" />
           Loading conversations…
         </p>
       )}
 
       {!loading && conversations.length === 0 && (
-        <p className="ca-history-empty">No conversations yet.</p>
+        <p className="px-3 pb-2 text-[11.5px] text-muted-foreground">
+          No conversations yet.
+        </p>
       )}
 
-      <ul className="ca-history-list">
-        {conversations.map((conversation) => {
-          const isActive = conversation.id === activeId
-          const isEditing = editingId === conversation.id
-          const isConfirming = confirmingId === conversation.id
+      <ScrollArea className="max-h-[216px]">
+        <ul className="flex flex-col gap-0.5 px-2 pb-2">
+          {conversations.map((conversation) => {
+            const isActive = conversation.id === activeId
+            const isEditing = editingId === conversation.id
 
-          return (
-            <li
-              key={conversation.id}
-              className={`ca-history-row${isActive ? ' is-active' : ''}`}
-            >
-              {isEditing ? (
-                <form className="ca-history-edit" onSubmit={submitRename}>
-                  <input
-                    className="ca-history-input"
-                    value={draft}
-                    onChange={(event) => setDraft(event.target.value)}
-                    maxLength={200}
-                    aria-label="Conversation title"
-                    autoFocus
-                  />
-                  <button
-                    type="submit"
-                    className="ca-icon-btn"
-                    disabled={!draft.trim() || busyId === conversation.id}
-                    aria-label="Save title"
+            return (
+              <li
+                key={conversation.id}
+                className={cn(
+                  'rounded-[var(--radius-sm)]',
+                  isActive && 'bg-accent',
+                )}
+              >
+                {isEditing ? (
+                  <form
+                    className="flex items-center gap-1 p-1"
+                    onSubmit={submitRename}
                   >
-                    <Check size={14} aria-hidden="true" />
-                  </button>
-                  <button
-                    type="button"
-                    className="ca-icon-btn"
-                    onClick={() => {
-                      setEditingId(null)
-                      setDraft('')
-                    }}
-                    aria-label="Cancel rename"
-                  >
-                    <X size={14} aria-hidden="true" />
-                  </button>
-                </form>
-              ) : (
-                <>
-                  <button
-                    type="button"
-                    className="ca-history-select"
-                    onClick={() => onSelect(conversation.id)}
-                    aria-current={isActive ? 'true' : undefined}
-                  >
-                    <span className="ca-history-name">
-                      {conversation.title || 'Untitled conversation'}
-                    </span>
-                    <span className="ca-history-time">
-                      {formatConversationTime(conversation.updated_at)}
-                    </span>
-                  </button>
-                  <span className="ca-history-actions">
+                    <Input
+                      className="h-7 min-w-0 flex-1 px-2 text-[12px]"
+                      value={draft}
+                      onChange={(event) => setDraft(event.target.value)}
+                      maxLength={200}
+                      aria-label="Conversation title"
+                      autoFocus
+                    />
+                    <IconButton
+                      type="submit"
+                      label="Save title"
+                      disabled={!draft.trim() || busyId === conversation.id}
+                    >
+                      <Check size={14} aria-hidden="true" />
+                    </IconButton>
+                    <IconButton
+                      label="Cancel rename"
+                      onClick={() => {
+                        setEditingId(null)
+                        setDraft('')
+                      }}
+                    >
+                      <X size={14} aria-hidden="true" />
+                    </IconButton>
+                  </form>
+                ) : (
+                  <div className="flex items-center gap-0.5 pr-1">
                     <button
                       type="button"
-                      className="ca-icon-btn"
+                      className="flex min-w-0 flex-1 flex-col items-start gap-0.5 rounded-[var(--radius-sm)] px-2 py-1.5 text-left transition-colors hover:bg-accent/70 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                      onClick={() => onSelect(conversation.id)}
+                      aria-current={isActive ? 'true' : undefined}
+                    >
+                      <span className="w-full truncate text-[12px] font-medium">
+                        {conversation.title || 'Untitled conversation'}
+                      </span>
+                      <span className="text-[10px] text-muted-foreground">
+                        {formatConversationTime(conversation.updated_at)}
+                      </span>
+                    </button>
+                    <IconButton
+                      label={`Rename ${conversation.title || 'conversation'}`}
+                      tooltip="Rename"
                       onClick={() => startRename(conversation)}
-                      aria-label={`Rename ${conversation.title || 'conversation'}`}
-                      title="Rename"
                     >
                       <Pencil size={12} aria-hidden="true" />
-                    </button>
-                    <button
-                      type="button"
-                      className="ca-icon-btn"
+                    </IconButton>
+                    <IconButton
+                      label={`Delete ${conversation.title || 'conversation'}`}
+                      tooltip="Delete"
+                      className="hover:text-destructive"
                       onClick={() => {
                         setError('')
                         setEditingId(null)
-                        setConfirmingId(
-                          isConfirming ? null : conversation.id,
-                        )
+                        setConfirmingId(conversation.id)
                       }}
-                      aria-label={`Delete ${conversation.title || 'conversation'}`}
-                      title="Delete"
                     >
                       <Trash2 size={12} aria-hidden="true" />
-                    </button>
-                  </span>
-                </>
-              )}
-
-              {isConfirming && !isEditing && (
-                <div className="ca-history-confirm">
-                  <span>Delete this conversation?</span>
-                  <div className="ca-history-confirm-actions">
-                    <button
-                      type="button"
-                      className="ca-btn ca-btn--ghost ca-btn--small"
-                      onClick={() => setConfirmingId(null)}
-                      disabled={busyId === conversation.id}
-                    >
-                      Cancel
-                    </button>
-                    <button
-                      type="button"
-                      className="ca-btn ca-btn--solid ca-btn--small"
-                      onClick={() => confirmDelete(conversation.id)}
-                      disabled={busyId === conversation.id}
-                    >
-                      {busyId === conversation.id ? 'Deleting…' : 'Delete'}
-                    </button>
+                    </IconButton>
                   </div>
-                </div>
-              )}
-            </li>
-          )
-        })}
-      </ul>
-    </div>
+                )}
+              </li>
+            )
+          })}
+        </ul>
+      </ScrollArea>
+
+      <ConfirmDialog
+        open={Boolean(confirming)}
+        title="Delete conversation"
+        description={`“${confirming?.title || 'Untitled conversation'}” and its messages will be removed. This cannot be undone.`}
+        confirmLabel="Delete"
+        busyLabel="Deleting…"
+        busy={busyId === confirmingId}
+        error={error}
+        onConfirm={() => confirmDelete(confirmingId)}
+        onClose={() => {
+          if (!busyId) setConfirmingId(null)
+        }}
+      />
+    </section>
   )
 }

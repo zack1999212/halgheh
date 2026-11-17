@@ -2,6 +2,12 @@ import { ChevronLeft, ChevronRight, Plus } from 'lucide-react'
 import CalendarSelector from './CalendarSelector.jsx'
 import CalendarViewSelector from './CalendarViewSelector.jsx'
 import { periodName } from './views.js'
+import { Button } from '@/components/ui/button'
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from '@/components/ui/tooltip'
 
 export default function CalendarToolbar({
   view,
@@ -24,10 +30,12 @@ export default function CalendarToolbar({
   const period = periodName(view)
 
   return (
-    <div className="calendar-toolbar">
-      {/* Level 1: Primary header — title, calendar selector, create event */}
-      <div className="calendar-toolbar-header-1">
-        <h2 className="calendar-toolbar-title">Calendar</h2>
+    <div className="flex flex-col gap-3">
+      {/* Primary header — title, calendar selector, create event */}
+      <div className="flex flex-wrap items-center gap-2">
+        <h2 className="mr-1 text-[15px] font-semibold tracking-[-0.01em]">
+          Calendar
+        </h2>
 
         <CalendarSelector
           calendars={calendars}
@@ -40,51 +48,75 @@ export default function CalendarToolbar({
           onManage={onManageCalendars}
         />
 
-        <button
+        <Button
           type="button"
-          className="button-primary calendar-create-button"
+          size="sm"
+          className="ml-auto h-8 gap-1.5"
           onClick={onCreateEvent}
           disabled={!canCreate}
           title={canCreate ? undefined : 'Create a calendar first'}
         >
           <Plus size={15} aria-hidden="true" />
           Create event
-        </button>
+        </Button>
       </div>
 
-      {/* Level 2: Navigation toolbar — prev, today, next, date range, view selector */}
-      <div className="calendar-toolbar-header-2">
-        <div className="calendar-nav">
-          <button
+      {/* Navigation toolbar — prev, today, next, range, view selector */}
+      <div className="flex flex-wrap items-center gap-2">
+        <div className="flex items-center gap-1">
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button
+                type="button"
+                variant="outline"
+                size="icon"
+                className="size-8"
+                onClick={onPrev}
+                aria-label={`Previous ${period}`}
+              >
+                <ChevronLeft size={16} aria-hidden="true" />
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent>Previous {period}</TooltipContent>
+          </Tooltip>
+
+          <Button
             type="button"
-            className="calendar-nav-button"
-            onClick={onPrev}
-            aria-label={`Previous ${period}`}
-          >
-            <ChevronLeft size={16} aria-hidden="true" />
-          </button>
-          <button
-            type="button"
-            className="calendar-today-button"
+            variant="outline"
+            size="sm"
+            className="h-8"
             onClick={onToday}
           >
             Today
-          </button>
-          <button
-            type="button"
-            className="calendar-nav-button"
-            onClick={onNext}
-            aria-label={`Next ${period}`}
-          >
-            <ChevronRight size={16} aria-hidden="true" />
-          </button>
+          </Button>
+
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button
+                type="button"
+                variant="outline"
+                size="icon"
+                className="size-8"
+                onClick={onNext}
+                aria-label={`Next ${period}`}
+              >
+                <ChevronRight size={16} aria-hidden="true" />
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent>Next {period}</TooltipContent>
+          </Tooltip>
         </div>
 
-        <p className="calendar-range" aria-live="polite">
+        <p
+          className="min-w-0 truncate text-[13px] text-muted-foreground"
+          aria-live="polite"
+        >
           {rangeLabel}
         </p>
 
-        <CalendarViewSelector view={view} onChange={onViewChange} />
+        <div className="ml-auto">
+          <CalendarViewSelector view={view} onChange={onViewChange} />
+        </div>
       </div>
     </div>
   )
