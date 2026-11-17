@@ -8,10 +8,64 @@ export function listProviders() {
   })
 }
 
-export function listModels(provider) {
-  const params = new URLSearchParams({ provider })
-  return apiRequest(`/ai/models?${params.toString()}`, {
+/**
+ * List catalogue models. Accepts either a provider id string (legacy call) or
+ * an options object with `provider`, `enabledOnly` and `compatibleWithAgent`.
+ */
+export function listModels(providerOrOptions = {}) {
+  const options =
+    typeof providerOrOptions === 'string'
+      ? { provider: providerOrOptions }
+      : providerOrOptions
+  const params = new URLSearchParams()
+  if (options.provider) params.set('provider', options.provider)
+  if (options.enabledOnly) params.set('enabled_only', 'true')
+  if (options.compatibleWithAgent) {
+    params.set('compatible_with_agent', options.compatibleWithAgent)
+  }
+  const query = params.toString()
+  return apiRequest(`/ai/models${query ? `?${query}` : ''}`, {
     fallbackMessage: 'Could not load models for this provider.',
+  })
+}
+
+export function createModel(providerId, payload) {
+  return apiRequest(`/ai/providers/${encodeURIComponent(providerId)}/models`, {
+    method: 'POST',
+    body: payload,
+    fallbackMessage: 'Could not add the model.',
+  })
+}
+
+export function updateModel(modelId, payload) {
+  return apiRequest(`/ai/models/${modelId}`, {
+    method: 'PATCH',
+    body: payload,
+    fallbackMessage: 'Could not update the model.',
+  })
+}
+
+export function deleteModel(modelId) {
+  return apiRequest(`/ai/models/${modelId}`, {
+    method: 'DELETE',
+    fallbackMessage: 'Could not remove the model.',
+  })
+}
+
+export function refreshModels(providerId) {
+  return apiRequest(
+    `/ai/providers/${encodeURIComponent(providerId)}/models/refresh`,
+    {
+      method: 'POST',
+      fallbackMessage: 'Could not refresh the model catalogue.',
+    },
+  )
+}
+
+export function checkModelTools(modelId) {
+  return apiRequest(`/ai/models/${modelId}/check-tools`, {
+    method: 'POST',
+    fallbackMessage: 'Could not run the tool-calling check.',
   })
 }
 

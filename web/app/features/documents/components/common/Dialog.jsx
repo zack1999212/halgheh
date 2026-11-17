@@ -1,15 +1,12 @@
 import { useEffect } from 'react'
 import { X } from 'lucide-react'
+import IconButton from './IconButton.jsx'
 
-/** Shared dialog shell: backdrop, Escape handling and scroll lock. */
-export default function Modal({
-  open,
-  title,
-  onClose,
-  children,
-  footer,
-  wide = false,
-}) {
+/**
+ * Feature-local modal dialog: backdrop, Escape handling and scroll lock
+ * (same interaction pattern as the calendar's Modal, with documents tokens).
+ */
+export default function Dialog({ open, title, onClose, children, footer }) {
   useEffect(() => {
     if (!open) {
       return undefined
@@ -37,7 +34,7 @@ export default function Modal({
 
   return (
     <div
-      className="dialog-backdrop"
+      className="docs-dialog-backdrop"
       onMouseDown={(event) => {
         if (event.target === event.currentTarget) {
           onClose()
@@ -45,28 +42,21 @@ export default function Modal({
       }}
     >
       <div
-        className={`dialog${wide ? ' dialog--wide' : ''}`}
+        className="docs-dialog"
         role="dialog"
         aria-modal="true"
-        aria-labelledby="dialog-title"
+        aria-labelledby="docs-dialog-title"
       >
-        <header className="dialog-header">
-          <h2 className="dialog-title" id="dialog-title">
+        <header className="docs-dialog-header">
+          <h2 className="docs-dialog-title" id="docs-dialog-title">
             {title}
           </h2>
-          <button
-            type="button"
-            className="icon-button icon-button--small"
-            onClick={onClose}
-            aria-label="Close"
-          >
-            <X size={16} aria-hidden="true" />
-          </button>
+          <IconButton icon={X} label="Close" small onClick={onClose} />
         </header>
 
-        <div className="dialog-content">{children}</div>
+        <div className="docs-dialog-body">{children}</div>
 
-        {footer && <footer className="dialog-footer">{footer}</footer>}
+        {footer && <footer className="docs-dialog-footer">{footer}</footer>}
       </div>
     </div>
   )

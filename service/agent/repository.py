@@ -4,13 +4,13 @@ from datetime import datetime
 from typing import Any
 
 from sqlalchemy import select
+
 from sqlalchemy.orm import Session
 
-from .models import AgentConversation, AgentMessage, AgentPendingAction
+from .models import AgentConversation, AgentMessage, AgentPendingAction, ProviderDiagnostic
 
 
 # --- Conversations ---
-
 
 def create_conversation(
     db: Session,
@@ -19,9 +19,16 @@ def create_conversation(
     agent_id: str,
     title: str,
     timezone: str | None = None,
+    provider: str | None = None,
+    model: str | None = None,
 ) -> AgentConversation:
     conversation = AgentConversation(
-        user_id=user_id, agent_id=agent_id, title=title, timezone=timezone
+        user_id=user_id,
+        agent_id=agent_id,
+        title=title,
+        timezone=timezone,
+        provider=provider,
+        model=model,
     )
     db.add(conversation)
     return conversation
@@ -46,7 +53,11 @@ def list_conversations(
 
 
 def get_conversation(
-    db: Session, *, user_id: int, agent_id: str, conversation_id: int
+    db: Session,
+    *,
+    user_id: int,
+    agent_id: str,
+    conversation_id: int,
 ) -> AgentConversation | None:
     stmt = select(AgentConversation).where(
         AgentConversation.id == conversation_id,
@@ -67,7 +78,6 @@ def delete_conversation(db: Session, conversation: AgentConversation) -> None:
 
 
 # --- Messages ---
-
 
 def add_message(
     db: Session,
@@ -120,7 +130,6 @@ def list_messages(
 
 
 # --- Pending actions ---
-
 
 def create_pending_action(
     db: Session,
@@ -178,3 +187,57 @@ def list_pending_actions(
         stmt = stmt.where(AgentPendingAction.status == status)
     stmt = stmt.order_by(AgentPendingAction.id.asc())
     return list(db.scalars(stmt).all())
+
+
+# --- Provider diagnostics ---
+
+def record_provider_diagnostic(
+    db: Session,
+    *,
+    request_id: str,
+    user_id: int,
+    agent_id: str,
+    conversation_id: int | None,
+    provider: str,
+    model: str,
+    status: str,
+    duration_ms: int | None,
+    http_status_code: int | None,
+    provider_error_code: str | None,
+    provider_error_message: str,
+    connected: bool | None,
+    headers_received: bool | None,
+    streaming_started: bool | None,
+    streaming_completed: bool | None,
+    connection_interrupted: bool | None,
+    retry_attempted: bool | None,
+    final_status: str | None,
+) -> None:
+    """Persist a provider request diagnostic record.
+
+    Sensitive data (API keys, auth headers) are never stored.
+    Provider error messages are sanitized before persisting.
+    The record is associated with the correct user and conversation.
+    """
+    diagnostic = ProviderDiagnostic(
+        request_id=request_id,
+        user_id=user_id,
+        conversation_id=conversation_id,
+        provider=provider,
+        model=model,
+        attempt=1,  # TODO: track actual attempt number if needed
+        status=status,
+        duration_ms=duration_ms,
+        http_status_code=http_status_code,
+        provider_error_code=provider_error_code,
+        provider_error_message=provider_error_message,
+        connected=connected,
+        headers_received=headers_received,
+        streaming_started=streaming_started,
+        streaming_completed=streaming_completed,
+        connection_interrupted=connection_interrupted,
+        retry_attempted=retry_attempted,
+        final_status=final_status,
+    )
+    db.add(diagnostic)
+    db.commit()

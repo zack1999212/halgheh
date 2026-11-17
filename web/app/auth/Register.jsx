@@ -1,7 +1,8 @@
 import { useState } from 'react'
-import { Link, useNavigate } from 'react-router-dom'
+import { useNavigate } from 'react-router-dom'
 import AuthLayout from './components/AuthLayout.jsx'
-import FormError from './components/FormError.jsx'
+import AuthLink from './components/AuthLink.jsx'
+import FormError from '@/components/shared/FormError'
 import PasswordField from './components/PasswordField.jsx'
 import SubmitButton from './components/SubmitButton.jsx'
 import TextField from './components/TextField.jsx'
@@ -66,11 +67,11 @@ export default function Register() {
       description="Set up your Halgheh workspace in a few seconds."
       footer={
         <>
-          Already have an account? <Link to="/login">Login</Link>
+          Already have an account? <AuthLink to="/login">Login</AuthLink>
         </>
       }
     >
-      <form className="auth-form" onSubmit={handleSubmit} noValidate>
+      <form className="grid gap-4 pt-2" onSubmit={handleSubmit} noValidate>
         <FormError>{error}</FormError>
 
         <TextField

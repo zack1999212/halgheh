@@ -1,5 +1,11 @@
-import { useCallback, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
+import EmptyState from '@/components/shared/EmptyState'
+import ErrorState from '@/components/shared/ErrorState'
+import LoadingState from '@/components/shared/LoadingState'
+import ConfirmDialog from '@/components/shared/ConfirmDialog'
+import RadioOption from '@/components/shared/RadioOption'
+import { Button } from '@/components/ui/button'
 import FullCalendar from '@fullcalendar/react'
 import dayGridPlugin from '@fullcalendar/daygrid'
 import timeGridPlugin from '@fullcalendar/timegrid'
@@ -10,7 +16,6 @@ import CalendarEvent from './CalendarEvent.jsx'
 import EventDetailPanel from './EventDetailPanel.jsx'
 import EventDialog from './EventDialog.jsx'
 import CalendarDialog from './CalendarDialog.jsx'
-import ConfirmDialog from './ConfirmDialog.jsx'
 import useCalendars from './useCalendars.js'
 import useCalendarEvents, { occurrenceToSelection } from './useCalendarEvents.js'
 import { createException, deleteEvent, editOccurrence, updateEvent } from './api.js'
@@ -19,10 +24,24 @@ import { clearToken } from '../src/api.js'
 import { DEFAULT_VIEW } from './views.js'
 import { categoryOf } from './categories.js'
 import CalendarAgent from './agent/CalendarAgent.jsx'
+import { createTimeGridGuides } from './timeGridGuides.js'
 import './calendar.css'
+
+/** Centered overlay used for the calendar's loading, empty and error states. */
+function CalendarOverlay({ children }) {
+  return (
+    <div className="absolute inset-0 z-10 flex items-center justify-center bg-card/70 p-4">
+      <div className="w-full max-w-[320px] rounded-[var(--radius-lg)] border border-border bg-card p-5 text-center shadow-sm">
+        {children}
+      </div>
+    </div>
+  )
+}
 
 export default function CalendarPage() {
   const calendarRef = useRef(null)
+  const surfaceRef = useRef(null)
+  const guidesRef = useRef(null)
   const navigate = useNavigate()
 
   const [view, setView] = useState(DEFAULT_VIEW)
@@ -49,6 +68,24 @@ export default function CalendarPage() {
   }, [navigate])
 
   const calendarsApi = useCalendars({ onUnauthorized: handleUnauthorized })
+
+  // Guide lines for the Week/Day time grids: faint hairlines connecting each
+  // timed event's start and end edges to the hour axis. The guides module
+  // watches the surface for FullCalendar's own DOM mutations (event drag and
+  // resize rewrite inline styles), so the lines follow those gestures live.
+  useEffect(() => {
+    const surface = surfaceRef.current
+    if (!surface) {
+      return undefined
+    }
+    const guides = createTimeGridGuides(surface)
+    guidesRef.current = guides
+    return () => {
+      guides.destroy()
+      guidesRef.current = null
+    }
+  }, [])
+
   const {
     calendars,
     selectedCalendarId,
@@ -314,7 +351,7 @@ export default function CalendarPage() {
         onCreateEvent={() => setEditor({ open: true, mode: 'create' })}
       />
 
-      <div className="calendar-surface">
+      <div className="calendar-surface" ref={surfaceRef}>
         <FullCalendar
           ref={calendarRef}
           plugins={[dayGridPlugin, timeGridPlugin, listPlugin, interactionPlugin]}
@@ -339,6 +376,10 @@ export default function CalendarPage() {
             info.el.style.setProperty('--evc-bg', cat.background)
             info.el.style.setProperty('--evc-accent', cat.accent)
             info.el.style.setProperty('--evc-text', cat.text)
+            // FullCalendar re-mounts events on view changes; make sure the
+            // guide lines are redrawn with the fresh event geometry even if
+            // the DOM observer's last paint ran before the events mounted.
+            guidesRef.current?.refresh()
           }}
           eventClick={handleEventClick}
           eventDrop={handleEventDrop}
@@ -390,81 +431,65 @@ export default function CalendarPage() {
         />
 
         {showCalendarPlaceholder && (
-          <div className="calendar-overlay">
-            <div className="calendar-state">
-              <p className="calendar-state-title">No calendars yet</p>
-              <p className="calendar-state-text">
-                Create a calendar to start adding events.
-              </p>
-              <button
+          <CalendarOverlay>
+            <EmptyState
+              title="No calendars yet"
+              description="Create a calendar to start adding events."
+            >
+              <Button
                 type="button"
-                className="button-primary"
+                size="sm"
+                className="h-8"
                 onClick={() =>
                   setCalendarDialog({ open: true, calendar: null })
                 }
               >
                 Create calendar
-              </button>
-            </div>
-          </div>
+              </Button>
+            </EmptyState>
+          </CalendarOverlay>
         )}
 
         {calendarsLoading && (
-          <div className="calendar-overlay">
-            <div className="calendar-state">
-              <p className="calendar-state-text">Loading calendars…</p>
-            </div>
-          </div>
+          <CalendarOverlay>
+            <LoadingState label="Loading calendars…" />
+          </CalendarOverlay>
         )}
 
         {!calendarsLoading && calendarsError && (
-          <div className="calendar-overlay" role="alert">
-            <div className="calendar-state">
-              <p className="calendar-state-title">Calendars unavailable</p>
-              <p className="calendar-state-text">{calendarsError}</p>
-              <button
-                type="button"
-                className="button-secondary"
-                onClick={() => calendarsApi.reload()}
-              >
-                Retry
-              </button>
-            </div>
-          </div>
+          <CalendarOverlay>
+            <ErrorState
+              title="Calendars unavailable"
+              message={calendarsError}
+              onRetry={() => calendarsApi.reload()}
+            />
+          </CalendarOverlay>
         )}
 
         {showEventsLoading && (
-          <div className="calendar-overlay">
-            <div className="calendar-state">
-              <p className="calendar-state-text">Loading events…</p>
-            </div>
-          </div>
+          <CalendarOverlay>
+            <LoadingState label="Loading events…" />
+          </CalendarOverlay>
         )}
 
         {showEventsError && (
-          <div className="calendar-overlay" role="alert">
-            <div className="calendar-state">
-              <p className="calendar-state-title">Could not load events</p>
-              <p className="calendar-state-text">{eventsApi.error}</p>
-              <button
-                type="button"
-                className="button-secondary"
-                onClick={eventsApi.reload}
-              >
-                Retry
-              </button>
-            </div>
-          </div>
+          <CalendarOverlay>
+            <ErrorState
+              title="Could not load events"
+              message={eventsApi.error}
+              onRetry={eventsApi.reload}
+            />
+          </CalendarOverlay>
         )}
+
         {showNoEvents && (
-          <div className="calendar-overlay" role="alert">
-            <div className="calendar-state">
-              <p className="calendar-state-title">No events scheduled</p>
-              <p className="calendar-state-text">
-                Create an event to get started.
-              </p>
-            </div>
-          </div>
+          <CalendarOverlay>
+            <EmptyState
+              title="No events scheduled"
+              description="Create an event to get started."
+              role="status"
+            />
+          </CalendarOverlay>
         )}
       </div>
 
@@ -521,37 +546,23 @@ export default function CalendarPage() {
         }}
       >
         {deleteTarget?.event?.recurrence_rule && (
-          <div className="scope-options">
-            <label className="scope-option">
-              <input
-                type="radio"
-                name="delete-scope"
-                value="occurrence"
-                checked={deleteScope === 'occurrence'}
-                onChange={() => setDeleteScope('occurrence')}
-              />
-              <span>
-                <span className="scope-option-label">This occurrence</span>
-                <span className="scope-option-hint">
-                  Cancels only the selected occurrence.
-                </span>
-              </span>
-            </label>
-            <label className="scope-option">
-              <input
-                type="radio"
-                name="delete-scope"
-                value="series"
-                checked={deleteScope === 'series'}
-                onChange={() => setDeleteScope('series')}
-              />
-              <span>
-                <span className="scope-option-label">All occurrences</span>
-                <span className="scope-option-hint">
-                  Deletes the whole series.
-                </span>
-              </span>
-            </label>
+          <div className="grid gap-2">
+            <RadioOption
+              name="delete-scope"
+              value="occurrence"
+              title="This occurrence"
+              description="Cancels only the selected occurrence."
+              checked={deleteScope === 'occurrence'}
+              onChange={() => setDeleteScope('occurrence')}
+            />
+            <RadioOption
+              name="delete-scope"
+              value="series"
+              title="All occurrences"
+              description="Deletes the whole series."
+              checked={deleteScope === 'series'}
+              onChange={() => setDeleteScope('series')}
+            />
           </div>
         )}
       </ConfirmDialog>
@@ -562,49 +573,39 @@ export default function CalendarPage() {
         description="This event repeats. Apply the change to:"
         confirmLabel="Apply"
         busyLabel="Saving…"
+        destructive={false}
         busy={dragBusy}
         error={dragError}
         onConfirm={confirmDragScope}
         onClose={cancelDragScope}
       >
-        <div className="scope-options">
-          <label className="scope-option">
-            <input
-              type="radio"
-              name="drag-scope"
-              value="occurrence"
-              checked={dragScope === 'occurrence'}
-              onChange={() => setDragScope('occurrence')}
-              disabled={dragBusy}
-            />
-            <span>
-              <span className="scope-option-label">This occurrence</span>
-              <span className="scope-option-hint">
-                Only the selected occurrence changes.
-              </span>
-            </span>
-          </label>
-          <label className="scope-option">
-            <input
-              type="radio"
-              name="drag-scope"
-              value="series"
-              checked={dragScope === 'series'}
-              onChange={() => setDragScope('series')}
-              disabled={dragBusy}
-            />
-            <span>
-              <span className="scope-option-label">Entire series</span>
-              <span className="scope-option-hint">
-                All occurrences move or resize together.
-              </span>
-            </span>
-          </label>
+        <div className="grid gap-2">
+          <RadioOption
+            name="drag-scope"
+            value="occurrence"
+            title="This occurrence"
+            description="Only the selected occurrence changes."
+            checked={dragScope === 'occurrence'}
+            onChange={() => setDragScope('occurrence')}
+            disabled={dragBusy}
+          />
+          <RadioOption
+            name="drag-scope"
+            value="series"
+            title="Entire series"
+            description="All occurrences move or resize together."
+            checked={dragScope === 'series'}
+            onChange={() => setDragScope('series')}
+            disabled={dragBusy}
+          />
         </div>
       </ConfirmDialog>
 
       {dragError && !dragScopeTarget && (
-        <div className="calendar-toast" role="alert">
+        <div
+          className="fixed bottom-6 left-1/2 z-50 -translate-x-1/2 rounded-[var(--radius-md)] border border-destructive/30 bg-card px-3.5 py-2 text-[13px] text-destructive shadow-md"
+          role="alert"
+        >
           {dragError}
         </div>
       )}

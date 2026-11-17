@@ -1,6 +1,6 @@
 """add agent conversation timezone
 
-Revision ID: 011
+Revision ID: 012
 Revises: 010
 Create Date: 2026-11-16 13:00:00.000000
 
@@ -12,8 +12,8 @@ from alembic import op
 import sqlalchemy as sa
 
 
-revision: str = "011"
-down_revision: Union[str, Sequence[str], None] = "010"
+revision: str = "012"
+down_revision: Union[str, Sequence[str], None] = "011"
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 

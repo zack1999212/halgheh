@@ -1,7 +1,8 @@
 import { useState } from 'react'
-import { Link, useNavigate } from 'react-router-dom'
+import { useNavigate } from 'react-router-dom'
 import AuthLayout from './components/AuthLayout.jsx'
-import FormError from './components/FormError.jsx'
+import AuthLink from './components/AuthLink.jsx'
+import FormError from '@/components/shared/FormError'
 import PasswordField from './components/PasswordField.jsx'
 import SubmitButton from './components/SubmitButton.jsx'
 import TextField from './components/TextField.jsx'
@@ -56,11 +57,11 @@ export default function Login() {
       description="Log in to your Halgheh workspace."
       footer={
         <>
-          New to Halgheh? <Link to="/register">Create an account</Link>
+          New to Halgheh? <AuthLink to="/register">Create an account</AuthLink>
         </>
       }
     >
-      <form className="auth-form" onSubmit={handleSubmit} noValidate>
+      <form className="grid gap-4 pt-2" onSubmit={handleSubmit} noValidate>
         <FormError>{error}</FormError>
 
         <TextField

@@ -1,70 +1,29 @@
-:root {
-  /* Typography */
-  --font-sans: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto,
-    "Helvetica Neue", Arial, sans-serif;
+/*
+ * Global stylesheet entry point.
+ *
+ * Order matters: theme tokens, then Tailwind layers, then the existing
+ * hand-written feature styles so the current pages keep winning on equal
+ * specificity.
+ */
+@import "./styles/theme.css";
 
-  /* Surfaces */
-  --color-bg: #f6f7f9;
-  --color-surface: #ffffff;
-  --color-surface-muted: #f8f9fb;
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
 
-  /* Lines */
-  --color-border: #e6e8ec;
-  --color-border-input: #d5d9e0;
+/*
+ * Tailwind/shadcn base layer. It is deliberately minimal: it only provides the
+ * default border color shadcn primitives expect and puts the app on the theme
+ * background/foreground. No existing selector is overridden here.
+ */
+@layer base {
+  * {
+    @apply border-border;
+  }
 
-  /* Text */
-  --color-text: #12141a;
-  --color-text-muted: #6b7280;
-  --color-text-subtle: #9aa1ad;
-
-  /* Application shell */
-  --color-sidebar: #0f1626;
-  --color-sidebar-muted: #97a1b5;
-  --color-sidebar-hover: rgba(255, 255, 255, 0.05);
-  --color-sidebar-active: rgba(255, 255, 255, 0.09);
-  --color-sidebar-border: rgba(255, 255, 255, 0.07);
-  --color-sidebar-accent: #8fb0ff;
-  --sidebar-width: 248px;
-  --header-height: 60px;
-
-  /* Accent */
-  --color-accent: #2563eb;
-  --color-accent-hover: #1d4ed8;
-  --color-accent-soft: #eff4ff;
-
-  /* Feedback */
-  --color-danger: #b42318;
-  --color-danger-soft: #fef3f2;
-  --color-danger-border: #fecdca;
-
-  /* Radii */
-  --radius-sm: 8px;
-  --radius-md: 10px;
-  --radius-lg: 14px;
-
-  /* Spacing */
-  --space-1: 4px;
-  --space-2: 8px;
-  --space-3: 12px;
-  --space-4: 16px;
-  --space-5: 20px;
-  --space-6: 24px;
-  --space-8: 32px;
-  --space-10: 40px;
-
-  /* Elevation and focus */
-  --shadow-card: 0 1px 2px rgba(16, 24, 40, 0.04),
-    0 16px 40px -20px rgba(16, 24, 40, 0.18);
-  --shadow-button: 0 1px 2px rgba(16, 24, 40, 0.08);
-  --ring-accent: 0 0 0 3px rgba(37, 99, 235, 0.18);
-  --ring-danger: 0 0 0 3px rgba(180, 35, 24, 0.12);
-  --transition: 140ms ease;
-
-  font-family: var(--font-sans);
-  line-height: 1.5;
-  color: var(--color-text);
-  -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
+  body {
+    @apply bg-background text-foreground;
+  }
 }
 
 *,

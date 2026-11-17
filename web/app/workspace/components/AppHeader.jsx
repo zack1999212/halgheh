@@ -1,31 +1,42 @@
-import { Menu } from 'lucide-react'
+import { Separator } from '@/components/ui/separator'
 import NotificationMenu from '../../notifications/NotificationMenu.jsx'
+import ModuleSwitcher from './ModuleSwitcher.jsx'
 import ProfileMenu from './ProfileMenu.jsx'
 
-export default function AppHeader({
-  title,
-  user,
-  onOpenNavigation,
-  onLogout,
-  onUnauthorized,
-}) {
+function BrandMark() {
   return (
-    <header className="app-header">
-      <div className="app-header-left">
-        <button
-          type="button"
-          className="icon-button app-nav-toggle"
-          onClick={onOpenNavigation}
-          aria-label="Open navigation"
-        >
-          <Menu size={18} aria-hidden="true" />
-        </button>
-        <h1 className="app-header-title">{title}</h1>
+    <span
+      className="flex size-[30px] shrink-0 items-center justify-center rounded-[var(--radius-sm)] border border-border bg-foreground text-background"
+      aria-hidden="true"
+    >
+      <svg viewBox="0 0 24 24" fill="none" className="size-[18px]">
+        <circle cx="12" cy="12" r="8" stroke="currentColor" strokeWidth="2" />
+        <circle cx="12" cy="12" r="2.6" fill="currentColor" />
+      </svg>
+    </span>
+  )
+}
+
+/**
+ * Shared application header for all authenticated modules.
+ *
+ * Brand is on the left. Actions are on the right: module switcher, then
+ * notifications, then profile (switcher immediately left of notifications).
+ */
+export default function AppHeader({ user, onLogout, onUnauthorized }) {
+  return (
+    <header className="sticky top-0 z-30 flex h-[var(--header-height)] shrink-0 items-center justify-between gap-4 border-b border-border bg-card px-6 max-lg:px-4">
+      <div className="flex min-w-0 items-center gap-2">
+        <BrandMark />
+        <span className="truncate text-[15px] font-semibold tracking-[-0.01em] text-foreground">
+          Halgheh
+        </span>
       </div>
 
-      <div className="app-header-right">
+      <div className="flex min-w-0 items-center gap-1.5 sm:gap-2">
+        <ModuleSwitcher />
         <NotificationMenu onUnauthorized={onUnauthorized} />
-        <span className="app-header-divider" aria-hidden="true" />
+        <Separator orientation="vertical" className="mx-0.5 h-5" />
         <ProfileMenu user={user} onLogout={onLogout} />
       </div>
     </header>

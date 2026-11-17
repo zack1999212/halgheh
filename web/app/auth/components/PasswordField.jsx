@@ -1,5 +1,12 @@
-import { useId, useState } from 'react'
+import { useState } from 'react'
 import { Eye, EyeOff } from 'lucide-react'
+import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
+import FormField, {
+  fieldInputClass,
+  fieldInvalidClass,
+} from '@/components/shared/FormField'
+import { cn } from '@/lib/utils'
 
 /** Password input with an accessible show/hide visibility toggle. */
 export default function PasswordField({
@@ -7,48 +14,41 @@ export default function PasswordField({
   error,
   hint,
   id,
+  className,
   ...inputProps
 }) {
   const [visible, setVisible] = useState(false)
-  const generatedId = useId()
-  const inputId = id || `field-${generatedId}`
-  const errorId = `${inputId}-error`
 
   return (
-    <div className="auth-field">
-      <label className="auth-field-label" htmlFor={inputId}>
-        {label}
-      </label>
-      <div className="auth-input-wrap">
-        <input
-          id={inputId}
-          type={visible ? 'text' : 'password'}
-          className={`auth-input auth-input--with-action${error ? ' auth-input--invalid' : ''}`}
-          aria-invalid={error ? true : undefined}
-          aria-describedby={error ? errorId : undefined}
-          {...inputProps}
-        />
-        <button
-          type="button"
-          className="auth-input-action"
-          onClick={() => setVisible((current) => !current)}
-          aria-label={visible ? 'Hide password' : 'Show password'}
-          aria-pressed={visible}
-          disabled={inputProps.disabled}
-        >
-          {visible ? (
-            <EyeOff size={16} aria-hidden="true" />
-          ) : (
-            <Eye size={16} aria-hidden="true" />
-          )}
-        </button>
-      </div>
-      {error && (
-        <p className="auth-field-error" id={errorId}>
-          {error}
-        </p>
+    <FormField id={id} label={label} error={error} hint={hint}>
+      {(field) => (
+        <div className="relative">
+          <Input
+            {...field}
+            type={visible ? 'text' : 'password'}
+            className={cn(
+              fieldInputClass,
+              'pr-12',
+              error && fieldInvalidClass,
+              className,
+            )}
+            {...inputProps}
+          />
+
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon"
+            onClick={() => setVisible((current) => !current)}
+            aria-label={visible ? 'Hide password' : 'Show password'}
+            aria-pressed={visible}
+            disabled={inputProps.disabled}
+            className="absolute right-1.5 top-1/2 size-8 -translate-y-1/2 rounded-[var(--radius-sm)] text-muted-foreground hover:bg-accent hover:text-foreground"
+          >
+            {visible ? <EyeOff aria-hidden="true" /> : <Eye aria-hidden="true" />}
+          </Button>
+        </div>
       )}
-      {!error && hint && <p className="auth-field-hint">{hint}</p>}
-    </div>
+    </FormField>
   )
 }

@@ -21,6 +21,10 @@ class ConversationCreate(BaseModel):
     title: str | None = Field(default=None, max_length=200)
     # IANA timezone used to interpret relative dates and default tool times.
     timezone: str | None = Field(default=None, max_length=64)
+    # Optional model selection for the new conversation. Omitted means "inherit
+    # the user preference, then the application default".
+    provider: str | None = Field(default=None, max_length=50)
+    model: str | None = Field(default=None, max_length=120)
 
     @field_validator("title")
     @classmethod
@@ -57,11 +61,20 @@ class ConversationUpdate(BaseModel):
         return trimmed
 
 
+class ConversationModelUpdate(BaseModel):
+    """Pin a conversation to a provider/model, or clear it with nulls."""
+
+    provider: str | None = Field(default=None, max_length=50)
+    model: str | None = Field(default=None, max_length=120)
+
+
 class ConversationResponse(BaseModel):
     id: int
     agent_id: str
     title: str
     timezone: str | None = None
+    provider: str | None = None
+    model: str | None = None
     created_at: datetime
     updated_at: datetime
 

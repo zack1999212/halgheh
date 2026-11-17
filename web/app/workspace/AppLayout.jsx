@@ -1,15 +1,19 @@
 import { useCallback, useEffect, useState } from 'react'
-import { Outlet, useLocation, useNavigate } from 'react-router-dom'
+import { Outlet, useNavigate } from 'react-router-dom'
 import { getCurrentUser, clearSession } from '../auth/api.js'
-import { NAV_ITEMS, findNavItem } from './navigation.js'
-import Sidebar from './components/Sidebar.jsx'
+import { TooltipProvider } from '@/components/ui/tooltip'
 import AppHeader from './components/AppHeader.jsx'
 import './shell.css'
 
+/**
+ * Shared authenticated application shell.
+ *
+ * Owns global chrome only: the application header (brand, module switcher,
+ * notifications, profile) and the main content outlet. Module-specific layouts
+ * and navigation live inside each module route so modules remain isolated.
+ */
 export default function AppLayout() {
   const [user, setUser] = useState(null)
-  const [navOpen, setNavOpen] = useState(false)
-  const location = useLocation()
   const navigate = useNavigate()
 
   const handleUnauthorized = useCallback(() => {
@@ -42,54 +46,19 @@ export default function AppLayout() {
     }
   }, [handleUnauthorized])
 
-  // Close the mobile drawer whenever the route changes.
-  useEffect(() => {
-    setNavOpen(false)
-  }, [location.pathname])
-
-  useEffect(() => {
-    if (!navOpen) {
-      return undefined
-    }
-
-    function handleKeyDown(event) {
-      if (event.key === 'Escape') {
-        setNavOpen(false)
-      }
-    }
-
-    document.addEventListener('keydown', handleKeyDown)
-    return () => document.removeEventListener('keydown', handleKeyDown)
-  }, [navOpen])
-
-  const activeItem = findNavItem(location.pathname)
-
   return (
-    <div className="app-shell">
-      <Sidebar items={NAV_ITEMS} open={navOpen} />
-
-      {navOpen && (
-        <button
-          type="button"
-          className="app-nav-overlay"
-          onClick={() => setNavOpen(false)}
-          aria-label="Close navigation"
-        />
-      )}
-
-      <div className="app-main">
+    <TooltipProvider delayDuration={0}>
+      <div className="flex min-h-svh flex-col bg-background text-foreground">
         <AppHeader
-          title={activeItem?.label || 'Halgheh'}
           user={user}
-          onOpenNavigation={() => setNavOpen(true)}
           onLogout={handleLogout}
           onUnauthorized={handleUnauthorized}
         />
 
-        <main className="app-content">
+        <main className="app-content flex min-h-0 flex-1 flex-col">
           <Outlet />
         </main>
       </div>
-    </div>
+    </TooltipProvider>
   )
 }

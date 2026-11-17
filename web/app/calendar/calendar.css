@@ -3,12 +3,9 @@
  * All colour values are scoped to `.calendar-page` so the rest of the
  * application (including the dark navy sidebar) keeps its own palette.
  */
-
 /* --- Design Tokens (Calendar-specific) --- */
-
 /* :root tokens are intentionally omitted — they are re-declared on
    .calendar-page below so they remain scoped to the calendar only. */
-
 .calendar-page {
   /* Background colors */
   --cal-bg: #ffffff;
@@ -86,7 +83,6 @@
   --cal-shadow-popover: 0 20px 40px -24px rgba(0, 0, 0, 0.28),
     0 2px 8px rgba(0, 0, 0, 0.04);
 }
-
 /*
  * The calendar surface fills the remaining page height (toolbar above) and
  * is the positioning context for loading/error overlays. Without this base
@@ -106,341 +102,11 @@
   border-radius: var(--radius-lg);
 }
 
-/* --- Toolbar --- */
-
-.calendar-toolbar {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-4);
-  min-width: 0;
-}
-
-.calendar-toolbar-primary {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  flex-wrap: wrap;
-  gap: var(--space-3);
-  min-width: 0;
-}
-
-.calendar-toolbar-title {
-  color: var(--cal-ink);
-  font-size: 16px;
-  font-weight: 600;
-  letter-spacing: -0.01em;
-  white-space: nowrap;
-}
-
-/* --- Primary header (two-level layout) ---
-   Level 1: Title + Calendar selector
-   Level 2: Navigation + Create Event --- */
-
-.calendar-toolbar-header-1 {
-  display: flex;
-  align-items: center;
-  gap: var(--space-3);
-  flex-wrap: wrap;
-}
-
-.calendar-toolbar-header-2 {
-  display: flex;
-  align-items: center;
-  gap: var(--space-3);
-  flex-wrap: wrap;
-}
-
-/* --- Navigation toolbar --- */
-
-.calendar-nav {
-  display: flex;
-  align-items: center;
-  gap: 2px;
-}
-
-.calendar-nav-button {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 32px;
-  height: 32px;
-  padding: 0;
-  color: var(--cal-ink);
-  background: var(--cal-surface);
-  border: 1px solid var(--cal-line-strong);
-  border-radius: var(--radius-sm);
-  cursor: pointer;
-  transition: background-color var(--transition), box-shadow var(--transition);
-}
-
-.calendar-nav-button:hover:not(:disabled) {
-  background: var(--cal-fill-soft);
-}
-
-.calendar-nav-button:active:not(:disabled) {
-  background: var(--cal-hover);
-}
-
-.calendar-nav-button:disabled {
-  color: var(--cal-subtle);
-  cursor: not-allowed;
-  opacity: 0.6;
-}
-
-.calendar-nav-button:focus-visible {
-  outline: none;
-  box-shadow: var(--cal-ring);
-}
-
-.calendar-today-button {
-  height: 32px;
-  padding: 0 12px;
-  color: var(--cal-ink);
-  background: var(--cal-surface);
-  border: 1px solid var(--cal-line-strong);
-  border-radius: var(--radius-sm);
-  font-size: 12.5px;
-  font-weight: 500;
-  cursor: pointer;
-  transition: background-color var(--transition), box-shadow var(--transition);
-}
-
-.calendar-today-button:hover:not(:disabled) {
-  background: var(--cal-fill-soft);
-}
-
-.calendar-today-button:active:not(:disabled) {
-  background: var(--cal-hover);
-}
-
-.calendar-today-button:disabled {
-  color: var(--cal-subtle);
-  cursor: not-allowed;
-  opacity: 0.6;
-}
-
-.calendar-today-button:focus-visible {
-  outline: none;
-  box-shadow: var(--cal-ring);
-}
-
-/* --- Calendar range label --- */
-
-.calendar-range {
-  color: var(--cal-muted);
-  font-size: 13px;
-  font-weight: 500;
-  font-variant-numeric: tabular-nums;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-/* --- Calendar selector --- */
-
-.calendar-selector-wrap {
-  position: relative;
-  min-width: 0;
-}
-
-.calendar-selector {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  height: 28px;
-  padding: 0 8px;
-  color: var(--cal-ink);
-  background: var(--cal-surface);
-  border: 1px solid var(--cal-line-strong);
-  border-radius: var(--radius-sm);
-  font-size: 12.5px;
-  white-space: nowrap;
-  cursor: pointer;
-  transition: background-color var(--transition), box-shadow var(--transition);
-}
-
-.calendar-selector:hover {
-  background: var(--cal-fill-soft);
-}
-
-.calendar-selector:active {
-  background: var(--cal-fill);
-}
-
-.calendar-selector:focus-visible {
-  outline: none;
-  box-shadow: var(--cal-ring);
-}
-
-.calendar-selector.is-open {
-  background: var(--cal-fill-soft);
-}
-
-/* Loading spinner inside the calendar selector. */
-.calendar-spinner {
-  animation: calendar-spin 0.8s linear infinite;
-}
 
 @keyframes calendar-spin {
   to {
     transform: rotate(360deg);
   }
-}
-
-.calendar-selector--empty {
-  color: var(--cal-muted);
-  background: var(--cal-fill-soft);
-  cursor: default;
-}
-
-.calendar-selector--empty:hover {
-  background: var(--cal-fill-soft);
-}
-
-.calendar-selector-dot {
-  flex: none;
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
-  background: var(--cal-subtle);
-}
-
-.calendar-selector-panel {
-  position: absolute;
-  top: calc(100% + 6px);
-  left: 0;
-  z-index: 50;
-  min-width: 208px;
-  padding: var(--space-1);
-  background: var(--cal-surface);
-  border: 1px solid var(--cal-line);
-  border-radius: var(--radius-md);
-  box-shadow: var(--cal-shadow-popover);
-}
-
-.calendar-selector-option {
-  display: flex;
-  align-items: center;
-  gap: var(--space-2);
-  width: 100%;
-  padding: 6px 8px;
-  color: var(--cal-ink);
-  background: transparent;
-  border: none;
-  border-radius: var(--radius-sm);
-  font-size: 12.5px;
-  text-align: left;
-  cursor: pointer;
-}
-
-.calendar-selector-option:hover {
-  background: var(--cal-fill);
-}
-
-.calendar-selector-option:active {
-  background: var(--cal-fill-soft);
-}
-
-.calendar-selector-option:focus-visible {
-  outline: none;
-  box-shadow: var(--cal-ring);
-  background: var(--cal-fill);
-}
-
-.calendar-selector-option:disabled {
-  color: var(--cal-muted);
-  cursor: not-allowed;
-}
-
-.calendar-selector-option[aria-selected='true'] {
-  background: var(--cal-fill-soft);
-}
-
-.calendar-selector-option-label {
-  flex: 1;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-/* --- View selector --- */
-
-.view-selector {
-  display: inline-flex;
-  align-items: center;
-  gap: 2px;
-  padding: 2px;
-  background: var(--cal-surface);
-  border: 1px solid var(--cal-line-strong);
-  border-radius: var(--radius-sm);
-  font-size: 12px;
-}
-
-.view-selector-button {
-  padding: 6px 12px;
-  color: var(--cal-ink-muted);
-  background: transparent;
-  border: none;
-  border-radius: var(--radius-md);
-  font-size: 12px;
-  font-weight: 500;
-  cursor: pointer;
-  transition: background-color var(--transition), color var(--transition);
-  white-space: nowrap;
-}
-
-.view-selector-button:hover {
-  color: var(--cal-ink);
-  background: var(--cal-fill-soft);
-}
-
-.view-selector-button.is-active {
-  color: #ffffff;
-  background: #000000;
-}
-
-.view-selector-button.is-active:hover {
-  color: #ffffff;
-  background: #000000;
-}
-
-.view-selector-button:focus-visible {
-  outline: none;
-  box-shadow: var(--cal-ring);
-}
-
-.view-selector-button:active:not(.is-active) {
-  color: var(--cal-ink);
-  background: var(--cal-fill);
-}
-
-/* --- Primary action: Create Event button --- */
-
-.calendar-create-button {
-  height: 36px;
-  padding: 0 16px;
-  color: #ffffff;
-  background: #000000;
-  border: none;
-  border-radius: var(--radius-sm);
-  font-size: 13px;
-  font-weight: 500;
-  cursor: pointer;
-  transition: background-color var(--transition);
-  white-space: nowrap;
-  min-width: 0;
-}
-
-.calendar-create-button:hover {
-  background: #262626;
-}
-
-.calendar-create-button:active {
-  background: #000000;
-}
-
-.calendar-create-button:focus-visible {
-  box-shadow: var(--cal-ring);
 }
 
 /* --- Responsive --- */
@@ -454,60 +120,8 @@
       100dvh - var(--header-height) - var(--space-6) - var(--space-8)
     );
   }
-
-  .calendar-toolbar-header-2 {
-    width: 100%;
-    justify-content: space-between;
-  }
-
-  /* Larger hit areas without changing the desktop look on >768px. */
-  .calendar-selector-option {
-    padding: 9px 10px;
-  }
-
-  .view-selector-button {
-    padding: 6px 12px;
-  }
 }
 
-/* Small tablet / large phone: toolbar must never overlap or clip. */
-
-@media (max-width: 768px) {
-  /* The title stays visible; it simply shares the row with the selector. */
-  .calendar-toolbar-header-1 {
-    gap: var(--space-2);
-  }
-
-  .calendar-toolbar-title {
-    font-size: 15px;
-  }
-
-  .calendar-toolbar-header-2 {
-    width: 100%;
-    margin-left: 0;
-    justify-content: space-between;
-    flex-wrap: wrap;
-    row-gap: var(--space-2);
-  }
-
-  /* Comfortable touch targets. */
-  .calendar-nav-button,
-  .calendar-today-button {
-    height: 40px;
-  }
-
-  .calendar-nav-button {
-    width: 40px;
-  }
-
-  .calendar-today-button {
-    padding: 0 14px;
-  }
-
-  .view-selector-button {
-    min-height: 40px;
-  }
-}
 
 /* Mobile: vertical toolbar, compact but complete information, touch-first. */
 
@@ -518,184 +132,85 @@
     gap: var(--space-3);
     padding-inline: var(--space-2);
   }
-
-  /* The page scrolls with the app; the surface gets a comfortable viewport
+/* The page scrolls with the app; the surface gets a comfortable viewport
      height instead of the desktop flex fill. */
   .calendar-surface {
     flex: none;
     height: 68vh;
   }
-
-  .calendar-toolbar-primary {
-    flex-direction: column;
-    align-items: stretch;
-  }
-
-  .calendar-toolbar-header-1,
-  .calendar-toolbar-header-2 {
-    width: 100%;
-    justify-content: space-between;
-    flex-wrap: wrap;
-    row-gap: var(--space-2);
-  }
-
-  .calendar-toolbar-header-1 {
-    margin-bottom: var(--space-1);
-  }
-
-  .calendar-nav {
-    flex: 1;
-    min-width: 0;
-  }
-
-  /* 44px touch targets, with a visible pressed state. */
-  .calendar-nav-button,
-  .calendar-today-button {
-    height: 44px;
-  }
-
-  .calendar-nav-button {
-    width: 44px;
-  }
-
-  /* Keep the current date/range visible in a compact format on its own row. */
-  .calendar-range {
-    display: block;
-    order: 3;
-    flex-basis: 100%;
-    font-size: 12px;
-    text-align: left;
-  }
-
-  .calendar-selector {
-    height: 44px;
-    justify-content: space-between;
-  }
-
-  /* Keep the calendar popover inside the viewport on narrow screens. */
-  .calendar-selector-panel {
-    left: 0;
-    right: 0;
-    min-width: 0;
-    max-width: none;
-  }
-
-  .calendar-selector-option {
-    padding: 12px 10px;
-    font-size: 13px;
-  }
-
-  .view-selector {
-    display: flex;
-    width: 100%;
-  }
-
-  .view-selector-button {
-    flex: 1;
-    min-height: 44px;
-    padding: 8px 4px;
-    font-size: 12px;
-  }
-
-  .calendar-create-button {
-    width: 100%;
-    height: 44px;
-  }
-
-  /* --- Month view on mobile --- */
-
+/* --- Month view on mobile --- */
   .fc .fc-daygrid-day-number {
     height: 28px;
     padding: 5px 5px 0;
     font-size: 11px;
   }
-
   .fc .fc-daygrid-day-header-cushion {
     padding: 6px 2px;
     font-size: 10px;
   }
-
   .fc .fc-daygrid-event {
     margin: 1px 2px 0;
     padding: 2px 4px;
     font-size: 10px;
   }
-
   .fc .fc-daygrid-event .calendar-event-time {
     display: none;
   }
-
   .fc .fc .fc-more-link {
     padding: 3px 6px;
     font-size: 10px;
   }
-
-  /* --- Week and Day views on mobile ---
+/* --- Week and Day views on mobile ---
      Seven day columns cannot fit 390px without becoming unusable, so the
      time grid scrolls horizontally while vertical positioning stays exact.
      All seven days remain reachable by swiping. */
-
   .calendar-surface {
     overflow-x: auto;
   }
-
   .fc .fc-timegrid .fc-scrollgrid {
     min-width: 640px;
   }
-
-  .fc .fc-timegrid-slot-label-cushion,
-  .fc .fc-timegrid-axis-cushion {
+  .fc .fc-timegrid-slot-label-cushion, .fc .fc-timegrid-axis-cushion {
     font-size: 10px;
   }
-
   .fc .fc-timegrid-event {
     padding: 2px 4px;
     font-size: 10px;
   }
-
   .fc .fc-timegrid-event .calendar-event-time {
     display: block;
   }
-
   .fc .fc-timegrid-event.fc-event-short {
     padding: 1px 4px;
   }
 }
-
 /* ========================================== */
 /* === Month View Redesign (Task 3) Start === */
 /* ========================================== */
-
 /* --- Month grid: day cell frame --- */
-
 /* Day cell selected state */
 .fc .fc-daygrid-day.fc-day-selected {
   background: var(--cal-surface-hover);
 }
-
 .fc .fc-day-selected .fc-daygrid-day-number {
   color: var(--cal-ink);
 }
-
 /* Today date highlighting */
 /* Today highlighting in Week/Day views — reference keeps cells plain white;
    today is communicated by the bold date number only. */
 .fc .fc-daygrid-day.fc-day-today {
   background: transparent;
 }
-
 .fc .fc-day-today .fc-daygrid-day-number {
   color: var(--cal-ink);
   font-weight: 700;
 }
-
 /* Weekday header row */
 .fc .fc-daygrid-day-header {
   background: var(--cal-fill-soft);
   border: none;
   border-bottom: 1px solid var(--cal-line-soft);
 }
-
 .fc .fc-daygrid-day-header-cushion {
   padding: 8px 4px;
   color: var(--cal-ink-muted);
@@ -706,7 +221,6 @@
   text-decoration: none;
   font-variant-numeric: tabular-nums;
 }
-
 /* Day number - main styling */
 .fc .fc-daygrid-day-number {
   padding: 10px 8px;
@@ -720,86 +234,53 @@
   height: 36px;
   width: 100%;
 }
-
 /* Dates outside current month */
 .fc .fc-day-other .fc-daygrid-day-frame {
   background: var(--cal-fill-soft);
 }
-
 /* Clickable month-view date cells */
 .fc .fc-daygrid-day {
   cursor: pointer;
 }
-
 .fc .fc-daygrid-day-frame {
   transition: background-color 120ms ease;
 }
-
 .fc .fc-daygrid-day:hover .fc-daygrid-day-frame {
   background: var(--cal-fill);
 }
-
-.fc .fc-daygrid-day:focus-within .fc-daygrid-day-frame,
-.fc .fc-daygrid-day:focus .fc-daygrid-day-frame {
+.fc .fc-daygrid-day:focus-within .fc-daygrid-day-frame, .fc .fc-daygrid-day:focus .fc-daygrid-day-frame {
   background: var(--cal-fill);
 }
-
-.fc .fc-daygrid-day:focus-within .fc-daygrid-day-number,
-.fc .fc-daygrid-day:focus .fc-daygrid-day-number {
+.fc .fc-daygrid-day:focus-within .fc-daygrid-day-number, .fc .fc-daygrid-day:focus .fc-daygrid-day-number {
   outline: 2px solid var(--cal-ink);
   outline-offset: -2px;
   border-radius: var(--radius-sm);
 }
-
 /* Drag and resize visual feedback */
-.fc .fc-event.fc-event-dragging,
-.fc .fc-event.fc-event-resizing {
+.fc .fc-event.fc-event-dragging, .fc .fc-event.fc-event-resizing {
   opacity: 0.7;
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
 }
-
 .fc .fc-event-resizer {
   background: var(--cal-ink, #111);
   border-radius: 2px;
 }
-
-.fc .fc-event-resizer-start,
-.fc .fc-event-resizer-end {
+.fc .fc-event-resizer-start, .fc .fc-event-resizer-end {
   width: 6px;
   opacity: 0;
   transition: opacity 120ms ease;
 }
-
-.fc .fc-event:hover .fc-event-resizer,
-.fc .fc-event.fc-event-resizing .fc-event-resizer {
+.fc .fc-event:hover .fc-event-resizer, .fc .fc-event.fc-event-resizing .fc-event-resizer {
   opacity: 1;
 }
-
-.calendar-toast {
-  position: fixed;
-  bottom: 24px;
-  left: 50%;
-  transform: translateX(-50%);
-  background: var(--cal-ink, #111);
-  color: var(--cal-bg, #fff);
-  padding: 10px 16px;
-  border-radius: var(--radius-md, 8px);
-  font-size: 14px;
-  z-index: 1000;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
-}
-
 .fc .fc-daygrid-day.fc-day-today:hover .fc-daygrid-day-frame {
   background: var(--cal-fill);
 }
-
 .fc .fc-day-other .fc-daygrid-day-number {
   color: var(--cal-ink-muted);
   font-size: 11px;
 }
-
 /* --- Event chip styling --- */
-
 /* Event base - no colored backgrounds */
 .fc .fc-event {
   border-radius: var(--radius-sm);
@@ -809,7 +290,14 @@
   margin: 2px 4px 2px 0;
   padding: 3px 6px;
 }
-
+/* Time-grid (Week/Day) events must span exactly their time range: the
+   generic chip margin above adds 2px at the top and bottom, which shrinks
+   the box away from its true start and end hour lines. Horizontal spacing
+   between adjacent columns stays. */
+.fc .fc-timegrid-event {
+  margin-top: 0;
+  margin-bottom: 0;
+}
 /* Event content styling */
 .fc .fc-event .fc-event-main {
   padding: 2px 6px;
@@ -821,12 +309,10 @@
   overflow: hidden;
   text-overflow: ellipsis;
 }
-
 /* Event hover state */
 .fc .fc-event:hover {
   background: var(--cal-fill-soft);
 }
-
 /* Recurring event indicator */
 .fc .fc-event .calendar-event-recurring {
   margin-left: 4px;
@@ -834,21 +320,17 @@
   color: var(--cal-ink-muted);
   line-height: 1;
 }
-
 /* All-day event styling - distinguish with left border */
 .fc .fc-daygrid-event[data-is-all-day='true'] {
   border-left: 3px solid var(--evc-accent, var(--cal-ink));
 }
-
 .fc .fc-daygrid-event[data-is-all-day='true'] .calendar-event-title {
   font-weight: 500;
   color: var(--evc-text, var(--cal-ink));
 }
-
 .fc .fc-daygrid-event[data-is-all-day='true'] .calendar-event-time {
   display: none;
 }
-
 /* Timed event time label — plain secondary text per the reference design */
 .fc .fc-event.timed .calendar-event-time {
   display: inline-block;
@@ -862,19 +344,16 @@
   margin-bottom: 0;
   line-height: 1.3;
 }
-
 /* All-day event title weight */
 .fc .fc-event.all-day .calendar-event-title {
   font-weight: 500;
 }
-
 /* Multiple events stacking in one day */
 .fc .fc-daygrid-multiple-events .fc-event {
   margin: 2px 0;
   padding: 3px 5px;
   font-size: 10px;
 }
-
 .fc .fc-daygrid-multiple-events .calendar-event-title {
   font-size: 10px;
   line-height: 1.2;
@@ -882,11 +361,9 @@
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-
 .fc .fc-daygrid-multiple-events .calendar-event-time {
   display: none;
 }
-
 /* Event overflow indicator - matches monochrome design */
 .fc .fc .fc-more-link {
   padding: 4px 8px;
@@ -901,54 +378,36 @@
   text-overflow: ellipsis;
   max-width: 100%;
 }
-
 .fc .fc .fc-more-link:hover {
   background: var(--cal-fill-soft);
   color: var(--cal-ink);
 }
-
 /* ========================================== */
 /* === Month View Redesign (Task 3) End === */
 /* ========================================== */
-
 /* ========================================== */
 /* === Week & Day Views Redesign (Task 4) Start === */
 /* ========================================== */
-
 /* --- Timegrid month/basicDay (Week) day cell --- */
-
 .fc .fc-daygrid-day-frame {
   min-height: 0;
   background: var(--cal-surface);
   border: 1px solid var(--cal-line-soft);
   border-radius: var(--radius-sm);
 }
-
-
-
-
 /* Today highlighting in Week/Day views */
-
-
 /* Selected date in Week/Day */
-
-
-
-
 /* Week number column */
 .fc .fc-daygrid-axis {
   border-right: 1px solid var(--cal-line-soft);
   background: var(--cal-fill-soft);
 }
-
 .fc .fc-daygrid-axis .fc-daygrid-axis-cushion {
   color: var(--cal-ink-muted);
   font-size: 11px;
   font-variant-numeric: tabular-nums;
 }
-
 /* --- All-Day Section --- */
-
 /* All-day events */
 .fc .fc-daygrid-event[data-is-all-day='true'] {
   border-left: none;
@@ -959,7 +418,6 @@
   color: var(--cal-ink);
   background: var(--cal-fill-soft);
 }
-
 .fc .fc-daygrid-event[data-is-all-day='true'] .fc-event-main {
   padding: 0;
   color: var(--cal-ink);
@@ -967,106 +425,70 @@
   font-size: 11px;
   line-height: 1.3;
 }
-
 /* Recurring all-day event indicator */
 .fc .fc-daygrid-event[data-is-all-day='true'] .calendar-event-recurring {
   margin-left: 4px;
   font-size: 10px;
   color: var(--cal-ink-muted);
 }
-
 /* Multiple all-day events stacking */
 .fc .fc-daygrid-multiple-events .fc-daygrid-event[data-is-all-day='true'] {
   margin: 2px 0;
   padding: 3px 5px;
   font-size: 10px;
 }
-
 /* --- Timed Event Blocks --- */
-
-
-
-
-
-
-
 /* ============ Week View Specific ============ */
-
 /* Week: seven day columns */
 .fc .fc-daygrid-week .fc-daygrid-day {
   border-right: 1px solid var(--cal-line-soft);
 }
-
 .fc .fc-daygrid-week .fc-day:last-child {
   border-right: none;
 }
-
 /* Week day header */
 .fc .fc-daygrid-week .fc-daygrid-day-header {
   padding: 8px 4px;
 }
-
 /* Week column width consistency */
 .fc .fc-daygrid .fc-daygrid-col {
   border-left: 1px solid var(--cal-line-soft);
 }
-
 .fc .fc-daygrid .fc-daygrid-col:first-child {
   border-left: none;
 }
-
 /* ============ Day View Specific ============ */
-
 /* Day: full horizontal timeline */
 .fc .fc-daygrid-day > td {
   border-bottom: 1px solid var(--cal-line-soft);
 }
-
 /* Day event column */
 .fc .fc-daygrid-day .fc-daygrid-event {
   margin: 2px 2px 2px 0;
   border-radius: var(--radius-sm);
 }
-
-/* Day: events positioned by actual time */
-.fc .fc.daygrid-day.top-0 {
-  top: 0 !important;
-}
-
 /* Ensure day events don't overflow horizontally */
 .fc .fc-daygrid-day .fc-event {
   min-width: 0;
   max-width: 100%;
 }
-
 /* The reference design uses card-style chips, not FullCalendar's 1%-width
    liquid block; cards size to their content inside the day cell. */
 .fc .fc-daygrid-day .fc-daygrid-event {
   width: auto;
 }
-
 /* ============ Overlapping Events ============ */
-
-
-
-
-
-
 /* ========================================== */
 /* === Week & Day Views Redesign (Task 4) End === */
 /* ========================================== */
-
 /* ========================================== */
 /* === Agenda View Redesign (Task 5) Start === */
 /* ========================================== */
-
 /* --- Agenda container --- */
-
 .fc .fc-list {
   border: none;
   background: var(--cal-surface);
 }
-
 /* Date group header */
 .fc .fc-list-day-cushion {
   padding: 8px 10px;
@@ -1079,25 +501,21 @@
   font-variant-numeric: tabular-nums;
   border-bottom: 1px solid var(--cal-line-soft);
 }
-
 /* Today date group highlight */
 .fc .fc-list-day-cushion.fc-list-day-today {
   background: var(--cal-fill-soft);
   color: var(--cal-ink);
   border-bottom: 2px solid var(--cal-ink);
 }
-
 /* Event row — a normal table row: time | (graphic hidden) | title */
 .fc .fc-list-event {
   padding: 0;
   border-bottom: 1px solid var(--cal-line-soft);
   background: transparent;
 }
-
 .fc .fc-list-event:hover {
   background: var(--cal-fill);
 }
-
 /* Event time labels */
 .fc .fc-list-event-time {
   padding: 10px;
@@ -1108,13 +526,11 @@
   white-space: nowrap;
   vertical-align: top;
 }
-
 /* Event title */
 .fc .fc-list-event-title {
   padding: 10px 12px 10px 0;
   vertical-align: top;
 }
-
 /* Recurrence indicator */
 .fc .fc-list-event .calendar-event-recurring {
   margin-left: 4px;
@@ -1124,7 +540,6 @@
   grid-column: 3;
   align-self: center;
 }
-
 /* All-day label */
 .fc .fc-list-event[data-is-all-day='true'] .fc-list-event-title::before {
   content: "All day ";
@@ -1135,6 +550,7 @@
   vertical-align: middle;
 }
 
+
 /* Event overflow indicator */
 /* Agenda responsive */
 @media (max-width: 1024px) {
@@ -1142,11 +558,11 @@
     width: 120px;
     font-size: 10px;
   }
-
   .fc .fc-list-event .calendar-event-title {
     font-size: 12px;
   }
 }
+
 
 @media (max-width: 640px) {
   .fc .fc-list-event-time {
@@ -1154,7 +570,6 @@
     font-size: 10px;
     white-space: normal;
   }
-
   .fc .fc-list-event .calendar-event-title {
     font-size: 12px;
     white-space: normal;
@@ -1165,624 +580,15 @@
     -webkit-line-clamp: 2;
     -webkit-box-orient: vertical;
   }
-
   .fc .fc-list-event .calendar-event-recurring {
     display: block;
     margin-left: 0;
     font-size: 10px;
   }
-
   .fc .fc-list-event[data-is-all-day='true'] {
     border-left: none;
   }
-
 }
-
-/* ========================================== */
-/* === Agenda View Redesign (Task 5) End === */
-/* ========================================== */
-
-/* ========================================== */
-/* === Task 6: Event Details and Dialogs Redesign Start === */
-/* ========================================== */
-
-/* --- Event Detail Panel --- */
-
-.event-detail {
-  position: fixed;
-  top: var(--header-height);
-  right: 0;
-  bottom: 0;
-  z-index: 45;
-  width: 340px;
-  max-width: 100%;
-  background: var(--cal-surface);
-  border-left: 1px solid var(--cal-line);
-  border-radius: 0 var(--radius-lg) var(--radius-lg) 0;
-  box-shadow: -24px 0 48px -40px rgba(0, 0, 0, 0.4);
-  font-family: var(--font-sans);
-  overflow-y: auto;
-  padding: var(--space-4);
-}
-
-.event-detail-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--space-3);
-  padding-bottom: var(--space-3);
-  border-bottom: 1px solid var(--cal-line);
-  margin-bottom: var(--space-3);
-}
-
-.event-detail-header .icon-button {
-  color: var(--cal-ink);
-}
-
-.event-detail-header .icon-button:hover {
-  background: var(--cal-fill);
-  color: var(--cal-ink);
-}
-
-.event-detail-header .icon-button:focus-visible {
-  box-shadow: var(--cal-ring);
-}
-
-.event-detail-eyebrow {
-  color: var(--cal-subtle);
-  font-size: 10.5px;
-  font-weight: 600;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-}
-
-.event-detail-title {
-  color: var(--cal-ink);
-  font-size: 16px;
-  font-weight: 600;
-  letter-spacing: -0.01em;
-  line-height: 1.35;
-  overflow-wrap: anywhere;
-}
-
-.event-detail-badges {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--space-2);
-  margin-top: var(--space-2);
-}
-
-.event-detail-badge {
-  padding: 2px 7px;
-  border-radius: 999px;
-  background: var(--cal-ink);
-  color: #ffffff;
-  font-size: 11px;
-  font-weight: 500;
-}
-
-.event-detail-badge--muted {
-  background: var(--cal-fill);
-  color: var(--cal-ink-soft);
-}
-
-.event-detail-badge--calendar {
-  background: var(--cal-surface);
-  color: var(--cal-ink);
-  border: 1px solid var(--cal-line-soft);
-}
-
-.event-detail-badge--category {
-  background: var(--evc-bg, var(--cal-fill));
-  color: var(--evc-text, var(--cal-ink));
-  border: 1px solid var(--evc-accent, var(--cal-line-soft));
-}
-
-.event-detail-list {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-4);
-  margin: var(--space-4) 0 0;
-}
-
-.event-detail-row {
-  display: flex;
-  gap: var(--space-3);
-}
-
-.event-detail-label {
-  display: flex;
-  flex: none;
-  align-items: center;
-  gap: 6px;
-  width: 96px;
-  color: var(--cal-muted);
-  font-size: 11.5px;
-  font-weight: 500;
-}
-
-.event-detail-label svg {
-  color: var(--cal-subtle);
-}
-
-.event-detail-value {
-  min-width: 0;
-  margin: 0;
-  color: var(--cal-ink-soft);
-  font-size: 12.5px;
-  line-height: 1.5;
-  overflow-wrap: anywhere;
-  white-space: pre-line;
-}
-
-.event-detail-sub {
-  margin-top: 2px;
-  color: var(--cal-muted);
-  font-size: 11.5px;
-}
-
-.event-detail-code {
-  display: inline-block;
-  padding: 2px 5px;
-  border-radius: 4px;
-  background: var(--cal-fill);
-  color: var(--cal-ink-soft);
-  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
-  font-size: 11px;
-}
-
-.event-detail-reminders {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-  margin: 0;
-  padding-left: var(--space-4);
-}
-
-
-/* Comments section */
-.comment-list {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-3);
-  margin: 0;
-  padding: 0;
-  list-style: none;
-}
-
-.comment-item {
-  padding: var(--space-3);
-  background: var(--cal-fill-soft);
-  border: 1px solid var(--cal-line);
-  border-radius: var(--radius-sm);
-}
-
-.comment-content {
-  color: var(--cal-ink);
-  font-size: 12.5px;
-  line-height: 1.5;
-  white-space: pre-line;
-  overflow-wrap: anywhere;
-}
-
-.comment-meta {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--space-2);
-  margin-top: var(--space-2);
-  color: var(--cal-muted);
-  font-size: 11px;
-}
-
-.comment-form {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-2);
-  margin-top: var(--space-3);
-}
-
-.comment-form .button-secondary {
-  align-self: flex-end;
-}
-
-/* Event detail sections */
-.detail-section {
-  margin-top: var(--space-5);
-  padding-top: var(--space-4);
-  border-top: 1px solid var(--cal-line);
-}
-
-.detail-section-header {
-  display: flex;
-  align-items: baseline;
-  gap: var(--space-2);
-  margin-bottom: var(--space-3);
-}
-
-.detail-section-title {
-  color: var(--cal-ink);
-  font-size: 12.5px;
-  font-weight: 600;
-}
-
-.detail-section-count {
-  color: var(--cal-muted);
-  font-size: 11.5px;
-}
-
-/* --- Create/Edit Event Dialog --- */
-
-.dialog-backdrop {
-  position: fixed;
-  inset: 0;
-  z-index: 80;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: var(--space-5);
-  background: rgba(10, 10, 10, 0.34);
-}
-
-.dialog {
-  width: 100%;
-  max-width: 460px;
-  /* Keep the whole sheet inside the viewport at every size; long forms
-     scroll internally (overflow-y: auto below). */
-  max-height: calc(100dvh - 2 * var(--space-5));
-  padding: var(--space-5);
-  background: var(--cal-surface);
-  border: 1px solid var(--cal-line);
-  border-radius: var(--radius-lg);
-  box-shadow: 0 32px 64px -32px rgba(0, 0, 0, 0.36);
-  overflow-y: auto;
-}
-
-.dialog--wide {
-  max-width: 640px;
-}
-
-.dialog-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--space-3);
-  margin-bottom: var(--space-3);
-  padding-bottom: var(--space-3);
-  border-bottom: 1px solid var(--cal-line);
-}
-
-.dialog .icon-button {
-  color: var(--cal-ink);
-}
-
-.dialog .icon-button:hover {
-  background: var(--cal-fill);
-  color: var(--cal-ink);
-}
-
-.dialog .icon-button:focus-visible {
-  box-shadow: var(--cal-ring);
-}
-
-.dialog-title {
-  color: var(--cal-ink);
-  font-size: 15px;
-  font-weight: 600;
-  letter-spacing: -0.01em;
-}
-
-.dialog-body {
-  margin-top: var(--space-3);
-  color: var(--cal-muted);
-  font-size: 13px;
-  line-height: 1.55;
-}
-
-.dialog-footer {
-  display: flex;
-  justify-content: flex-end;
-  gap: var(--space-2);
-  margin-top: var(--space-5);
-  padding-top: var(--space-3);
-  border-top: 1px solid var(--cal-line);
-}
-
-/* Form styling */
-.form {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-4);
-}
-
-.form-row {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: var(--space-3);
-}
-
-.form-field {
-  display: flex;
-  flex-direction: column;
-  gap: 5px;
-  min-width: 0;
-}
-
-.form-field--narrow {
-  max-width: 160px;
-}
-
-.form-label {
-  color: var(--cal-ink);
-  font-size: 12.5px;
-  font-weight: 500;
-}
-
-.form-optional {
-  color: var(--cal-muted);
-  font-weight: 400;
-}
-
-.form-input,
-.form-textarea,
-.form-select {
-  width: 100%;
-  padding: 8px 10px;
-  color: var(--cal-ink);
-  background: var(--cal-surface);
-  border: 1px solid var(--cal-line-strong);
-  border-radius: var(--radius-sm);
-  font-family: inherit;
-  font-size: 13px;
-  line-height: 1.4;
-}
-
-.form-textarea {
-  resize: vertical;
-  min-height: 64px;
-}
-
-.form-select {
-  appearance: auto;
-}
-
-.form-input:focus,
-.form-textarea:focus,
-.form-select:focus {
-  outline: none;
-  border-color: var(--cal-ink);
-  box-shadow: var(--cal-ring);
-}
-
-.form-input:hover:not(:disabled):not(:focus),
-.form-textarea:hover:not(:disabled):not(:focus),
-.form-select:hover:not(:disabled):not(:focus) {
-  border-color: var(--cal-ink-muted);
-}
-
-.form-input--invalid {
-  border-color: var(--cal-ink);
-}
-
-.form-input--invalid:focus {
-  border-color: var(--cal-ink);
-}
-
-.form-input:disabled,
-.form-textarea:disabled,
-.form-select:disabled {
-  color: var(--cal-muted);
-  background: var(--cal-fill-soft);
-  cursor: not-allowed;
-}
-
-.form-input--invalid {
-  border-color: var(--cal-ink);
-}
-
-.form-input--inline {
-  max-width: 200px;
-  margin-top: var(--space-2);
-}
-
-.form-hint {
-  color: var(--cal-muted);
-  font-size: 11.5px;
-  line-height: 1.45;
-}
-
-.form-error {
-  margin: 0;
-  color: var(--cal-ink);
-  font-size: 11.5px;
-  font-weight: 500;
-}
-
-.form-alert {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-2);
-  padding: var(--space-3);
-  color: var(--cal-ink);
-  background: var(--cal-fill);
-  border: 1px solid var(--cal-line-strong);
-  border-radius: var(--radius-sm);
-  font-size: 12.5px;
-}
-
-.form-alert-actions {
-  display: flex;
-  gap: var(--space-2);
-  justify-content: flex-end;
-}
-
-.form-paragraph {
-  color: var(--cal-muted);
-  font-size: 13px;
-  line-height: 1.55;
-}
-
-.form-section {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-3);
-  padding-top: var(--space-3);
-  border-top: 1px solid var(--cal-line);
-}
-
-.form-section-title {
-  color: var(--cal-muted);
-  font-size: 10.5px;
-  font-weight: 600;
-  letter-spacing: 0.05em;
-  text-transform: uppercase;
-}
-
-.form-checkbox {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  color: var(--cal-ink);
-  font-size: 12.5px;
-  cursor: pointer;
-}
-
-.form-inline {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-
-.form-inline .form-input {
-  width: 84px;
-}
-
-.form-inline-suffix {
-  color: var(--cal-muted);
-  font-size: 12px;
-}
-
-.weekday-picker {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 4px;
-}
-
-.weekday-button {
-  min-width: 44px;
-  padding: 5px 8px;
-  color: var(--cal-muted);
-  background: var(--cal-surface);
-  border: 1px solid var(--cal-line-strong);
-  border-radius: var(--radius-sm);
-  font-size: 11.5px;
-  cursor: pointer;
-}
-
-.weekday-button:hover {
-  background: var(--cal-fill-soft);
-  color: var(--cal-ink);
-}
-
-.weekday-button.is-active {
-  color: #ffffff;
-  background: var(--cal-ink);
-  border-color: var(--cal-ink);
-}
-
-.weekday-button:focus-visible {
-  outline: none;
-  box-shadow: var(--cal-ring);
-}
-
-.radio-row {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--space-3);
-}
-
-.radio-option {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  color: var(--cal-ink);
-  font-size: 12.5px;
-  cursor: pointer;
-}
-
-.scope-options {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-2);
-}
-
-.scope-option {
-  display: flex;
-  gap: var(--space-2);
-  align-items: flex-start;
-  padding: var(--space-2) var(--space-3);
-  border: 1px solid var(--cal-line);
-  border-radius: var(--radius-sm);
-  cursor: pointer;
-}
-
-.scope-option.is-active,
-.scope-option:has(input:checked) {
-  border-color: var(--cal-ink);
-  background: var(--cal-fill-soft);
-}
-
-.scope-option input {
-  margin-top: 2px;
-}
-
-.scope-option-label {
-  display: block;
-  color: var(--cal-ink);
-  font-size: 12.5px;
-  font-weight: 500;
-}
-
-.scope-option-hint {
-  display: block;
-  color: var(--cal-muted);
-  font-size: 11.5px;
-  line-height: 1.4;
-}
-
-/* Shared button variants */
-.calendar-page .button-primary {
-  color: #ffffff;
-  background: var(--cal-ink);
-  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.18);
-}
-
-.calendar-page .button-primary:hover {
-  background: #262626;
-}
-
-.calendar-page .button-primary:active {
-  background: #000000;
-}
-
-.calendar-page .button-primary:focus-visible {
-  box-shadow: var(--cal-ring);
-}
-
-.calendar-page .button-secondary {
-  color: var(--cal-ink);
-  background: var(--cal-surface);
-  border-color: var(--cal-line-strong);
-}
-
-.calendar-page .button-secondary:hover {
-  background: var(--cal-fill-soft);
-}
-
-.calendar-page .button-secondary:focus-visible {
-  box-shadow: var(--cal-ring);
-}
-
 /* Recurrence indicator */
 .calendar-event-recurring {
   margin-left: 4px;
@@ -1790,37 +596,23 @@
   color: var(--cal-ink-muted);
   line-height: 1;
 }
-
-/* Minimal radius utility */
-.border-radius-xs {
-  border-radius: 4px;
-}
-
 /* Ensure no horizontal overflow */
 .fc .fc-daygrid {
   overflow: hidden;
 }
-
 /* Selected state */
 .fc .fc-daygrid-day.fc-day-selected * {
   color: var(--cal-ink) !important;
 }
-
-
-
-
-
-
 /* Today button and nav */
 .fc .fc-today-button {
   padding: 6px 10px;
   font-size: 12px;
 }
-
-.fc .fc-prev-button span,
-.fc .fc-next-button span {
+.fc .fc-prev-button span, .fc .fc-next-button span {
   font-size: 20px;
 }
+
 
 /* Narrow screens */
 @media (max-width: 640px) {
@@ -1839,152 +631,6 @@
   }
 }
 
-/* ========================================== */
-/* === Task 6: Event Details and Dialogs Redesign End === */
-/* ========================================== */
-
-/* Ghost button for destructive actions (Delete) */
-.button-danger-ghost {
-  color: var(--cal-ink);
-  background: transparent;
-  border: none;
-  padding: 4px 8px;
-  font-size: 12px;
-  font-weight: 500;
-  cursor: pointer;
-}
-
-.button-danger-ghost:hover {
-  background: var(--cal-fill);
-  color: var(--cal-ink);
-}
-
-.button-danger-ghost:active {
-  background: var(--cal-fill-soft);
-}
-
-.button-danger-ghost:focus-visible {
-  box-shadow: var(--cal-ring);
-}
-
-/* Spacer element for dialog footer button layout */
-.dialog-footer-spacer {
-  flex: 1;
-}
-
-/* ========================================== */
-/* === Modal overlay --- */
-/* ========================================== */
-
-.modal-overlay {
-  position: fixed;
-  inset: 0;
-  z-index: 90;
-  background: rgba(0, 0, 0, 0.4);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-
-/* --- Modal content --- */
-
-.modal-content {
-  background: var(--cal-surface);
-  border: 1px solid var(--cal-line);
-  border-radius: var(--radius-lg);
-  padding: var(--space-5);
-  max-width: 460px;
-  width: 90%;
-  max-height: 90vh;
-  overflow-y: auto;
-}
-
-/* --- Form inputs in modal --- */
-
-.modal-input,
-.modal-textarea {
-  width: 100%;
-  padding: 8px 10px;
-  color: var(--cal-ink);
-  background: var(--cal-surface);
-  border: 1px solid var(--cal-line-strong);
-  border-radius: var(--radius-sm);
-  font-family: inherit;
-  font-size: 13px;
-  line-height: 1.4;
-  margin-bottom: var(--space-3);
-}
-
-.modal-textarea {
-  resize: vertical;
-  min-height: 80px;
-}
-
-/* --- Buttons in modal --- */
-
-.modal-actions {
-  display: flex;
-  justify-content: flex-end;
-  gap: var(--space-2);
-  margin-top: var(--space-3);
-}
-
-.modal-button {
-  padding: 8px 16px;
-  font-size: 13px;
-  font-weight: 500;
-  border: none;
-  border-radius: var(--radius-sm);
-  cursor: pointer;
-}
-
-.modal-button--primary {
-  color: #ffffff;
-  background: #000000;
-}
-
-.modal-button--primary:hover {
-  background: #262626;
-}
-
-.modal-button--secondary {
-  color: var(--cal-ink);
-  background: var(--cal-surface);
-  border: 1px solid var(--cal-line-strong);
-}
-
-.modal-button--secondary:hover {
-  background: var(--cal-fill-soft);
-}
-
-/* --- Focus states --- */
-
-.modal-input:focus,
-.modal-textarea:focus {
-  outline: none;
-  border-color: var(--cal-ink);
-  box-shadow: var(--cal-ring);
-}
-
-/* --- Recurrence fields in dialog --- */
-
-.form-section--recurrence {
-  margin-top: var(--space-3);
-  padding-top: var(--space-3);
-  border-top: 1px solid var(--cal-line);
-}
-
-/* --- Timezone field --- */
-
-.form-field--timezone {
-  margin-top: var(--space-3);
-}
-
-/* --- Calendar selector in dialog --- */
-
-.calendar-selector--in-dialog {
-  margin-top: var(--space-2);
-}
 
 /* ========================================== */
 /* === Task 8: Responsive / Mobile End     === */
@@ -1996,118 +642,28 @@
  * there are no duplicated or conflicting responsive blocks.
  */
 
-@media (max-width: 640px) {
-  /* --- Event detail panel: full-width bottom sheet --- */
 
-  .event-detail {
-    top: auto;
-    left: 0;
-    right: 0;
-    bottom: 0;
-    width: 100%;
-    max-width: 100%;
-    max-height: 78vh;
-    border-left: none;
-    border-top: 1px solid var(--cal-line);
-    border-radius: var(--radius-lg) var(--radius-lg) 0 0;
-    box-shadow: 0 -24px 48px -32px rgba(0, 0, 0, 0.4);
-    padding: var(--space-4) var(--space-3) calc(var(--space-4) + env(safe-area-inset-bottom, 0px));
-  }
-
-  /* Touch-friendly close button inside the panel header. */
-  .event-detail-header .icon-button {
-    width: 40px;
-    height: 40px;
-    min-width: 40px;
-    flex: none;
-  }
-
-  /* --- Dialogs: bottom sheet, fits the viewport, scrolls internally --- */
-
-  .dialog-backdrop {
-    align-items: flex-end;
-    padding: 0;
-  }
-
-  .dialog,
-  .dialog--wide {
-    max-width: 100%;
-    max-height: 92vh;
-    border-radius: var(--radius-lg) var(--radius-lg) 0 0;
-    border-bottom: none;
-    padding: var(--space-4) var(--space-3) calc(var(--space-4) + env(safe-area-inset-bottom, 0px));
-  }
-
-  /* Long forms scroll inside the sheet; footer buttons stay at the end. */
-  .dialog .form,
-  .dialog--wide .form {
-    overflow-y: auto;
-  }
-
-  .dialog-footer {
-    margin-top: var(--space-4);
-  }
-
-  .dialog-footer .button-primary,
-  .dialog-footer .button-secondary,
-  .dialog-footer .button-danger-ghost {
-    min-height: 44px;
-  }
-
-  /* Multi-column form rows stack on narrow screens. */
-  .form-row {
-    grid-template-columns: 1fr;
-  }
-
-  /* Touch targets for small icon buttons (dialog close, delete confirm…). */
-  .icon-button--tiny,
-  .dialog .icon-button {
-    width: 40px;
-    height: 40px;
-    min-width: 40px;
-    flex: none;
-  }
-}
-
-@media (max-width: 768px) and (min-width: 641px) {
-  /* Tablet: dialogs keep their centered layout but gain comfortable hit
-     areas and stacked form rows when columns get tight. */
-  .dialog .icon-button {
-    width: 40px;
-    height: 40px;
-    min-width: 40px;
-  }
-
-  .form-row {
-    grid-template-columns: 1fr;
-  }
-}
 /* ========================================== */
 /* === Task 9: Polish & Interaction End    === */
 /* ========================================== */
 
 /* Respect reduced-motion preferences: keep state changes instant. */
 @media (prefers-reduced-motion: reduce) {
-  .calendar-page *,
-  .calendar-page *::before,
-  .calendar-page *::after {
+  .calendar-page *, .calendar-page *::before, .calendar-page *::after {
     transition-duration: 0.01ms !important;
     animation-duration: 0.01ms !important;
     animation-iteration-count: 1 !important;
     scroll-behavior: auto !important;
   }
 }
-
 /* ========================================== */
 /* === Task 10: Reference Event Design     === */
 /* ========================================== */
-
 /*
  * Event styling per the reference designs: every event is a compact card on
  * a subtle neutral-gray surface with a black vertical accent line on the
  * left edge, a bold dark title, and plain secondary time text. No blue.
  */
-
 /* Neutralize FullCalendar's default colored theme (blue events, yellow
    "today", colored list dots) inside the Calendar page only. */
 .calendar-page .fc {
@@ -2118,41 +674,32 @@
   --fc-today-bg-color: transparent;
   --fc-now-indicator-color: var(--cal-ink);
 }
-
 /* Shared event card for Month (daygrid) and Week/Day (timegrid) events. */
-.fc .fc-daygrid-event,
-.fc .fc-timegrid-event {
+.fc .fc-daygrid-event, .fc .fc-timegrid-event {
   background: var(--evc-bg, var(--cal-fill-soft));
   border: 1px solid var(--cal-line-soft);
   border-left: 3px solid var(--evc-accent, var(--cal-ink));
   border-radius: var(--radius-sm);
   box-shadow: none;
 }
-
-.fc .fc-daygrid-event:hover,
-.fc .fc-timegrid-event:hover {
+.fc .fc-daygrid-event:hover, .fc .fc-timegrid-event:hover {
   background: var(--cal-fill);
 }
-
 /* Bold titles in category text color. */
 .fc .calendar-event-title {
   color: var(--evc-text, var(--cal-ink));
   font-weight: 700;
 }
-
 /* All-day chips keep the same accent; all-day title stays bold. */
 .fc .fc-daygrid-event[data-is-all-day='true'] .calendar-event-title {
   font-weight: 700;
 }
-
 /* --- Month view: title-only compact cards (time hidden, per reference) --- */
-
 /* FC renders short month chips in "dot" mode — remove its dot marker and
    give the row the same card treatment. */
 .fc .fc-daygrid-dot-event .fc-daygrid-event-dot {
   display: none;
 }
-
 .fc .fc-daygrid-dot-event {
   margin: 2px 4px 2px 0;
   padding: 2px 6px;
@@ -2161,41 +708,32 @@
   border-left: 3px solid var(--evc-accent, var(--cal-ink));
   border-radius: var(--radius-sm);
 }
-
 .fc .fc-daygrid-dot-event:hover {
   background: var(--cal-fill);
 }
-
 .fc .fc-daygrid-event .calendar-event-time {
   display: none;
 }
-
 .fc .fc-daygrid-event .fc-event-main {
   padding: 0;
   font-size: 10.5px;
 }
-
 .fc .fc-daygrid-event .calendar-event-title {
   font-size: 10.5px;
 }
-
 /* --- Week and Day views: title on top (bold), time below (secondary) --- */
-
 .fc .fc-timegrid-event .calendar-event {
   display: flex;
   flex-direction: column;
   gap: 2px;
 }
-
 .fc .fc-timegrid-event .calendar-event-title {
   order: -1;
   font-size: 11px;
 }
-
 .fc .fc-timegrid-event .calendar-event-time {
   font-size: 9.5px;
 }
-
 /* Short events: keep the single-line inline layout (time then title). */
 .fc .fc-timegrid-event.fc-event-short .calendar-event {
   flex-direction: row;
@@ -2203,21 +741,49 @@
   gap: 4px;
 }
 
-/* --- Agenda view: clean schedule list per the reference --- */
-
-/* Remove FullCalendar's default column header row and blue dot markers. */
-.fc .fc-list-table thead,
-.fc .fc-list-event-graphic {
-  display: none;
+/* --- Week/Day guide lines --------------------------------------------- */
+/* Faint hairlines that connect each timed event's start and end edges to the
+   hour labels on the left axis. The overlay is appended to the time grid body
+   by timeGridGuides.js; it must not intercept clicks or drags. */
+.fc .fc-timegrid-body {
+  position: relative;
+}
+.tg-guides-overlay {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  pointer-events: none;
+}
+.tg-guide-line {
+  position: absolute;
+  left: 0;
+  height: 0;
+  border-top: 1px dashed var(--cal-ink-muted, #737373);
+}
+/* A small tick where the line meets the hour axis, so an edge that falls
+   exactly on an hour stays readable against the solid hour grid line. */
+.tg-guide-line::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: -3.5px;
+  width: 3px;
+  height: 7px;
+  background: var(--cal-ink-muted, #737373);
+  border-radius: 1px;
 }
 
+/* --- Agenda view: clean schedule list per the reference --- */
+/* Remove FullCalendar's default column header row and blue dot markers. */
+.fc .fc-list-table thead, .fc .fc-list-event-graphic {
+  display: none;
+}
 /* Date group header: bold dark date, plain background, subtle separator. */
 .fc .fc-list-day-cushion {
   padding: 14px 10px 6px;
   background: transparent;
   border-bottom: 1px solid var(--cal-line-soft);
 }
-
 .fc .fc-list-day-text {
   color: var(--cal-ink);
   font-size: 14px;
@@ -2225,26 +791,23 @@
   letter-spacing: 0;
   text-transform: none;
 }
-
 .fc .fc-list-day-cushion.fc-list-day-today {
   background: transparent;
   border-bottom: 1px solid var(--cal-line-soft);
 }
-
 /* Event rows: time column on the left, accent-barred bold title on the right. */
 .fc .fc-list-event-title .calendar-event {
   border-left: 3px solid var(--evc-accent, var(--cal-ink));
   padding-left: 10px;
   background: var(--evc-bg, transparent);
 }
-
 .fc .fc-list-event-title .calendar-event-title {
   font-size: 13px;
 }
-
 .fc .fc-list-event-title .calendar-event-time {
   display: none;
 }
+
 
 /* Compact month chips on mobile (re-applied after the reference rules). */
 @media (max-width: 640px) {
@@ -2252,21 +815,17 @@
     margin: 1px 2px 0 0;
     padding: 1px 4px;
   }
-
   .fc .fc-daygrid-event .fc-event-main {
     padding: 0;
     font-size: 10px;
   }
-
   .fc .fc-daygrid-event .calendar-event-title {
     font-size: 10px;
   }
-
-  /* Agenda rows tighten on phones. */
+/* Agenda rows tighten on phones. */
   .fc .fc-list-event-time {
     padding: 8px 6px;
   }
-
   .fc .fc-list-event-title {
     padding: 8px 8px 8px 0;
   }

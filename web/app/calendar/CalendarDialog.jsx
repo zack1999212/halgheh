@@ -1,5 +1,14 @@
 import { useEffect, useState } from 'react'
-import Modal from './Modal.jsx'
+import DialogShell from '@/components/shared/DialogShell'
+import FormError from '@/components/shared/FormError'
+import FormField, {
+  fieldInputClass,
+} from '@/components/shared/FormField'
+import { Alert, AlertDescription } from '@/components/ui/alert'
+import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
+import { Textarea } from '@/components/ui/textarea'
+import { cn } from '@/lib/utils'
 
 /**
  * Creates or edits a calendar. The backend creates a default "Personal"
@@ -81,110 +90,119 @@ export default function CalendarDialog({
   const disabled = busy || saving
 
   return (
-    <Modal
+    <DialogShell
       open={open}
       title={isEdit ? 'Calendar settings' : 'New calendar'}
       onClose={onClose}
       footer={
         <>
           {isEdit && !calendar?.is_default && (
-            <button
+            <Button
               type="button"
-              className="button-danger-ghost"
+              variant="ghost"
+              className="mr-auto h-9 text-destructive hover:bg-destructive/10 hover:text-destructive"
               onClick={() => setConfirmingDelete(true)}
               disabled={disabled}
             >
               Delete
-            </button>
+            </Button>
           )}
-          <span className="dialog-footer-spacer" />
-          <button
+          <Button
             type="button"
-            className="button-secondary"
+            variant="outline"
+            className="h-9"
             onClick={onClose}
             disabled={disabled}
           >
             Cancel
-          </button>
-          <button
+          </Button>
+          <Button
             type="submit"
             form="calendar-form"
-            className="button-primary"
+            className="h-9"
             disabled={disabled}
           >
             {busy ? 'Saving…' : isEdit ? 'Save changes' : 'Create calendar'}
-          </button>
+          </Button>
         </>
       }
     >
-      <form id="calendar-form" className="form" onSubmit={handleSubmit}>
-        {error && (
-          <div className="form-alert" role="alert">
-            {error}
-          </div>
-        )}
+      <form id="calendar-form" className="grid gap-4" onSubmit={handleSubmit}>
+        <FormError>{error}</FormError>
 
         {confirmingDelete && (
-          <div className="form-alert">
-            <p>Delete “{calendar?.name}” and all of its events?</p>
-            <div className="form-alert-actions">
-              <button
-                type="button"
-                className="button-secondary"
-                onClick={() => setConfirmingDelete(false)}
-                disabled={disabled}
-              >
-                Cancel
-              </button>
-              <button
-                type="button"
-                className="button-primary"
-                onClick={handleDelete}
-                disabled={disabled}
-              >
-                {busy ? 'Deleting…' : 'Delete calendar'}
-              </button>
+          <Alert className="border-destructive/30 bg-destructive/5">
+            <div className="grid gap-3">
+              <p className="text-[13px] text-foreground">
+                Delete “{calendar?.name}” and all of its events?
+              </p>
+              <div className="flex items-center gap-2">
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  className="h-8"
+                  onClick={() => setConfirmingDelete(false)}
+                  disabled={disabled}
+                >
+                  Cancel
+                </Button>
+                <Button
+                  type="button"
+                  variant="destructive"
+                  size="sm"
+                  className="h-8"
+                  onClick={handleDelete}
+                  disabled={disabled}
+                >
+                  {busy ? 'Deleting…' : 'Delete calendar'}
+                </Button>
+              </div>
             </div>
-          </div>
+          </Alert>
         )}
 
-        <div className="form-field">
-          <label className="form-label" htmlFor="calendar-name">
-            Name
-          </label>
-          <input
-            id="calendar-name"
-            className="form-input"
-            value={name}
-            onChange={(event) => setName(event.target.value)}
-            maxLength={100}
-            placeholder="Work"
-            disabled={disabled}
-            autoFocus
-          />
-        </div>
+        <FormField id="calendar-name" label="Name">
+          {(field) => (
+            <Input
+              {...field}
+              className={fieldInputClass}
+              value={name}
+              onChange={(event) => setName(event.target.value)}
+              maxLength={100}
+              placeholder="Work"
+              disabled={disabled}
+              autoFocus
+            />
+          )}
+        </FormField>
 
-        <div className="form-field">
-          <label className="form-label" htmlFor="calendar-description">
-            Description <span className="form-optional">(optional)</span>
-          </label>
-          <textarea
-            id="calendar-description"
-            className="form-textarea"
-            rows={3}
-            value={description}
-            onChange={(event) => setDescription(event.target.value)}
-            disabled={disabled}
-          />
-        </div>
+        <FormField
+          id="calendar-description"
+          label="Description"
+          optional
+        >
+          {(field) => (
+            <Textarea
+              {...field}
+              className={cn(
+                'min-h-[84px] rounded-[var(--radius-md)] px-3 py-2 text-base md:text-[15px]',
+              )}
+              rows={3}
+              value={description}
+              onChange={(event) => setDescription(event.target.value)}
+              disabled={disabled}
+            />
+          )}
+        </FormField>
 
         {isEdit && calendar?.is_default && (
-          <p className="form-hint">
+          <p className="text-[12.5px] text-muted-foreground">
             This is your default calendar. Create another calendar to move
             events there before deleting it.
           </p>
         )}
       </form>
-    </Modal>
+    </DialogShell>
   )
 }

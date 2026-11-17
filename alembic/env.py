@@ -20,6 +20,7 @@ import service.agent.models  # noqa: F401,E402
 import service.ai.models  # noqa: F401,E402
 import service.auth.models  # noqa: F401,E402
 import service.calendar.models  # noqa: F401,E402
+import service.docs.models  # noqa: F401,E402
 import service.notifications.models  # noqa: F401,E402
 
 config = context.config

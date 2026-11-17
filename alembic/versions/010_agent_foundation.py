@@ -1,6 +1,6 @@
 """agent conversations, messages and pending actions
 
-Revision ID: 010
+Revision ID: 011
 Revises: 009
 Create Date: 2026-11-16 11:00:00.000000
 
@@ -12,8 +12,8 @@ from alembic import op
 import sqlalchemy as sa
 
 
-revision: str = "010"
-down_revision: Union[str, Sequence[str], None] = "009"
+revision: str = "011"
+down_revision: Union[str, Sequence[str], None] = "010"
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 
