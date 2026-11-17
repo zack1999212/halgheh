@@ -1,0 +1,110 @@
+/*
+ * Workspace dashboard — Soft 3D visual design.
+ * Scoped to `.workspace-page` so Calendar and global theme remain unchanged.
+ * Mirrors the Calendar Soft 3D token values for a consistent visual identity.
+ */
+.workspace-page {
+  /* Tokens (same values as Calendar Soft 3D for consistency) */
+  --ws-page-bg: #d6d9de;
+  --ws-surface: #ffffff;
+  --ws-surface-subtle: #f7f8f9;
+  --ws-ink: #171717;
+  --ws-ink-muted: #777777;
+  --ws-line: #e7e8eb;
+  --ws-line-soft: #eceef0;
+  --ws-radius-card: 16px;
+  --ws-radius-control: 10px;
+  --ws-shadow-raised: 0 1px 2px rgba(15, 23, 42, 0.06),
+    0 8px 24px rgba(15, 23, 42, 0.1),
+    0 2px 6px rgba(15, 23, 42, 0.04);
+  --ws-shadow-raised-hover: 0 2px 4px rgba(15, 23, 42, 0.07),
+    0 12px 30px rgba(15, 23, 42, 0.12),
+    0 3px 8px rgba(15, 23, 42, 0.05);
+  --ws-shadow-control: 0 1px 2px rgba(15, 23, 42, 0.08),
+    0 3px 8px rgba(15, 23, 42, 0.08),
+    inset 0 1px 0 rgba(255, 255, 255, 0.7);
+  --ws-shadow-control-press: inset 1px 2px 4px rgba(15, 23, 42, 0.1),
+    inset -1px -1px 2px rgba(255, 255, 255, 0.85);
+  --ws-transition: 180ms ease;
+
+  background: var(--ws-page-bg);
+  border-radius: 18px;
+  padding: 20px;
+}
+
+/* Elevated dashboard cards */
+.workspace-page .ws-card {
+  background: var(--ws-surface);
+  border: 1px solid var(--ws-line);
+  border-radius: var(--ws-radius-card);
+  box-shadow: var(--ws-shadow-raised);
+}
+
+.workspace-page .ws-card-interactive {
+  transition:
+    box-shadow var(--ws-transition),
+    background-color var(--ws-transition),
+    transform var(--ws-transition);
+}
+.workspace-page .ws-card-interactive:hover {
+  box-shadow: var(--ws-shadow-raised-hover);
+}
+.workspace-page .ws-card-interactive:active {
+  box-shadow: var(--ws-shadow-raised);
+}
+
+/* Tactile buttons inside workspace */
+.workspace-page .ws-btn {
+  box-shadow: var(--ws-shadow-control);
+  transition:
+    box-shadow var(--ws-transition),
+    background-color var(--ws-transition);
+}
+.workspace-page .ws-btn:hover:not(:disabled) {
+  box-shadow: var(--ws-shadow-raised-hover);
+}
+.workspace-page .ws-btn:active:not(:disabled) {
+  box-shadow: var(--ws-shadow-control-press);
+}
+
+/* Soft 3D list/row surfaces */
+.workspace-page .ws-row {
+  border-radius: 10px;
+  transition:
+    background-color 150ms ease,
+    box-shadow 150ms ease;
+}
+.workspace-page .ws-row:hover {
+  background: var(--ws-surface-subtle);
+  box-shadow: 0 1px 3px rgba(15, 23, 42, 0.05);
+}
+
+.workspace-page .ws-section-title {
+  color: var(--ws-ink);
+}
+
+.workspace-page .ws-muted {
+  color: var(--ws-ink-muted);
+}
+
+/* Primary (Today's Schedule) emphasis: same elevation, slightly stronger presence */
+.workspace-page .ws-card-primary {
+  box-shadow: 0 2px 4px rgba(15, 23, 42, 0.07),
+    0 10px 28px rgba(15, 23, 42, 0.11),
+    0 2px 6px rgba(15, 23, 42, 0.05);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .workspace-page .ws-card-interactive,
+  .workspace-page .ws-btn,
+  .workspace-page .ws-row {
+    transition: none !important;
+  }
+}
+
+@media (max-width: 640px) {
+  .workspace-page {
+    padding: 12px;
+    border-radius: 14px;
+  }
+}

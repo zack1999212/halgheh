@@ -1251,7 +1251,7 @@ export default function CalendarAgent({ onCalendarChanged }) {
             side="right"
             ref={panelRef}
             data-agent-panel="true"
-            className="flex w-full max-w-none flex-col gap-0 border-l-0 p-0 pt-[env(safe-area-inset-top,0px)] [&>button]:hidden"
+            className="cal-sheet flex w-full max-w-none flex-col gap-0 border-l-0 p-0 pt-[env(safe-area-inset-top,0px)] [&>button]:hidden"
             aria-label="Calendar Assistant"
           >
             <SheetTitle className="sr-only">Calendar Assistant</SheetTitle>

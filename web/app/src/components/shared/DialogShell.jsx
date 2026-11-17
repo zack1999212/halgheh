@@ -26,6 +26,7 @@ export default function DialogShell({
   children,
   footer,
   wide = false,
+  contentClassName = '',
 }) {
   return (
     <Dialog
@@ -40,6 +41,7 @@ export default function DialogShell({
         className={cn(
           'flex max-h-[calc(100dvh-2rem)] w-[calc(100vw-1.5rem)] flex-col gap-0 overflow-hidden rounded-[var(--radius-lg)] border-border p-0 shadow-[var(--shadow-card)] sm:max-w-[560px]',
           wide && 'sm:max-w-[720px]',
+          contentClassName,
         )}
       >
         <DialogHeader className="border-b border-border px-5 py-4 text-left sm:text-left">

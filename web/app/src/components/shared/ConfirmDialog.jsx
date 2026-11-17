@@ -19,6 +19,7 @@ export default function ConfirmDialog({
   busy = false,
   error = '',
   destructive = true,
+  contentClassName = '',
   onConfirm,
   onClose,
   children,
@@ -28,6 +29,7 @@ export default function ConfirmDialog({
       open={open}
       title={title}
       description={description}
+      contentClassName={contentClassName}
       onClose={busy ? () => {} : onClose}
       footer={
         <>

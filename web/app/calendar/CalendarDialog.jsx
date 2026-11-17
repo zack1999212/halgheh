@@ -92,6 +92,7 @@ export default function CalendarDialog({
   return (
     <DialogShell
       open={open}
+      contentClassName="cal-dialog"
       title={isEdit ? 'Calendar settings' : 'New calendar'}
       onClose={onClose}
       footer={

@@ -6,7 +6,7 @@ export default function CalendarViewSelector({ view, onChange }) {
     <div
       role="group"
       aria-label="Calendar view"
-      className="inline-flex items-center gap-0.5 rounded-[var(--radius-md)] border border-border bg-card p-0.5"
+      className="cal-control-group inline-flex items-center gap-0.5 p-0.5"
     >
       {CALENDAR_VIEWS.map((option) => {
         const active = view === option.id

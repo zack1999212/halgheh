@@ -112,6 +112,12 @@ export default function EventDialog({
   occurrence = null,
   calendarId,
   calendars = [],
+  initialAllDay,
+  initialStartAt,
+  initialEndAt,
+  initialStartDate,
+  initialEndDate,
+  initialTimeZone,
   onClose,
   onSaved,
 }) {
@@ -175,20 +181,42 @@ export default function EventDialog({
       setScope(event.recurrence_rule ? 'occurrence' : 'series')
       setCategory(event.category || DEFAULT_CATEGORY)
     } else {
+      const initAllDay = Boolean(initialAllDay)
+      const initTz = initialTimeZone || getBrowserTimeZone()
       setTitle('')
       setDescription('')
       setLocation('')
-      setAllDay(false)
-      setStartAt(localWall(1))
-      setEndAt(localWall(2))
-      setStartDate(localDate(0))
-      setEndDate(nextDay(localDate(0)))
-      setTimeZone(getBrowserTimeZone())
+      setAllDay(initAllDay)
+      if (initAllDay) {
+        const sd = initialStartDate || localDate(0)
+        const ed = initialEndDate || nextDay(sd)
+        setStartAt(localWall(1))
+        setEndAt(localWall(2))
+        setStartDate(sd)
+        setEndDate(ed)
+      } else {
+        setStartAt(initialStartAt || localWall(1))
+        setEndAt(initialEndAt || localWall(2))
+        setStartDate(initialStartDate || localDate(0))
+        setEndDate(initialEndDate || nextDay(localDate(0)))
+      }
+      setTimeZone(initTz)
       setRecurrence(EMPTY_RECURRENCE)
       setScope('occurrence')
       setCategory(DEFAULT_CATEGORY)
     }
-  }, [open, isEdit, event, calendarId])
+  }, [
+    open,
+    isEdit,
+    event,
+    calendarId,
+    initialAllDay,
+    initialStartAt,
+    initialEndAt,
+    initialStartDate,
+    initialEndDate,
+    initialTimeZone,
+  ])
 
   // For recurring events the time fields follow the chosen scope: the
   // occurrence's times for "this occurrence", the series' times otherwise.
@@ -442,6 +470,7 @@ export default function EventDialog({
     <DialogShell
       open={open}
       wide
+      contentClassName="cal-dialog"
       title={isEdit ? 'Edit event' : 'New event'}
       onClose={saving ? () => {} : onClose}
       footer={
