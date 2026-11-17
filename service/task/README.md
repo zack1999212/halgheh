@@ -29,7 +29,7 @@ repository.py      All database queries (single source of SQL truth)
   │  visible-scope clauses, filters/sort/pagination, aggregations,
   │  eager loading (selectinload), flush/commit discipline
   ▼
-models/            SQLAlchemy models (6 tables) + alembic migration 012
+models/            SQLAlchemy models (6 tables) + alembic migration 017
 ```
 
 Supporting modules:
@@ -55,7 +55,7 @@ Key invariants enforced across layers:
 - **Every important change is audited** in `task_activities` inside the same
   transaction as the change itself.
 
-## 2. Database models (migration `012_task_domain_foundation`)
+## 2. Database models (migration `017_task_domain_foundation`)
 
 | Table | Purpose | Notable constraints |
 |---|---|---|
@@ -193,27 +193,26 @@ Object-level, enforced in `service.py` via `permissions.task_role`:
 
 ## 7. Migration instructions
 
-Migration `alembic/versions/012_task_domain_foundation.py` (revision
-`012`, down-revision `011`). Apply inside the backend container:
+Migration `alembic/versions/017_task_domain_foundation.py` (revision
+`017`, down-revision `016` — renumbered after merging with `origin/dev`,
+whose own chain occupies revisions 012–016). Apply inside the backend
+container:
 
 ```bash
-docker exec halgheh-dev-backend-1 alembic upgrade head      # → 012
-docker exec halgheh-dev-backend-1 alembic downgrade 011     # removes all 6 tables cleanly
+docker exec halgheh-dev-backend-1 alembic upgrade head      # → 017
+docker exec halgheh-dev-backend-1 alembic downgrade 016     # removes all 6 tables cleanly
 ```
 
 Verified against an isolated PostgreSQL (not the dev database): full chain
-up, `012 → 011` down (0 task tables left), and re-up.
+up, `017 → 016` down (0 task tables left), and re-up — plus the full
+`validate_postgres.py` schema/lifecycle/concurrency suite.
 
-⚠️ **Pending one-line prerequisite (awaiting approval):** `alembic/env.py`
-must import the task models so autogenerate sees them:
+`alembic/env.py` imports the task models (required so autogenerate sees
+the task tables instead of trying to drop them):
 
 ```python
 import service.task.models  # noqa: F401,E402
 ```
-
-Without it, a future `alembic revision --autogenerate` would emit
-`drop_table` for all six task tables. The migration file itself runs fine
-without the import (it is self-contained), and it was already validated.
 
 ## 8. Example API requests
 
@@ -300,8 +299,8 @@ database by accident.
 4. **pytest/httpx are not installed** — the API suite is skipped by the
    dependency-free runner; approving them as dev dependencies would enable
    `python -m pytest`.
-5. **`alembic/env.py` one-line import pending approval** — needed before the
-   next autogenerate, not needed to run migration 012.
+5. ~~`alembic/env.py` one-line import pending approval~~ — **resolved**:
+   `import service.task.models` is now in `alembic/env.py` (line 25).
 6. **Search uses `ILIKE`** — `%`/`_` in user input are wildcard characters
    (standard SQL LIKE behavior, no injection risk; parameters are bound).
 7. **No notifications/events** — task changes are audited in

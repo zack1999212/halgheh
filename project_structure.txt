@@ -106,7 +106,12 @@
 │       ├── __init__.py
 │       ├── models
 │       │   └── __init__.py
-│       └── router.py
+│       ├── router.py
+│       ├── TASK_API_DESIGN.md
+│       ├── TASK_ARCHITECTURE.md
+│       ├── TASK_DATABASE_DESIGN.md
+│       ├── TASK_FRONTEND_DESIGN.md
+│       └── TASK_INTEGRATION_CONTRACT.md
 └── web
     └── app
         ├── ai
@@ -226,4 +231,4 @@
             ├── shell.css
             └── WorkspacePage.jsx
 
-35 directories, 192 files
+35 directories, 197 files
