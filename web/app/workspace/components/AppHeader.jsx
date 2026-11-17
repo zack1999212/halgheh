@@ -1,3 +1,4 @@
+import { Link } from 'react-router-dom'
 import { Separator } from '@/components/ui/separator'
 import NotificationMenu from '../../notifications/NotificationMenu.jsx'
 import ModuleSwitcher from './ModuleSwitcher.jsx'
@@ -26,12 +27,16 @@ function BrandMark() {
 export default function AppHeader({ user, onLogout, onUnauthorized }) {
   return (
     <header className="sticky top-0 z-30 flex h-[var(--header-height)] shrink-0 items-center justify-between gap-4 border-b border-border bg-card px-6 max-lg:px-4">
-      <div className="flex min-w-0 items-center gap-2">
+      <Link
+        to="/home"
+        className="flex min-w-0 items-center gap-2 rounded-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+        aria-label="Go to home page"
+      >
         <BrandMark />
         <span className="truncate text-[15px] font-semibold tracking-[-0.01em] text-foreground">
           Halgheh
         </span>
-      </div>
+      </Link>
 
       <div className="flex min-w-0 items-center gap-1.5 sm:gap-2">
         <ModuleSwitcher />

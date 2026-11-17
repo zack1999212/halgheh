@@ -1,30 +1,24 @@
 /*
- * Workspace dashboard — Soft 3D visual design.
- * Scoped to `.workspace-page` so Calendar and global theme remain unchanged.
- * Mirrors the Calendar Soft 3D token values for a consistent visual identity.
+ * Workspace dashboard — Soft 3D visual design (Warm Mist).
+ * Scoped to `.workspace-page` so Calendar and global theme layering stay intact.
+ * Uses Warm Mist canvas and warm-tinted Soft 3D elevation tokens.
  */
 .workspace-page {
-  /* Tokens (same values as Calendar Soft 3D for consistency) */
-  --ws-page-bg: #d6d9de;
-  --ws-surface: #ffffff;
-  --ws-surface-subtle: #f7f8f9;
-  --ws-ink: #171717;
-  --ws-ink-muted: #777777;
-  --ws-line: #e7e8eb;
-  --ws-line-soft: #eceef0;
+  /* Warm Mist tokens */
+  --ws-page-bg: #F2F0EB;
+  --ws-surface: #FFFFFF;
+  --ws-surface-subtle: #F7F5F1;
+  --ws-inset: #EAE7E0;
+  --ws-ink: #242321;
+  --ws-ink-muted: #77736C;
+  --ws-line: #E5E1D9;
+  --ws-line-soft: #E5E1D9;
   --ws-radius-card: 16px;
   --ws-radius-control: 10px;
-  --ws-shadow-raised: 0 1px 2px rgba(15, 23, 42, 0.06),
-    0 8px 24px rgba(15, 23, 42, 0.1),
-    0 2px 6px rgba(15, 23, 42, 0.04);
-  --ws-shadow-raised-hover: 0 2px 4px rgba(15, 23, 42, 0.07),
-    0 12px 30px rgba(15, 23, 42, 0.12),
-    0 3px 8px rgba(15, 23, 42, 0.05);
-  --ws-shadow-control: 0 1px 2px rgba(15, 23, 42, 0.08),
-    0 3px 8px rgba(15, 23, 42, 0.08),
-    inset 0 1px 0 rgba(255, 255, 255, 0.7);
-  --ws-shadow-control-press: inset 1px 2px 4px rgba(15, 23, 42, 0.1),
-    inset -1px -1px 2px rgba(255, 255, 255, 0.85);
+  --ws-shadow-raised: 0 4px 12px rgba(55, 45, 30, 0.07), 0 1px 3px rgba(55, 45, 30, 0.05);
+  --ws-shadow-raised-hover: 0 8px 20px rgba(55, 45, 30, 0.1), 0 2px 5px rgba(55, 45, 30, 0.06);
+  --ws-shadow-control: 0 1px 3px rgba(55, 45, 30, 0.08), 0 1px 2px rgba(55, 45, 30, 0.04), inset 0 1px 0 rgba(255, 255, 255, 0.7);
+  --ws-shadow-control-press: inset 0 2px 4px rgba(55, 45, 30, 0.08);
   --ws-transition: 180ms ease;
 
   background: var(--ws-page-bg);
@@ -76,7 +70,7 @@
 }
 .workspace-page .ws-row:hover {
   background: var(--ws-surface-subtle);
-  box-shadow: 0 1px 3px rgba(15, 23, 42, 0.05);
+  box-shadow: 0 1px 3px rgba(55, 45, 30, 0.06);
 }
 
 .workspace-page .ws-section-title {
@@ -87,11 +81,9 @@
   color: var(--ws-ink-muted);
 }
 
-/* Primary (Today's Schedule) emphasis: same elevation, slightly stronger presence */
+/* Primary (Today's Schedule/Tasks) emphasis: slightly stronger presence */
 .workspace-page .ws-card-primary {
-  box-shadow: 0 2px 4px rgba(15, 23, 42, 0.07),
-    0 10px 28px rgba(15, 23, 42, 0.11),
-    0 2px 6px rgba(15, 23, 42, 0.05);
+  box-shadow: 0 4px 14px rgba(55, 45, 30, 0.08), 0 2px 5px rgba(55, 45, 30, 0.05);
 }
 
 @media (prefers-reduced-motion: reduce) {

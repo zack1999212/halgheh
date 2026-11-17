@@ -9,60 +9,60 @@
 .calendar-page {
   /* Background colors: page clearly darker than the raised white surface so
      the calendar reads as an elevated object (not a flat same-tone block). */
-  --cal-page-bg: #d6d9de;
+  --cal-page-bg: #F2F0EB;
   --cal-bg: #ffffff;
-  --cal-bg-subtle: #f1f2f4;
+  --cal-bg-subtle: #F7F5F1;
 
   /* Surface colors */
-  --cal-surface: #f8f9fa;
+  --cal-surface: #F7F5F1;
   --cal-raised: #ffffff;
-  --cal-surface-hover: #f3f4f6;
-  --cal-surface-active: #eceef0;
+  --cal-surface-hover: #F3F1EC;
+  --cal-surface-active: #EAE7E0;
 
   /* Text colors */
-  --cal-ink: #171717;
-  --cal-ink-secondary: #3f3f3f;
-  --cal-ink-muted: #777777;
-  --cal-ink-subtle: #a3a3a3;
+  --cal-ink: #242321;
+  --cal-ink-secondary: #4A4844;
+  --cal-ink-muted: #77736C;
+  --cal-ink-subtle: #9A968E;
 
   /* Border colors */
-  --cal-line: #e7e8eb;
-  --cal-line-soft: #eceef0;
-  --cal-line-strong: #d4d4d4;
-  --cal-border: #e7e8eb;
+  --cal-line: #E5E1D9;
+  --cal-line-soft: #E5E1D9;
+  --cal-line-strong: #D8D3CA;
+  --cal-border: #E5E1D9;
 
   /*
    * Soft 3D shadow levels — visibly apparent but still soft/professional.
    * Each uses a tight contact shadow plus a wider ambient layer; no harsh
    * black. Strong enough to read as elevation at a glance.
    */
-  --cal-shadow-raised: 0 1px 2px rgba(15, 23, 42, 0.06),
-    0 8px 24px rgba(15, 23, 42, 0.1),
-    0 2px 6px rgba(15, 23, 42, 0.04);
-  --cal-shadow-raised-hover: 0 2px 4px rgba(15, 23, 42, 0.07),
-    0 12px 30px rgba(15, 23, 42, 0.12),
-    0 3px 8px rgba(15, 23, 42, 0.05);
-  --cal-shadow-event: 0 1px 2px rgba(15, 23, 42, 0.1),
-    0 3px 8px rgba(15, 23, 42, 0.12),
-    0 1px 3px rgba(15, 23, 42, 0.06);
-  --cal-shadow-event-hover: 0 2px 4px rgba(15, 23, 42, 0.12),
-    0 8px 18px rgba(15, 23, 42, 0.16),
-    0 2px 6px rgba(15, 23, 42, 0.08);
-  --cal-shadow-event-press: inset 1px 2px 4px rgba(15, 23, 42, 0.08),
+  --cal-shadow-raised: 0 4px 12px rgba(55, 45, 30, 0.07),
+    0 1px 3px rgba(55, 45, 30, 0.05),
+    0 8px 24px rgba(55, 45, 30, 0.06);
+  --cal-shadow-raised-hover: 0 8px 20px rgba(55, 45, 30, 0.1),
+    0 2px 5px rgba(55, 45, 30, 0.06),
+    0 12px 28px rgba(55, 45, 30, 0.06);
+  --cal-shadow-event: 0 1px 2px rgba(55, 45, 30, 0.1),
+    0 3px 8px rgba(55, 45, 30, 0.1),
+    0 1px 3px rgba(55, 45, 30, 0.06);
+  --cal-shadow-event-hover: 0 2px 4px rgba(55, 45, 30, 0.12),
+    0 8px 18px rgba(55, 45, 30, 0.14),
+    0 2px 6px rgba(55, 45, 30, 0.08);
+  --cal-shadow-event-press: inset 0 2px 4px rgba(55, 45, 30, 0.08),
     inset -1px -1px 3px rgba(255, 255, 255, 0.85);
-  --cal-inset-soft: inset 1px 1px 3px rgba(15, 23, 42, 0.06),
+  --cal-inset-soft: inset 0 1px 3px rgba(55, 45, 30, 0.06),
     inset -1px -1px 3px rgba(255, 255, 255, 0.9);
-  --cal-shadow-control: 0 1px 2px rgba(15, 23, 42, 0.08),
-    0 3px 8px rgba(15, 23, 42, 0.08),
+  --cal-shadow-control: 0 1px 3px rgba(55, 45, 30, 0.08),
+    0 3px 8px rgba(55, 45, 30, 0.08),
     inset 0 1px 0 rgba(255, 255, 255, 0.7);
-  --cal-shadow-control-hover: 0 2px 4px rgba(15, 23, 42, 0.1),
-    0 5px 12px rgba(15, 23, 42, 0.1),
+  --cal-shadow-control-hover: 0 2px 4px rgba(55, 45, 30, 0.1),
+    0 5px 12px rgba(55, 45, 30, 0.1),
     inset 0 1px 0 rgba(255, 255, 255, 0.7);
-  --cal-shadow-control-press: inset 1px 2px 4px rgba(15, 23, 42, 0.1),
+  --cal-shadow-control-press: inset 0 2px 4px rgba(55, 45, 30, 0.08),
     inset -1px -1px 2px rgba(255, 255, 255, 0.85);
-  --cal-shadow-popover: 0 4px 12px rgba(15, 23, 42, 0.1),
-    0 18px 40px -8px rgba(15, 23, 42, 0.18),
-    0 2px 6px rgba(15, 23, 42, 0.06);
+  --cal-shadow-popover: 0 14px 36px rgba(55, 45, 30, 0.13),
+    0 3px 8px rgba(55, 45, 30, 0.06),
+    0 1px 3px rgba(55, 45, 30, 0.05);
 
   /* Border radii (Soft 3D: calendar 14, events 9, controls 10) */
   --cal-radius-surface: 14px;
@@ -119,7 +119,7 @@
   --cal-fill: var(--cal-bg-subtle);
   --cal-fill-soft: var(--cal-bg-subtle);
   --cal-hover: var(--cal-surface-hover);
-  --cal-ring: 0 0 0 3px rgba(23, 23, 23, 0.14);
+  --cal-ring: 0 0 0 3px rgba(119, 115, 108, 0.22);
 }
 /*
  * The calendar surface fills the remaining page height (toolbar above) and
@@ -165,7 +165,7 @@
 
 .calendar-page .cal-control-group button:hover:not(:disabled) {
   background: var(--cal-bg-subtle);
-  box-shadow: 0 1px 3px rgba(15, 23, 42, 0.06);
+  box-shadow: 0 1px 3px rgba(55, 45, 30, 0.06);
 }
 
 .calendar-page .cal-control-group button:active:not(:disabled) {
@@ -180,7 +180,7 @@
 
 /* The active view option keeps its dark raised surface (shadcn `default`). */
 .calendar-page .cal-control-group button[aria-pressed='true'] {
-  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.18), 0 3px 8px rgba(15, 23, 42, 0.12);
+  box-shadow: 0 1px 2px rgba(55, 45, 30, 0.18), 0 3px 8px rgba(55, 45, 30, 0.12);
 }
 
 /* Dark primary actions (Create event, active view) get a soft lift. */
@@ -382,7 +382,7 @@
 
 /* Dates outside current month */
 .fc .fc-day-other {
-  background: rgba(15, 23, 42, 0.015);
+  background: rgba(55, 45, 30, 0.015);
 }
 .fc .fc-day-other .fc-daygrid-day-frame {
   background: rgba(248, 249, 250, 0.5);
@@ -410,12 +410,12 @@
 }
 .fc .fc-daygrid-day:hover .fc-daygrid-day-frame {
   background: rgba(255, 255, 255, 0.85);
-  box-shadow: inset 0 0 0 1px rgba(15, 23, 42, 0.04);
+  box-shadow: inset 0 0 0 1px rgba(55, 45, 30, 0.04);
 }
 .fc .fc-daygrid-day:focus-within .fc-daygrid-day-frame,
 .fc .fc-daygrid-day:focus .fc-daygrid-day-frame {
   background: rgba(255, 255, 255, 0.85);
-  box-shadow: inset 0 0 0 1px rgba(15, 23, 42, 0.04);
+  box-shadow: inset 0 0 0 1px rgba(55, 45, 30, 0.04);
 }
 .fc .fc-daygrid-day:focus-within .fc-daygrid-day-number,
 .fc .fc-daygrid-day:focus .fc-daygrid-day-number {
@@ -613,7 +613,7 @@
   font-size: 11.5px;
   color: var(--evc-text, var(--cal-ink));
   background: var(--evc-bg, var(--cal-fill-soft));
-  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.08);
+  box-shadow: 0 1px 2px rgba(55, 45, 30, 0.08);
 }
 .fc-timeGridWeek-view .fc-daygrid-event[data-is-all-day='true'] .fc-event-main,
 .fc-timeGridDay-view .fc-daygrid-event[data-is-all-day='true'] .fc-event-main {
@@ -881,12 +881,12 @@
  * come from the existing shadcn components and stay untouched.
  */
 .cal-dialog.cal-dialog {
-  border-color: #e7e8eb;
-  box-shadow: 0 4px 12px rgba(15, 23, 42, 0.1), 0 18px 40px -8px rgba(15, 23, 42, 0.18), 0 2px 6px rgba(15, 23, 42, 0.06);
+  border-color: #E5E1D9;
+  box-shadow: 0 4px 12px rgba(55, 45, 30, 0.1), 0 18px 40px -8px rgba(55, 45, 30, 0.18), 0 2px 6px rgba(55, 45, 30, 0.06);
 }
 .cal-dialog input,
 .cal-dialog textarea {
-  box-shadow: inset 1px 1px 3px rgba(15, 23, 42, 0.06),
+  box-shadow: inset 1px 1px 3px rgba(55, 45, 30, 0.06),
     inset -1px -1px 3px rgba(255, 255, 255, 0.9);
   transition:
     border-color 150ms ease,
@@ -894,13 +894,13 @@
 }
 .cal-dialog input:focus,
 .cal-dialog textarea:focus {
-  box-shadow: inset 1px 1px 3px rgba(15, 23, 42, 0.06),
+  box-shadow: inset 1px 1px 3px rgba(55, 45, 30, 0.06),
     inset -1px -1px 3px rgba(255, 255, 255, 0.9),
-    0 0 0 3px rgba(23, 23, 23, 0.14);
+    0 0 0 3px rgba(119, 115, 108, 0.22);
 }
 .cal-sheet.cal-sheet {
-  border-color: #e7e8eb;
-  box-shadow: 0 4px 12px rgba(15, 23, 42, 0.1), 0 18px 40px -8px rgba(15, 23, 42, 0.18), 0 2px 6px rgba(15, 23, 42, 0.06);
+  border-color: #E5E1D9;
+  box-shadow: 0 4px 12px rgba(55, 45, 30, 0.1), 0 18px 40px -8px rgba(55, 45, 30, 0.18), 0 2px 6px rgba(55, 45, 30, 0.06);
 }
 
 /* Respect reduced-motion preferences: keep state changes instant. */
