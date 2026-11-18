@@ -23,6 +23,7 @@ export default function RecurrenceFields({
   value,
   onChange,
   isAllDay,
+  defaultWeekday = '',
   disabled = false,
   error = '',
 }) {
@@ -60,9 +61,13 @@ export default function RecurrenceFields({
               const frequency = next === NO_REPEAT ? '' : next
               update({
                 frequency,
+                // Picking Weekly starts on the event's own weekday; an empty
+                // selection would make the form unsaveable.
                 byDay:
-                  frequency === 'WEEKLY' && value.byDay.length === 0
-                    ? []
+                  frequency === 'WEEKLY' &&
+                  value.byDay.length === 0 &&
+                  defaultWeekday
+                    ? [defaultWeekday]
                     : value.byDay,
               })
             }}

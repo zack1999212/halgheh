@@ -476,6 +476,9 @@
 .fc .fc-timegrid-event {
   margin-top: 0;
   margin-bottom: 0;
+  /* The chip padding is for day-cell events; in the time grid it eats the
+     scarce height of a 30-minute block. The inner .fc-event-main pads. */
+  padding: 0;
 }
 /* Event content styling */
 .fc .fc-event .fc-event-main {
@@ -1283,7 +1286,7 @@
 
 /* Timed events in week/day: duration-based blocks, readable content */
 .fc .fc-timegrid-event .fc-event-main {
-  padding: 4px 6px;
+  padding: 2px 6px;
   min-width: 0;
   height: 100%;
   box-sizing: border-box;
@@ -1291,12 +1294,14 @@
 .fc .fc-timegrid-event .calendar-event {
   min-height: 0;
   height: 100%;
+  overflow: hidden;
 }
 .fc .fc-timegrid-event .calendar-event-title {
   font-size: 12px;
   line-height: 1.25;
   display: -webkit-box;
-  -webkit-line-clamp: 2;
+  /* One line in a 30-minute block; a second line would push the time out. */
+  -webkit-line-clamp: 1;
   -webkit-box-orient: vertical;
   white-space: normal;
   overflow: hidden;
@@ -1306,6 +1311,13 @@
   font-size: 10.5px;
   line-height: 1.2;
   white-space: nowrap;
+}
+/* A 30-minute block is short: without this the flex column shrinks the title
+   line to a few pixels and cuts the text in half. Keep both lines at their
+   natural height; if anything must clip, it is the secondary time line. */
+.fc .fc-timegrid-event .calendar-event-title,
+.fc .fc-timegrid-event .calendar-event-time {
+  flex: 0 0 auto;
 }
 .fc .fc-timegrid-event.fc-event-short .calendar-event {
   flex-direction: row;
@@ -1412,7 +1424,7 @@
   border-top-style: dotted;
 }
 .fc .fc-timeGridDay-view .fc-timegrid-event .fc-event-main {
-  padding: 6px 8px;
+  padding: 4px 8px;
 }
 .fc .fc-timeGridDay-view .fc-timegrid-event .calendar-event {
   gap: 3px;

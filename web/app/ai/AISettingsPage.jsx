@@ -119,27 +119,45 @@ export default function AISettingsPage() {
   const [confirmingModelId, setConfirmingModelId] = useState(null)
   const [catalogueProvider, setCatalogueProvider] = useState('')
 
-  // Seed the form with the first provider once the catalogue arrives.
+  /**
+   * Best enabled catalogue model for a provider: the preferred (in-use) model,
+   * else the provider default, else the first enabled one.
+   */
+  function modelForProvider(providerId, preferred) {
+    const enabled = models.filter(
+      (model) => model.provider === providerId && model.enabled,
+    )
+    const spec = providers.find((provider) => provider.id === providerId)
+    return (
+      enabled.find((model) => model.upstream_model_id === preferred) ||
+      enabled.find((model) => model.upstream_model_id === spec?.default_model) ||
+      enabled[0] ||
+      null
+    )
+  }
+
+  // Seed the form with the model that is actually in use, so adding a key can
+  // never quietly move the user onto a different (e.g. paid) model.
   useEffect(() => {
-    if (!providers.length) {
+    if (!providers.length || loading) {
       return
     }
     setForm((current) => {
       if (current.provider) {
         return current
       }
-      const first = providers[0]
-      const firstModel = models.find(
-        (model) => model.provider === first.id && model.enabled,
-      )
+      const providerId = effective?.provider || providers[0].id
+      const seed = modelForProvider(providerId, effective?.model)
       return {
         ...current,
-        provider: first.id,
-        model: firstModel ? firstModel.upstream_model_id : '',
+        provider: providerId,
+        model: seed ? seed.upstream_model_id : '',
       }
     })
-    setCatalogueProvider((current) => current || providers[0].id)
-  }, [providers, models])
+    setCatalogueProvider(
+      (current) => current || effective?.provider || providers[0].id,
+    )
+  }, [providers, models, effective, loading])
 
   const selectedProvider = useMemo(
     () => providers.find((provider) => provider.id === form.provider) || null,
@@ -171,27 +189,23 @@ export default function AISettingsPage() {
   }
 
   function handleProviderChange(providerId) {
-    const firstModel = models.find(
-      (model) => model.provider === providerId && model.enabled,
-    )
+    const seed = modelForProvider(providerId)
     setForm((current) => ({
       ...current,
       provider: providerId,
-      model: firstModel ? firstModel.upstream_model_id : '',
+      model: seed ? seed.upstream_model_id : '',
     }))
   }
 
   function resetForm() {
-    const first = providers[0]
-    const firstModel = models.find(
-      (model) => model?.provider === first?.id && model.enabled,
-    )
+    const providerId = effective?.provider || providers[0]?.id || ''
+    const seed = modelForProvider(providerId, effective?.model)
     setMode('create')
     setEditingId(null)
     setForm({
       ...EMPTY_FORM,
-      provider: first?.id || '',
-      model: firstModel ? firstModel.upstream_model_id : '',
+      provider: providerId,
+      model: seed ? seed.upstream_model_id : '',
     })
     dismissMessages()
   }

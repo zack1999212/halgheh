@@ -59,6 +59,18 @@ const SCOPES = [
   },
 ]
 
+/** RRULE weekday code for a wall date ("YYYY-MM-DD"), or "". */
+function weekdayCodeFor(wall) {
+  const datePart = String(wall || '').slice(0, 10)
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(datePart)) {
+    return ''
+  }
+  const [year, month, day] = datePart.split('-').map(Number)
+  return ['SU', 'MO', 'TU', 'WE', 'TH', 'FR', 'SA'][
+    new Date(year, month - 1, day).getDay()
+  ]
+}
+
 /** Wall times are "YYYY-MM-DDTHH:mm"; the time part starts after the "T". */
 function wallTimePart(wall) {
   const [, timePart = ''] = String(wall).split('T')
@@ -264,6 +276,7 @@ export default function EventDialog({
   // occurrence (on the occurrence's own day); the series end date is chosen
   // in the repeat options. Non-repeating events keep the full datetime field.
   const repeatingTimed = !allDay && Boolean(recurrence.frequency || event?.recurrence_rule)
+  const startWeekday = weekdayCodeFor(allDay ? startDate : startAt)
 
   function effectiveEndWall() {
     return repeatingTimed ? sameDayEnd(startAt, endAt) : endAt
@@ -793,6 +806,7 @@ export default function EventDialog({
             setRecurrenceDirty(true)
           }}
           isAllDay={allDay}
+          defaultWeekday={startWeekday}
           disabled={saving || detailsDisabled}
           error={fieldErrors.recurrence}
         />

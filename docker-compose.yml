@@ -34,7 +34,7 @@ services:
       DATABASE_URL: postgresql+psycopg2://halgheh:halgheh@db:5432/halgheh
       # Application-wide AI provider defaults (see service/.env.example).
       AI_DEFAULT_PROVIDER: ${AI_DEFAULT_PROVIDER:-zai}
-      AI_DEFAULT_MODEL: ${AI_DEFAULT_MODEL:-glm-4.5}
+      AI_DEFAULT_MODEL: ${AI_DEFAULT_MODEL:-glm-4.5-flash}
       AI_DEFAULT_API_KEY: ${AI_DEFAULT_API_KEY:-}
       AI_DEFAULT_BASE_URL: ${AI_DEFAULT_BASE_URL:-}
       AI_DEFAULT_EXTRA_CONFIG: ${AI_DEFAULT_EXTRA_CONFIG:-}
