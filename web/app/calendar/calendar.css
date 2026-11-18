@@ -476,9 +476,6 @@
 .fc .fc-timegrid-event {
   margin-top: 0;
   margin-bottom: 0;
-  /* The chip padding is for day-cell events; in the time grid it eats the
-     scarce height of a 30-minute block. The inner .fc-event-main pads. */
-  padding: 0;
 }
 /* Event content styling */
 .fc .fc-event .fc-event-main {
@@ -1300,8 +1297,7 @@
   font-size: 12px;
   line-height: 1.25;
   display: -webkit-box;
-  /* One line in a 30-minute block; a second line would push the time out. */
-  -webkit-line-clamp: 1;
+  -webkit-line-clamp: 2;
   -webkit-box-orient: vertical;
   white-space: normal;
   overflow: hidden;
@@ -1471,4 +1467,16 @@
   .fc .fc-timeGridDay-view .fc-timegrid-slot {
     height: 2.6em;
   }
+}
+
+/* Short (<= 30 minute) timed blocks: the chip padding would consume the
+   height of the block, and a second title line would push the time out. The
+   compact layout keeps one title line plus the time inside the block; taller
+   events keep the two-line clamp above. Declared last so it also wins in the
+   Day view, which raises the title clamp to three lines. */
+.fc .fc-timegrid-event.cal-event-compact {
+  padding: 0;
+}
+.fc .fc-timegrid-event.cal-event-compact .calendar-event-title {
+  -webkit-line-clamp: 1;
 }

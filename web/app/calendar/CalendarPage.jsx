@@ -46,6 +46,8 @@ function CalendarOverlay({ children, passthrough = false }) {
   )
 }
 
+const SCROLL_TIME = '08:00:00'
+
 export default function CalendarPage() {
   const calendarRef = useRef(null)
   const surfaceRef = useRef(null)
@@ -59,6 +61,29 @@ export default function CalendarPage() {
     CALENDAR_VIEWS.some((v) => v.id === requestedView) ? requestedView : DEFAULT_VIEW
 
   const [view, setView] = useState(initialView)
+
+  // A view switch keeps the previous view's scroll offset, which can leave the
+  // day's events off-screen. Align the new view to the same start hour a fresh
+  // view shows, using the mounted slots: the API's scrollToTime still measures
+  // with the previous view's slot height (Day slots are taller than Week's).
+  useEffect(() => {
+    let frame = requestAnimationFrame(() => {
+      frame = requestAnimationFrame(() => {
+        const root = surfaceRef.current
+        const scroller = root?.querySelector('.fc-scroller-liquid-absolute')
+        const slot = root?.querySelectorAll('.fc-timegrid-slot-lane')[
+          Number(SCROLL_TIME.slice(0, 2)) * 2
+        ]
+        if (!scroller || !slot) {
+          return
+        }
+        scroller.scrollTop +=
+          slot.getBoundingClientRect().top -
+          scroller.getBoundingClientRect().top
+      })
+    })
+    return () => cancelAnimationFrame(frame)
+  }, [view])
 
   const [rangeLabel, setRangeLabel] = useState('')
   const [selectedOccurrence, setSelectedOccurrence] = useState(null)
@@ -433,7 +458,7 @@ export default function CalendarPage() {
             timeZone="local"
             slotMinTime="00:00:00"
             slotMaxTime="24:00:00"
-            scrollTime="08:00:00"
+            scrollTime={SCROLL_TIME}
             slotDuration="00:30:00"
             snapDuration="00:15:00"
             slotLabelInterval="01:00"
@@ -443,6 +468,13 @@ export default function CalendarPage() {
             unselectAuto
             weekends={true}
             events={eventsApi.events}
+            eventClassNames={(arg) => {
+              const { start, end } = arg.event
+              const minutes = start && end ? (end - start) / 60000 : null
+              return minutes !== null && minutes <= 30
+                ? ['cal-event-compact']
+                : []
+            }}
             dayHeaderContent={(arg) => {
               if (arg.view.type === 'dayGridMonth') {
                 return arg.text
