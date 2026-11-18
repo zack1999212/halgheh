@@ -67,22 +67,28 @@ export default function CalendarPage() {
   // view shows, using the mounted slots: the API's scrollToTime still measures
   // with the previous view's slot height (Day slots are taller than Week's).
   useEffect(() => {
-    let frame = requestAnimationFrame(() => {
-      frame = requestAnimationFrame(() => {
+    // A view switch keeps the previous view's scroll offset, which can leave
+    // the day's events off-screen. Align the new view to SCROLL_TIME using
+    // the slot that actually rendered for that time, so the offset is measured
+    // against this view's (not the previous view's) slot height.
+    let outer, inner
+    outer = requestAnimationFrame(() => {
+      inner = requestAnimationFrame(() => {
         const root = surfaceRef.current
         const scroller = root?.querySelector('.fc-scroller-liquid-absolute')
-        const slot = root?.querySelectorAll('.fc-timegrid-slot-lane')[
-          Number(SCROLL_TIME.slice(0, 2)) * 2
-        ]
+        const slot = root?.querySelector(
+          `.fc-timegrid-slot-lane[data-time="${SCROLL_TIME}"]`
+        )
         if (!scroller || !slot) {
           return
         }
-        scroller.scrollTop +=
-          slot.getBoundingClientRect().top -
-          scroller.getBoundingClientRect().top
+        scroller.scrollTop = slot.offsetTop
       })
     })
-    return () => cancelAnimationFrame(frame)
+    return () => {
+      cancelAnimationFrame(outer)
+      if (inner) cancelAnimationFrame(inner)
+    }
   }, [view])
 
   const [rangeLabel, setRangeLabel] = useState('')
