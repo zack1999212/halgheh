@@ -23,7 +23,10 @@ export function useResource(loader, deps) {
 
   const load = useCallback(() => {
     let cancelled = false
-    setState((current) => ({ ...current, status: 'loading', error: null }))
+    // Clear previous data so callers never observe a stale payload from a
+    // different dependency set (for example when switching documents). This
+    // prevents a previous document's draft from being saved against a new id.
+    setState({ status: 'loading', data: null, error: null })
     loaderRef
       .current()
       .then((data) => {
