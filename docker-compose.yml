@@ -19,14 +19,14 @@ services:
     build: ./service
     command: >
       sh -c "alembic upgrade head &&
-             uvicorn service.main:app --host 0.0.0.0 --port 8000"
+             uvicorn service.main:app --host 0.0.0.0 --port 8001"
     working_dir: /app
     volumes:
       - ./service:/app/service
       - ./alembic.ini:/app/alembic.ini
       - ./alembic:/app/alembic
     ports:
-      - "8001:8000"
+      - "8001:8001"
     environment:
       APP_ENV: ${APP_ENV:-development}
       # Set SECRET_KEY in the host environment for non-development deployments.
