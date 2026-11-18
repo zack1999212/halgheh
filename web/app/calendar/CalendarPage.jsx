@@ -62,6 +62,12 @@ export default function CalendarPage() {
 
   const [view, setView] = useState(initialView)
 
+  function openDayView(date) {
+    setView('timeGridDay')
+    calendarRef.current?.getApi().changeView('timeGridDay', date)
+    setSelectedOccurrence(null)
+  }
+
   // A view switch keeps the previous view's scroll offset, which can leave the
   // day's events off-screen. Align the new view to the same start hour a fresh
   // view shows, using the mounted slots: the API's scrollToTime still measures
@@ -520,12 +526,9 @@ export default function CalendarPage() {
             eventResize={handleEventResize}
             select={handleSlotSelect}
             dateClick={(info) => {
-              if (info.view.type !== 'dayGridMonth') {
-                return
+              if (info.view.type === 'dayGridMonth') {
+                openDayView(info.date)
               }
-              setView('timeGridDay')
-              calendarRef.current?.getApi().changeView('timeGridDay', info.date)
-              setSelectedOccurrence(null)
             }}
             dayCellDidMount={(info) => {
               if (info.view.type !== 'dayGridMonth') {
@@ -546,11 +549,7 @@ export default function CalendarPage() {
               const handleKeyDown = (e) => {
                 if (e.key === 'Enter' || e.key === ' ') {
                   e.preventDefault()
-                  const api = calendarRef.current?.getApi()
-                  if (!api) return
-                  setView('timeGridDay')
-                  api.changeView('timeGridDay', info.date)
-                  setSelectedOccurrence(null)
+                  openDayView(info.date)
                 }
               }
               cell.addEventListener('keydown', handleKeyDown)
