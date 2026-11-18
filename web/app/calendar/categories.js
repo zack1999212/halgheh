@@ -9,12 +9,12 @@
 export const DEFAULT_CATEGORY = 'other'
 
 export const CATEGORIES = [
-  { id: 'work', label: 'Work', background: '#E8F0FE', accent: '#4285F4', text: '#172554' },
-  { id: 'personal', label: 'Personal', background: '#E5F4EA', accent: '#299D5B', text: '#14532D' },
-  { id: 'meeting', label: 'Meeting', background: '#FFF0DF', accent: '#E58A26', text: '#78350F' },
-  { id: 'focus', label: 'Focus', background: '#F0EAFE', accent: '#8656D9', text: '#4C1D95' },
-  { id: 'important', label: 'Important', background: '#FCE8EB', accent: '#D94B62', text: '#881337' },
-  { id: 'other', label: 'Other', background: '#ECEFF1', accent: '#64748B', text: '#334155' },
+  { id: 'work', label: 'Work', background: '#DCE9FF', accent: '#4285F4', text: '#172554' },
+  { id: 'personal', label: 'Personal', background: '#D6F0DE', accent: '#299D5B', text: '#14532D' },
+  { id: 'meeting', label: 'Meeting', background: '#FFE4C7', accent: '#E58A26', text: '#78350F' },
+  { id: 'focus', label: 'Focus', background: '#E6DAFF', accent: '#8656D9', text: '#4C1D95' },
+  { id: 'important', label: 'Important', background: '#FAD6DD', accent: '#D94B62', text: '#881337' },
+  { id: 'other', label: 'Other', background: '#E2E8EE', accent: '#64748B', text: '#334155' },
 ]
 
 const CATEGORY_MAP = new Map(CATEGORIES.map((category) => [category.id, category]))

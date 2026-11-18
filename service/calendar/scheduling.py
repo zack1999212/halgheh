@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 import os
 from datetime import date, datetime, timedelta, timezone
 
@@ -13,6 +14,8 @@ from .models import Event, ScheduledReminder
 SCHEDULING_HORIZON_DAYS = int(os.getenv("REMINDER_SCHEDULING_HORIZON_DAYS", "30"))
 SCHEDULER_INTERVAL_SECONDS = int(os.getenv("SCHEDULER_INTERVAL_SECONDS", "60"))
 SCHEDULER_BATCH_SIZE = int(os.getenv("SCHEDULER_BATCH_SIZE", "100"))
+
+logger = logging.getLogger("halgheh.calendar.scheduling")
 
 
 def _utcnow() -> datetime:
@@ -206,8 +209,9 @@ def schedule_upcoming_reminders(db: Session, *, now: datetime | None = None) -> 
         try:
             total += schedule_event_reminders(db, event, now=now)
         except Exception:
-            # Keep processing other events.
-            continue
+            # Keep processing other events, but leave a trace: this sweep is
+            # what repairs reminders after a failed reschedule.
+            logger.exception("Could not schedule reminders for event %s", event.id)
     return total
 
 

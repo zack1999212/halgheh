@@ -23,7 +23,7 @@ class Calendar(Base):
             unique=True,
             postgresql_where=text("is_default = true"),
         ),
-        CheckConstraint("char_length(name) > 0", name="ck_calendars_name_not_empty"),
+        CheckConstraint("length(name) > 0", name="ck_calendars_name_not_empty"),
     )
 
     id: Mapped[int] = mapped_column(primary_key=True)

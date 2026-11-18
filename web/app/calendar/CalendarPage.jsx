@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, useSearchParams } from 'react-router-dom'
 import EmptyState from '@/components/shared/EmptyState'
 import ErrorState from '@/components/shared/ErrorState'
 import LoadingState from '@/components/shared/LoadingState'
@@ -21,16 +21,24 @@ import useCalendarEvents, { occurrenceToSelection } from './useCalendarEvents.js
 import { createException, deleteEvent, editOccurrence, updateEvent } from './api.js'
 import { getBrowserTimeZone } from './time.js'
 import { clearToken } from '../src/api.js'
-import { DEFAULT_VIEW } from './views.js'
+import { CALENDAR_VIEWS, DEFAULT_VIEW, fcViewType } from './views.js'
 import { categoryOf } from './categories.js'
 import CalendarAgent from './agent/CalendarAgent.jsx'
 import { createTimeGridGuides } from './timeGridGuides.js'
 import './calendar.css'
 
-/** Centered overlay used for the calendar's loading, empty and error states. */
-function CalendarOverlay({ children }) {
+/**
+ * Centered overlay for the calendar's loading, error and empty states.
+ * ``passthrough`` drops the wash and lets pointer events reach the grid, so an
+ * informational state never prevents selecting a time slot.
+ */
+function CalendarOverlay({ children, passthrough = false }) {
+  const classes = [
+    'absolute inset-0 z-10 flex items-center justify-center p-4',
+    passthrough ? 'pointer-events-none' : 'bg-card/70',
+  ].join(' ')
   return (
-    <div className="absolute inset-0 z-10 flex items-center justify-center bg-card/70 p-4">
+    <div className={classes}>
       <div className="w-full max-w-[320px] rounded-[var(--radius-lg)] border border-border bg-card p-5 text-center shadow-sm">
         {children}
       </div>
@@ -38,13 +46,57 @@ function CalendarOverlay({ children }) {
   )
 }
 
+const SCROLL_TIME = '08:00:00'
+
 export default function CalendarPage() {
   const calendarRef = useRef(null)
   const surfaceRef = useRef(null)
   const guidesRef = useRef(null)
   const navigate = useNavigate()
+  const [searchParams] = useSearchParams()
 
-  const [view, setView] = useState(DEFAULT_VIEW)
+  const requestedView = searchParams.get('view')
+  const requestedDate = searchParams.get('date')
+  const initialView =
+    CALENDAR_VIEWS.some((v) => v.id === requestedView) ? requestedView : DEFAULT_VIEW
+
+  const [view, setView] = useState(initialView)
+
+  function openDayView(date) {
+    setView('timeGridDay')
+    calendarRef.current?.getApi().changeView('timeGridDay', date)
+    setSelectedOccurrence(null)
+  }
+
+  // A view switch keeps the previous view's scroll offset, which can leave the
+  // day's events off-screen. Align the new view to the same start hour a fresh
+  // view shows, using the mounted slots: the API's scrollToTime still measures
+  // with the previous view's slot height (Day slots are taller than Week's).
+  useEffect(() => {
+    // A view switch keeps the previous view's scroll offset, which can leave
+    // the day's events off-screen. Align the new view to SCROLL_TIME using
+    // the slot that actually rendered for that time, so the offset is measured
+    // against this view's (not the previous view's) slot height.
+    let outer, inner
+    outer = requestAnimationFrame(() => {
+      inner = requestAnimationFrame(() => {
+        const root = surfaceRef.current
+        const scroller = root?.querySelector('.fc-scroller-liquid-absolute')
+        const slot = root?.querySelector(
+          `.fc-timegrid-slot-lane[data-time="${SCROLL_TIME}"]`
+        )
+        if (!scroller || !slot) {
+          return
+        }
+        scroller.scrollTop = slot.offsetTop
+      })
+    })
+    return () => {
+      cancelAnimationFrame(outer)
+      if (inner) cancelAnimationFrame(inner)
+    }
+  }, [view])
+
   const [rangeLabel, setRangeLabel] = useState('')
   const [selectedOccurrence, setSelectedOccurrence] = useState(null)
   const [detailsRefreshKey, setDetailsRefreshKey] = useState(0)
@@ -118,7 +170,7 @@ export default function CalendarPage() {
       return
     }
     setView(nextView)
-    calendarRef.current?.getApi().changeView(nextView)
+    calendarRef.current?.getApi().changeView(fcViewType(nextView))
   }
 
   function handleDatesSet(info) {
@@ -128,6 +180,52 @@ export default function CalendarPage() {
       end: info.end.toISOString(),
       timezone: getBrowserTimeZone(),
     })
+  }
+
+  function handleSlotSelect(info) {
+    if (!hasCalendar) return
+    const viewType = info?.view?.type
+    // Preserve existing Month view behavior (date click navigates to Day view).
+    if (viewType === 'dayGridMonth') {
+      calendarRef.current?.getApi().unselect()
+      return
+    }
+
+    const tz = getBrowserTimeZone()
+    const start = info.start
+    const end = info.end
+    const pad = (n) => String(n).padStart(2, '0')
+    const localWall = (d) =>
+      `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`
+    const localDate = (d) =>
+      `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`
+
+    if (info.allDay) {
+      // FullCalendar all-day selection end is exclusive.
+      setEditor({
+        open: true,
+        mode: 'create',
+        event: null,
+        occurrence: null,
+        calendarId: selectedCalendarId,
+        initialAllDay: true,
+        initialStartDate: localDate(start),
+        initialEndDate: localDate(end),
+      })
+    } else {
+      setEditor({
+        open: true,
+        mode: 'create',
+        event: null,
+        occurrence: null,
+        calendarId: selectedCalendarId,
+        initialAllDay: false,
+        initialStartAt: localWall(start),
+        initialEndAt: localWall(end),
+        initialTimeZone: tz,
+      })
+    }
+    calendarRef.current?.getApi().unselect()
   }
 
   function handleEventClick(info) {
@@ -325,290 +423,331 @@ export default function CalendarPage() {
 
   return (
     <div className="calendar-page">
-      <CalendarToolbar
-        view={view}
-        rangeLabel={rangeLabel}
-        onPrev={() => calendarRef.current?.getApi().prev()}
-        onNext={() => calendarRef.current?.getApi().next()}
-        onToday={() => calendarRef.current?.getApi().today()}
-        onViewChange={handleViewChange}
-        calendars={calendars}
-        selectedCalendarId={selectedCalendarId}
-        calendarsLoading={calendarsLoading}
-        calendarsError={calendarsError}
-        onSelectCalendar={handleSelectCalendar}
-        onRetryCalendars={() => calendarsApi.reload()}
-        onCreateCalendar={() =>
-          setCalendarDialog({ open: true, calendar: null })
-        }
-        onManageCalendars={() =>
-          setCalendarDialog({
-            open: true,
-            calendar: selectedCalendar || calendars[0] || null,
-          })
-        }
-        canCreate={hasCalendar}
-        onCreateEvent={() => setEditor({ open: true, mode: 'create' })}
-      />
+          <CalendarToolbar
+            view={view}
+            rangeLabel={rangeLabel}
+            onPrev={() => calendarRef.current?.getApi().prev()}
+            onNext={() => calendarRef.current?.getApi().next()}
+            onToday={() => calendarRef.current?.getApi().today()}
+            onViewChange={handleViewChange}
+            calendars={calendars}
+            selectedCalendarId={selectedCalendarId}
+            calendarsLoading={calendarsLoading}
+            calendarsError={calendarsError}
+            onSelectCalendar={handleSelectCalendar}
+            onRetryCalendars={() => calendarsApi.reload()}
+            onCreateCalendar={() =>
+              setCalendarDialog({ open: true, calendar: null })
+            }
+            onManageCalendars={() =>
+              setCalendarDialog({
+                open: true,
+                calendar: selectedCalendar || calendars[0] || null,
+              })
+            }
+            canCreate={hasCalendar}
+            onCreateEvent={() => setEditor({ open: true, mode: 'create' })}
+          />
 
       <div className="calendar-surface" ref={surfaceRef}>
-        <FullCalendar
-          ref={calendarRef}
-          plugins={[dayGridPlugin, timeGridPlugin, listPlugin, interactionPlugin]}
-          editable
-          eventStartEditable
-          eventDurationEditable
-          eventResizableFromStart={false}
-          initialView={DEFAULT_VIEW}
-          headerToolbar={false}
-          footerToolbar={false}
-          height="100%"
-          expandRows
-          fixedWeekCount={false}
-          dayMaxEvents={3}
-          nowIndicator
-          timeZone="local"
-          events={eventsApi.events}
-          eventContent={(arg) => <CalendarEvent arg={arg} />}
-          eventDidMount={(info) => {
-            const category = info.event.extendedProps?.category
-            const cat = categoryOf(category)
-            info.el.style.setProperty('--evc-bg', cat.background)
-            info.el.style.setProperty('--evc-accent', cat.accent)
-            info.el.style.setProperty('--evc-text', cat.text)
-            // FullCalendar re-mounts events on view changes; make sure the
-            // guide lines are redrawn with the fresh event geometry even if
-            // the DOM observer's last paint ran before the events mounted.
-            guidesRef.current?.refresh()
-          }}
-          eventClick={handleEventClick}
-          eventDrop={handleEventDrop}
-          eventResize={handleEventResize}
-          dayCellDidMount={(info) => {
-            if (info.view.type !== 'dayGridMonth') {
-              return
-            }
-            const cell = info.el
-            cell.style.cursor = 'pointer'
-            cell.setAttribute('tabindex', '0')
-            cell.setAttribute(
-              'aria-label',
-              info.date.toLocaleDateString(undefined, {
-                weekday: 'long',
-                year: 'numeric',
-                month: 'long',
-                day: 'numeric',
-              })
-            )
-            const handleClick = (e) => {
-              if (e.target?.closest?.('.fc-event, .fc-more-link, .fc-daygrid-more-link')) {
+          <FullCalendar
+            ref={calendarRef}
+            plugins={[dayGridPlugin, timeGridPlugin, listPlugin, interactionPlugin]}
+            editable={hasCalendar}
+            eventStartEditable={hasCalendar}
+            eventDurationEditable={hasCalendar}
+            eventResizableFromStart={false}
+            initialView={fcViewType(initialView)}
+            initialDate={requestedDate && /^\d{4}-\d{2}-\d{2}$/.test(requestedDate) ? requestedDate : undefined}
+            headerToolbar={false}
+            footerToolbar={false}
+            height="100%"
+            expandRows
+            stickyHeaderDates
+            fixedWeekCount={false}
+            dayMaxEvents={3}
+            nowIndicator={view === 'timeGridDay'}
+            timeZone="local"
+            slotMinTime="00:00:00"
+            slotMaxTime="24:00:00"
+            scrollTime={SCROLL_TIME}
+            slotDuration="00:30:00"
+            snapDuration="00:15:00"
+            slotLabelInterval="01:00"
+            allDaySlot={view !== 'timeGridWeek'}
+            selectable={hasCalendar}
+            selectMirror
+            unselectAuto
+            weekends={true}
+            events={eventsApi.events}
+            eventClassNames={(arg) => {
+              const { start, end } = arg.event
+              const minutes = start && end ? (end - start) / 60000 : null
+              return minutes !== null && minutes <= 30
+                ? ['cal-event-compact']
+                : []
+            }}
+            dayHeaderContent={(arg) => {
+              if (arg.view.type === 'dayGridMonth') {
+                return arg.text
+              }
+              const date = arg.date
+              const weekday = date.toLocaleDateString(undefined, { weekday: 'short' })
+              const dayNum = date.toLocaleDateString(undefined, { day: 'numeric' })
+              if (arg.view.type === 'timeGridDay') {
+                const full = date.toLocaleDateString(undefined, {
+                  weekday: 'long',
+                  month: 'long',
+                  day: 'numeric',
+                  year: 'numeric',
+                })
+                return {
+                  html: `<div class="fc-day-header-rich"><span class="fc-day-name">${weekday}</span><span class="fc-day-number">${dayNum}</span><span class="fc-day-full">${full}</span></div>`,
+                }
+              }
+              return {
+                html: `<span class="fc-day-name">${weekday}</span><span class="fc-day-number">${dayNum}</span>`,
+              }
+            }}
+            eventContent={(arg) => <CalendarEvent arg={arg} />}
+            eventDidMount={(info) => {
+              const category = info.event.extendedProps?.category
+              const cat = categoryOf(category)
+              info.el.style.setProperty('--evc-bg', cat.background)
+              info.el.style.setProperty('--evc-accent', cat.accent)
+              info.el.style.setProperty('--evc-text', cat.text)
+              // FullCalendar re-mounts events on view changes; make sure the
+              // guide lines are redrawn with the fresh event geometry even if
+              // the DOM observer's last paint ran before the events mounted.
+              guidesRef.current?.refresh()
+            }}
+            eventClick={handleEventClick}
+            eventDrop={handleEventDrop}
+            eventResize={handleEventResize}
+            select={handleSlotSelect}
+            dateClick={(info) => {
+              if (info.view.type === 'dayGridMonth') {
+                openDayView(info.date)
+              }
+            }}
+            dayCellDidMount={(info) => {
+              if (info.view.type !== 'dayGridMonth') {
                 return
               }
-              const api = calendarRef.current?.getApi()
-              if (!api) return
-              setView('timeGridDay')
-              api.changeView('timeGridDay', info.date)
-              setSelectedOccurrence(null)
-            }
-            cell.addEventListener('click', handleClick)
-            const handleKeyDown = (e) => {
-              if (e.key === 'Enter' || e.key === ' ') {
-                e.preventDefault()
-                const api = calendarRef.current?.getApi()
-                if (!api) return
-                setView('timeGridDay')
-                api.changeView('timeGridDay', info.date)
-                setSelectedOccurrence(null)
-              }
-            }
-            cell.addEventListener('keydown', handleKeyDown)
-          }}
-          datesSet={handleDatesSet}
-          noEventsText="No events scheduled"
-          listDayFormat={{ weekday: 'short', month: 'short', day: 'numeric' }}
-          listDaySideFormat={false}
-          allDayText="All day"
-        />
-
-        {showCalendarPlaceholder && (
-          <CalendarOverlay>
-            <EmptyState
-              title="No calendars yet"
-              description="Create a calendar to start adding events."
-            >
-              <Button
-                type="button"
-                size="sm"
-                className="h-8"
-                onClick={() =>
-                  setCalendarDialog({ open: true, calendar: null })
+              const cell = info.el
+              cell.style.cursor = 'pointer'
+              cell.setAttribute('tabindex', '0')
+              cell.setAttribute(
+                'aria-label',
+                info.date.toLocaleDateString(undefined, {
+                  weekday: 'long',
+                  year: 'numeric',
+                  month: 'long',
+                  day: 'numeric',
+                })
+              )
+              const handleKeyDown = (e) => {
+                if (e.key === 'Enter' || e.key === ' ') {
+                  e.preventDefault()
+                  openDayView(info.date)
                 }
+              }
+              cell.addEventListener('keydown', handleKeyDown)
+            }}
+            datesSet={handleDatesSet}
+            noEventsText="No events scheduled"
+            listDayFormat={{ weekday: 'short', month: 'short', day: 'numeric' }}
+            listDaySideFormat={false}
+            allDayText="All day"
+          />
+
+          {showCalendarPlaceholder && (
+            <CalendarOverlay>
+              <EmptyState
+                title="No calendars yet"
+                description="Create a calendar to start adding events."
               >
-                Create calendar
-              </Button>
-            </EmptyState>
-          </CalendarOverlay>
+                <Button
+                  type="button"
+                  size="sm"
+                  className="h-8"
+                  onClick={() =>
+                    setCalendarDialog({ open: true, calendar: null })
+                  }
+                >
+                  Create calendar
+                </Button>
+              </EmptyState>
+            </CalendarOverlay>
+          )}
+
+          {calendarsLoading && (
+            <CalendarOverlay>
+              <LoadingState label="Loading calendars…" />
+            </CalendarOverlay>
+          )}
+
+          {!calendarsLoading && calendarsError && (
+            <CalendarOverlay>
+              <ErrorState
+                title="Calendars unavailable"
+                message={calendarsError}
+                onRetry={() => calendarsApi.reload()}
+              />
+            </CalendarOverlay>
+          )}
+
+          {showEventsLoading && (
+            <CalendarOverlay>
+              <LoadingState label="Loading events…" />
+            </CalendarOverlay>
+          )}
+
+          {showEventsError && (
+            <CalendarOverlay>
+              <ErrorState
+                title="Could not load events"
+                message={eventsApi.error}
+                onRetry={eventsApi.reload}
+              />
+            </CalendarOverlay>
+          )}
+
+          {showNoEvents && (
+            <CalendarOverlay passthrough>
+              <EmptyState
+                title="No events scheduled"
+                description="Select a time slot to create an event."
+                role="status"
+              />
+            </CalendarOverlay>
+          )}
+        </div>
+
+        {selectedOccurrence && hasCalendar && (
+          <EventDetailPanel
+            occurrence={selectedOccurrence}
+            calendar={selectedCalendar}
+            refreshKey={detailsRefreshKey}
+            onClose={() => setSelectedOccurrence(null)}
+            onEdit={(event, occurrence) =>
+              setEditor({ open: true, mode: 'edit', event, occurrence })
+            }
+            onDelete={openDelete}
+            onUnauthorized={handleUnauthorized}
+          />
         )}
 
-        {calendarsLoading && (
-          <CalendarOverlay>
-            <LoadingState label="Loading calendars…" />
-          </CalendarOverlay>
-        )}
-
-        {!calendarsLoading && calendarsError && (
-          <CalendarOverlay>
-            <ErrorState
-              title="Calendars unavailable"
-              message={calendarsError}
-              onRetry={() => calendarsApi.reload()}
-            />
-          </CalendarOverlay>
-        )}
-
-        {showEventsLoading && (
-          <CalendarOverlay>
-            <LoadingState label="Loading events…" />
-          </CalendarOverlay>
-        )}
-
-        {showEventsError && (
-          <CalendarOverlay>
-            <ErrorState
-              title="Could not load events"
-              message={eventsApi.error}
-              onRetry={eventsApi.reload}
-            />
-          </CalendarOverlay>
-        )}
-
-        {showNoEvents && (
-          <CalendarOverlay>
-            <EmptyState
-              title="No events scheduled"
-              description="Create an event to get started."
-              role="status"
-            />
-          </CalendarOverlay>
-        )}
-      </div>
-
-      {selectedOccurrence && hasCalendar && (
-        <EventDetailPanel
-          occurrence={selectedOccurrence}
-          calendar={selectedCalendar}
-          refreshKey={detailsRefreshKey}
-          onClose={() => setSelectedOccurrence(null)}
-          onEdit={(event, occurrence) =>
-            setEditor({ open: true, mode: 'edit', event, occurrence })
-          }
-          onDelete={openDelete}
-          onUnauthorized={handleUnauthorized}
+        <EventDialog
+          open={editor.open}
+          mode={editor.mode}
+          event={editor.event}
+          occurrence={editor.occurrence}
+          calendarId={editor.calendarId || selectedCalendarId}
+          calendars={calendars}
+          initialAllDay={editor.initialAllDay}
+          initialStartAt={editor.initialStartAt}
+          initialEndAt={editor.initialEndAt}
+          initialStartDate={editor.initialStartDate}
+          initialEndDate={editor.initialEndDate}
+          initialTimeZone={editor.initialTimeZone}
+          onClose={() => setEditor({ open: false, mode: 'create' })}
+          onSaved={refreshAfterChange}
         />
-      )}
 
-      <EventDialog
-        open={editor.open}
-        mode={editor.mode}
-        event={editor.event}
-        occurrence={editor.occurrence}
-        calendarId={selectedCalendarId}
-        calendars={calendars}
-        onClose={() => setEditor({ open: false, mode: 'create' })}
-        onSaved={refreshAfterChange}
-      />
+        <CalendarDialog
+          open={calendarDialog.open}
+          calendar={calendarDialog.calendar}
+          saving={calendarsApi.saving}
+          onClose={() => setCalendarDialog({ open: false, calendar: null })}
+          onCreate={(payload) => calendarsApi.create(payload)}
+          onUpdate={(id, updates) => calendarsApi.update(id, updates)}
+          onDelete={(id) => calendarsApi.remove(id)}
+        />
 
-      <CalendarDialog
-        open={calendarDialog.open}
-        calendar={calendarDialog.calendar}
-        saving={calendarsApi.saving}
-        onClose={() => setCalendarDialog({ open: false, calendar: null })}
-        onCreate={(payload) => calendarsApi.create(payload)}
-        onUpdate={(id, updates) => calendarsApi.update(id, updates)}
-        onDelete={(id) => calendarsApi.remove(id)}
-      />
+        <ConfirmDialog
+          open={Boolean(deleteTarget)}
+          contentClassName="cal-dialog"
+          title="Delete event"
+          description={
+            deleteTarget?.event?.recurrence_rule
+              ? 'This event repeats. Choose what to delete.'
+              : `Delete “${deleteTarget?.event?.title || deleteTarget?.occurrence?.title || 'this event'}”?`
+          }
+          confirmLabel="Delete"
+          busy={deleteBusy}
+          error={deleteError}
+          onConfirm={confirmDelete}
+          onClose={() => {
+            setDeleteTarget(null)
+            setDeleteError('')
+          }}
+        >
+          {deleteTarget?.event?.recurrence_rule && (
+            <div className="grid gap-2">
+              <RadioOption
+                name="delete-scope"
+                value="occurrence"
+                title="This occurrence"
+                description="Cancels only the selected occurrence."
+                checked={deleteScope === 'occurrence'}
+                onChange={() => setDeleteScope('occurrence')}
+              />
+              <RadioOption
+                name="delete-scope"
+                value="series"
+                title="All occurrences"
+                description="Deletes the whole series."
+                checked={deleteScope === 'series'}
+                onChange={() => setDeleteScope('series')}
+              />
+            </div>
+          )}
+        </ConfirmDialog>
 
-      <ConfirmDialog
-        open={Boolean(deleteTarget)}
-        title="Delete event"
-        description={
-          deleteTarget?.event?.recurrence_rule
-            ? 'This event repeats. Choose what to delete.'
-            : `Delete “${deleteTarget?.event?.title || deleteTarget?.occurrence?.title || 'this event'}”?`
-        }
-        confirmLabel="Delete"
-        busy={deleteBusy}
-        error={deleteError}
-        onConfirm={confirmDelete}
-        onClose={() => {
-          setDeleteTarget(null)
-          setDeleteError('')
-        }}
-      >
-        {deleteTarget?.event?.recurrence_rule && (
+        <ConfirmDialog
+          open={Boolean(dragScopeTarget)}
+          contentClassName="cal-dialog"
+          title="Move recurring event"
+          description="This event repeats. Apply the change to:"
+          confirmLabel="Apply"
+          busyLabel="Saving…"
+          destructive={false}
+          busy={dragBusy}
+          error={dragError}
+          onConfirm={confirmDragScope}
+          onClose={cancelDragScope}
+        >
           <div className="grid gap-2">
             <RadioOption
-              name="delete-scope"
+              name="drag-scope"
               value="occurrence"
               title="This occurrence"
-              description="Cancels only the selected occurrence."
-              checked={deleteScope === 'occurrence'}
-              onChange={() => setDeleteScope('occurrence')}
+              description="Only the selected occurrence changes."
+              checked={dragScope === 'occurrence'}
+              onChange={() => setDragScope('occurrence')}
+              disabled={dragBusy}
             />
             <RadioOption
-              name="delete-scope"
+              name="drag-scope"
               value="series"
-              title="All occurrences"
-              description="Deletes the whole series."
-              checked={deleteScope === 'series'}
-              onChange={() => setDeleteScope('series')}
+              title="Entire series"
+              description="All occurrences move or resize together."
+              checked={dragScope === 'series'}
+              onChange={() => setDragScope('series')}
+              disabled={dragBusy}
             />
           </div>
+        </ConfirmDialog>
+
+        {dragError && !dragScopeTarget && (
+          <div
+            className="fixed bottom-6 left-1/2 z-50 -translate-x-1/2 rounded-[var(--radius-md)] border border-destructive/30 bg-card px-3.5 py-2 text-[13px] text-destructive shadow-md"
+            role="alert"
+          >
+            {dragError}
+          </div>
         )}
-      </ConfirmDialog>
-
-      <ConfirmDialog
-        open={Boolean(dragScopeTarget)}
-        title="Move recurring event"
-        description="This event repeats. Apply the change to:"
-        confirmLabel="Apply"
-        busyLabel="Saving…"
-        destructive={false}
-        busy={dragBusy}
-        error={dragError}
-        onConfirm={confirmDragScope}
-        onClose={cancelDragScope}
-      >
-        <div className="grid gap-2">
-          <RadioOption
-            name="drag-scope"
-            value="occurrence"
-            title="This occurrence"
-            description="Only the selected occurrence changes."
-            checked={dragScope === 'occurrence'}
-            onChange={() => setDragScope('occurrence')}
-            disabled={dragBusy}
-          />
-          <RadioOption
-            name="drag-scope"
-            value="series"
-            title="Entire series"
-            description="All occurrences move or resize together."
-            checked={dragScope === 'series'}
-            onChange={() => setDragScope('series')}
-            disabled={dragBusy}
-          />
-        </div>
-      </ConfirmDialog>
-
-      {dragError && !dragScopeTarget && (
-        <div
-          className="fixed bottom-6 left-1/2 z-50 -translate-x-1/2 rounded-[var(--radius-md)] border border-destructive/30 bg-card px-3.5 py-2 text-[13px] text-destructive shadow-md"
-          role="alert"
-        >
-          {dragError}
-        </div>
-      )}
 
       {/* Floating assistant is scoped to the Calendar page only. */}
       <CalendarAgent onCalendarChanged={handleAgentCalendarChange} />

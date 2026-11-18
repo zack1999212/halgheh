@@ -1,24 +1,19 @@
 import { useCallback, useEffect, useState } from 'react'
-import { Outlet, useLocation, useNavigate } from 'react-router-dom'
+import { Outlet, useNavigate } from 'react-router-dom'
 import { getCurrentUser, clearSession } from '../auth/api.js'
-import { NAV_ITEMS, findNavItem } from './navigation.js'
-import Sidebar from './components/Sidebar.jsx'
+import { TooltipProvider } from '@/components/ui/tooltip'
 import AppHeader from './components/AppHeader.jsx'
-import { SidebarInset, SidebarProvider } from '@/components/ui/sidebar'
 import './shell.css'
 
 /**
- * Shared application shell.
+ * Shared authenticated application shell.
  *
- * `SidebarProvider` owns the collapse state (cookie-persisted by the shadcn
- * component) and swaps the sidebar for a Sheet below the 1024px breakpoint.
- * `SidebarInset` is the main column: header plus the page outlet, whose
- * padding stays in `shell.css` so the Calendar keeps the viewport height it
- * measures against.
+ * Owns global chrome only: the application header (brand, module switcher,
+ * notifications, profile) and the main content outlet. Module-specific layouts
+ * and navigation live inside each module route so modules remain isolated.
  */
 export default function AppLayout() {
   const [user, setUser] = useState(null)
-  const location = useLocation()
   const navigate = useNavigate()
 
   const handleUnauthorized = useCallback(() => {
@@ -51,30 +46,19 @@ export default function AppLayout() {
     }
   }, [handleUnauthorized])
 
-  const activeItem = findNavItem(location.pathname)
-
   return (
-    <SidebarProvider
-      style={{
-        '--sidebar-width': 'var(--app-sidebar-width)',
-        '--sidebar-width-icon': 'var(--app-sidebar-width-icon)',
-      }}
-      className="bg-background"
-    >
-      <Sidebar items={NAV_ITEMS} />
-
-      <SidebarInset className="min-w-0">
+    <TooltipProvider delayDuration={0}>
+      <div className="flex min-h-svh flex-col bg-background text-foreground">
         <AppHeader
-          title={activeItem?.label || 'Halgheh'}
           user={user}
           onLogout={handleLogout}
           onUnauthorized={handleUnauthorized}
         />
 
-        <div className="app-content">
+        <main className="app-content flex min-h-0 flex-1 flex-col">
           <Outlet />
-        </div>
-      </SidebarInset>
-    </SidebarProvider>
+        </main>
+      </div>
+    </TooltipProvider>
   )
 }

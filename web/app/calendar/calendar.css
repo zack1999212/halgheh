@@ -3,42 +3,74 @@
  * All colour values are scoped to `.calendar-page` so the rest of the
  * application (including the dark navy sidebar) keeps its own palette.
  */
-/* --- Design Tokens (Calendar-specific) --- */
+/* --- Design Tokens (Calendar-specific, Soft 3D) --- */
 /* :root tokens are intentionally omitted — they are re-declared on
    .calendar-page below so they remain scoped to the calendar only. */
 .calendar-page {
-  /* Background colors */
+  /* Background colors: page clearly darker than the raised white surface so
+     the calendar reads as an elevated object (not a flat same-tone block). */
+  --cal-page-bg: #F2F0EB;
   --cal-bg: #ffffff;
-  --cal-bg-subtle: #fafafa;
+  --cal-bg-subtle: #F7F5F1;
 
   /* Surface colors */
-  --cal-surface: #ffffff;
-  --cal-surface-hover: #f5f5f5;
-  --cal-surface-active: #f0f0f0;
+  --cal-surface: #F7F5F1;
+  --cal-raised: #ffffff;
+  --cal-surface-hover: #F3F1EC;
+  --cal-surface-active: #EAE7E0;
 
   /* Text colors */
-  --cal-ink: #111111;
-  --cal-ink-secondary: #3f3f3f;
-  --cal-ink-muted: #737373;
-  --cal-ink-subtle: #a3a3a3;
+  --cal-ink: #242321;
+  --cal-ink-secondary: #4A4844;
+  --cal-ink-muted: #77736C;
+  --cal-ink-subtle: #9A968E;
 
   /* Border colors */
-  --cal-line: #e5e5e5;
-  --cal-line-soft: #efefef;
-  --cal-line-strong: #d4d4d4;
-  --cal-border: #e0e0e0;
+  --cal-line: #E5E1D9;
+  --cal-line-soft: #E5E1D9;
+  --cal-line-strong: #D8D3CA;
+  --cal-border: #E5E1D9;
 
-  /* Shadow levels */
-  --cal-shadow-sm: 0 1px 2px rgba(16, 24, 40, 0.04);
-  --cal-shadow-md: 0 4px 6px -1px rgba(16, 24, 40, 0.04),
-    0 1px 3px 0 rgba(16, 24, 40, 0.1);
-  --cal-shadow-lg: 0 12px 24px -4px rgba(16, 24, 40, 0.08),
-    0 4px 6px -2px rgba(16, 24, 40, 0.12);
+  /*
+   * Soft 3D shadow levels — visibly apparent but still soft/professional.
+   * Each uses a tight contact shadow plus a wider ambient layer; no harsh
+   * black. Strong enough to read as elevation at a glance.
+   */
+  --cal-shadow-raised: 0 4px 12px rgba(55, 45, 30, 0.07),
+    0 1px 3px rgba(55, 45, 30, 0.05),
+    0 8px 24px rgba(55, 45, 30, 0.06);
+  --cal-shadow-raised-hover: 0 8px 20px rgba(55, 45, 30, 0.1),
+    0 2px 5px rgba(55, 45, 30, 0.06),
+    0 12px 28px rgba(55, 45, 30, 0.06);
+  --cal-shadow-event: 0 1px 2px rgba(55, 45, 30, 0.1),
+    0 3px 8px rgba(55, 45, 30, 0.1),
+    0 1px 3px rgba(55, 45, 30, 0.06);
+  --cal-shadow-event-hover: 0 2px 4px rgba(55, 45, 30, 0.12),
+    0 8px 18px rgba(55, 45, 30, 0.14),
+    0 2px 6px rgba(55, 45, 30, 0.08);
+  --cal-shadow-event-press: inset 0 2px 4px rgba(55, 45, 30, 0.08),
+    inset -1px -1px 3px rgba(255, 255, 255, 0.85);
+  --cal-inset-soft: inset 0 1px 3px rgba(55, 45, 30, 0.06),
+    inset -1px -1px 3px rgba(255, 255, 255, 0.9);
+  --cal-shadow-control: 0 1px 3px rgba(55, 45, 30, 0.08),
+    0 3px 8px rgba(55, 45, 30, 0.08),
+    inset 0 1px 0 rgba(255, 255, 255, 0.7);
+  --cal-shadow-control-hover: 0 2px 4px rgba(55, 45, 30, 0.1),
+    0 5px 12px rgba(55, 45, 30, 0.1),
+    inset 0 1px 0 rgba(255, 255, 255, 0.7);
+  --cal-shadow-control-press: inset 0 2px 4px rgba(55, 45, 30, 0.08),
+    inset -1px -1px 2px rgba(255, 255, 255, 0.85);
+  --cal-shadow-popover: 0 14px 36px rgba(55, 45, 30, 0.13),
+    0 3px 8px rgba(55, 45, 30, 0.06),
+    0 1px 3px rgba(55, 45, 30, 0.05);
 
-  /* Border radii */
-  --cal-radius-sm: 6px;
-  --cal-radius-md: 8px;
-  --cal-radius-lg: 12px;
+  /* Border radii (Soft 3D: calendar 14, events 9, controls 10) */
+  --cal-radius-surface: 14px;
+  --cal-radius-event: 9px;
+  --cal-radius-control: 10px;
+  --cal-radius-sm: 9px;
+  --cal-radius-md: 10px;
+  --cal-radius-lg: 14px;
 
   /* Spacing scale */
   --cal-space-1: 4px;
@@ -50,10 +82,18 @@
   --cal-space-8: 32px;
   --cal-space-10: 40px;
 
-  /* Transition durations */
+  /* Transition durations (shadow/elevation changes: 150–200ms) */
   --cal-transition-fast: 150ms ease;
-  --cal-transition-normal: 200ms ease;
+  --cal-transition-normal: 180ms ease;
   --cal-transition-slow: 250ms ease;
+
+  /*
+   * The calendar module sits on its own slightly darker neutral background so
+   * the raised surfaces read as elevated. Scoped here only — the application
+   * shell keeps its own palette.
+   */
+  background: var(--cal-page-bg);
+  border-radius: 16px;
 
   display: flex;
   flex-direction: column;
@@ -79,9 +119,7 @@
   --cal-fill: var(--cal-bg-subtle);
   --cal-fill-soft: var(--cal-bg-subtle);
   --cal-hover: var(--cal-surface-hover);
-  --cal-ring: 0 0 0 3px rgba(17, 17, 17, 0.14);
-  --cal-shadow-popover: 0 20px 40px -24px rgba(0, 0, 0, 0.28),
-    0 2px 8px rgba(0, 0, 0, 0.04);
+  --cal-ring: 0 0 0 3px rgba(119, 115, 108, 0.22);
 }
 /*
  * The calendar surface fills the remaining page height (toolbar above) and
@@ -97,9 +135,66 @@
   min-width: 0;
   min-height: 0;
   overflow: hidden;
-  background: var(--cal-surface);
+  background: var(--cal-raised);
   border: 1px solid var(--cal-line);
-  border-radius: var(--radius-lg);
+  border-radius: var(--cal-radius-surface);
+  box-shadow: var(--cal-shadow-raised);
+}
+
+/*
+ * Soft 3D toolbar controls. The nav group and the view selector are raised
+ * pill surfaces; their buttons feel tactile: raised at rest, slightly lifted
+ * on hover, gently inset while pressed. Scoped with .calendar-page so the
+ * shared shadcn Button keeps its global appearance.
+ */
+.calendar-page .cal-control-group {
+  background: var(--cal-raised);
+  border: 1px solid var(--cal-line);
+  border-radius: var(--cal-radius-control);
+  box-shadow: var(--cal-shadow-control);
+  padding: 3px;
+}
+
+.calendar-page .cal-control-group button {
+  border-radius: calc(var(--cal-radius-control) - 4px);
+  transition:
+    background-color var(--cal-transition-fast),
+    box-shadow var(--cal-transition-fast),
+    color var(--cal-transition-fast);
+}
+
+.calendar-page .cal-control-group button:hover:not(:disabled) {
+  background: var(--cal-bg-subtle);
+  box-shadow: 0 1px 3px rgba(55, 45, 30, 0.06);
+}
+
+.calendar-page .cal-control-group button:active:not(:disabled) {
+  background: var(--cal-surface-active);
+  box-shadow: var(--cal-shadow-control-press);
+}
+
+.calendar-page .cal-control-group button:focus-visible {
+  outline: 2px solid var(--cal-ink);
+  outline-offset: 1px;
+}
+
+/* The active view option keeps its dark raised surface (shadcn `default`). */
+.calendar-page .cal-control-group button[aria-pressed='true'] {
+  box-shadow: 0 1px 2px rgba(55, 45, 30, 0.18), 0 3px 8px rgba(55, 45, 30, 0.12);
+}
+
+/* Dark primary actions (Create event, active view) get a soft lift. */
+.calendar-page .cal-primary-btn {
+  box-shadow: var(--cal-shadow-control-hover);
+  transition:
+    background-color var(--cal-transition-fast),
+    box-shadow var(--cal-transition-fast);
+}
+.calendar-page .cal-primary-btn:hover:not(:disabled) {
+  box-shadow: var(--cal-shadow-raised-hover);
+}
+.calendar-page .cal-primary-btn:active:not(:disabled) {
+  box-shadow: var(--cal-shadow-control-press);
 }
 
 
@@ -180,81 +275,156 @@
   .fc .fc-timegrid-event .calendar-event-time {
     display: block;
   }
-  .fc .fc-timegrid-event.fc-event-short {
-    padding: 1px 4px;
-  }
 }
 /* ========================================== */
 /* === Month View Redesign (Task 3) Start === */
 /* ========================================== */
-/* --- Month grid: day cell frame --- */
-/* Day cell selected state */
+/* --- Month grid: cohesive surface and day cells --- */
+.fc .fc-scrollgrid {
+  border: 1px solid var(--cal-line-soft);
+  border-radius: var(--cal-radius-md);
+  overflow: hidden;
+}
+/* Column header strip: subtly recessed so the day body reads as the raised
+   area of the surface. */
+.fc .fc-col-header-cell {
+  box-shadow: var(--cal-inset-soft);
+}
+.fc .fc-theme-standard td,
+.fc .fc-theme-standard th {
+  border-color: var(--cal-line-soft);
+}
 .fc .fc-daygrid-day.fc-day-selected {
-  background: var(--cal-surface-hover);
-}
-.fc .fc-day-selected .fc-daygrid-day-number {
-  color: var(--cal-ink);
-}
-/* Today date highlighting */
-/* Today highlighting in Week/Day views — reference keeps cells plain white;
-   today is communicated by the bold date number only. */
-.fc .fc-daygrid-day.fc-day-today {
   background: transparent;
 }
+.fc .fc-day-selected .fc-daygrid-day-number {
+  color: inherit;
+}
+
+/* Today: subtle neutral cell background + dark circular date indicator */
+.fc .fc-daygrid-day.fc-day-today {
+  background: var(--cal-bg-subtle);
+}
+.fc .fc-daygrid-day.fc-day-today .fc-daygrid-day-frame {
+  background: rgba(255, 255, 255, 0.55);
+}
 .fc .fc-day-today .fc-daygrid-day-number {
-  color: var(--cal-ink);
-  font-weight: 700;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  min-width: 26px;
+  height: 26px;
+  margin: 5px 6px 2px;
+  padding: 0;
+  border-radius: 9999px;
+  background: var(--cal-ink);
+  color: #ffffff;
+  font-weight: 600;
 }
+
+/* Weekend cells: subtle background */
+.fc .fc-daygrid-day.fc-day-sat,
+.fc .fc-daygrid-day.fc-day-sun {
+  background: rgba(0, 0, 0, 0.015);
+}
+.fc .fc-daygrid-day.fc-day-today.fc-day-sat,
+.fc .fc-daygrid-day.fc-day-today.fc-day-sun {
+  background: var(--cal-bg-subtle);
+}
+
 /* Weekday header row */
-.fc .fc-daygrid-day-header {
-  background: var(--cal-fill-soft);
-  border: none;
-  border-bottom: 1px solid var(--cal-line-soft);
+.fc .fc-col-header-cell {
+  background: var(--cal-bg-subtle);
 }
-.fc .fc-daygrid-day-header-cushion {
-  padding: 8px 4px;
+.fc .fc-daygrid-day-header,
+.fc .fc-col-header-cell-cushion {
+  background: transparent;
+  border: none;
+}
+.fc .fc-daygrid-day-header-cushion,
+.fc .fc-col-header-cell-cushion {
+  display: block;
+  padding: 10px 6px;
   color: var(--cal-ink-muted);
   font-size: 11px;
   font-weight: 500;
-  letter-spacing: 0.05em;
+  letter-spacing: 0.04em;
   text-transform: uppercase;
   text-decoration: none;
   font-variant-numeric: tabular-nums;
 }
-/* Day number - main styling */
+
+/* Day number styling */
+.fc .fc-daygrid-day-top {
+  flex-direction: row;
+}
 .fc .fc-daygrid-day-number {
-  padding: 10px 8px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 26px;
+  height: 26px;
+  margin: 5px 6px 2px;
+  padding: 0 4px;
   color: var(--cal-ink);
-  font-size: 13px;
-  font-weight: 600;
+  font-size: 12.5px;
+  font-weight: 500;
+  line-height: 1;
   letter-spacing: -0.01em;
   text-decoration: none;
   font-variant-numeric: tabular-nums;
-  display: block;
-  height: 36px;
-  width: 100%;
+  border-radius: 9999px;
 }
+
 /* Dates outside current month */
-.fc .fc-day-other .fc-daygrid-day-frame {
-  background: var(--cal-fill-soft);
+.fc .fc-day-other {
+  background: rgba(55, 45, 30, 0.015);
 }
+.fc .fc-day-other .fc-daygrid-day-frame {
+  background: rgba(248, 249, 250, 0.5);
+}
+.fc .fc-day-other .fc-daygrid-day-number {
+  color: var(--cal-ink-subtle);
+  font-size: 12px;
+  font-weight: 500;
+}
+
 /* Clickable month-view date cells */
 .fc .fc-daygrid-day {
   cursor: pointer;
 }
+/* Day cells: cohesive grid with subtle surface differentiation from the
+   white surface, so the grid reads as a gently recessed field. */
 .fc .fc-daygrid-day-frame {
-  transition: background-color 120ms ease;
+  background: rgba(255, 255, 255, 0.35);
+  border: none;
+  border-radius: 0;
+  min-height: 112px;
+  transition:
+    background-color 150ms ease,
+    box-shadow 150ms ease;
 }
 .fc .fc-daygrid-day:hover .fc-daygrid-day-frame {
-  background: var(--cal-fill);
+  background: rgba(255, 255, 255, 0.85);
+  box-shadow: inset 0 0 0 1px rgba(55, 45, 30, 0.04);
 }
-.fc .fc-daygrid-day:focus-within .fc-daygrid-day-frame, .fc .fc-daygrid-day:focus .fc-daygrid-day-frame {
-  background: var(--cal-fill);
+.fc .fc-daygrid-day:focus-within .fc-daygrid-day-frame,
+.fc .fc-daygrid-day:focus .fc-daygrid-day-frame {
+  background: rgba(255, 255, 255, 0.85);
+  box-shadow: inset 0 0 0 1px rgba(55, 45, 30, 0.04);
 }
-.fc .fc-daygrid-day:focus-within .fc-daygrid-day-number, .fc .fc-daygrid-day:focus .fc-daygrid-day-number {
+.fc .fc-daygrid-day:focus-within .fc-daygrid-day-number,
+.fc .fc-daygrid-day:focus .fc-daygrid-day-number {
   outline: 2px solid var(--cal-ink);
-  outline-offset: -2px;
-  border-radius: var(--radius-sm);
+  outline-offset: 1px;
+}
+.fc .fc-day-today:hover .fc-daygrid-day-frame {
+  background: transparent;
+}
+.fc .fc-day-today:focus-within .fc-daygrid-day-number,
+.fc .fc-day-today:focus .fc-daygrid-day-number {
+  outline-color: var(--cal-ink);
 }
 /* Drag and resize visual feedback */
 .fc .fc-event.fc-event-dragging, .fc .fc-event.fc-event-resizing {
@@ -273,22 +443,28 @@
 .fc .fc-event:hover .fc-event-resizer, .fc .fc-event.fc-event-resizing .fc-event-resizer {
   opacity: 1;
 }
-.fc .fc-daygrid-day.fc-day-today:hover .fc-daygrid-day-frame {
-  background: var(--cal-fill);
-}
-.fc .fc-day-other .fc-daygrid-day-number {
-  color: var(--cal-ink-muted);
-  font-size: 11px;
-}
+
 /* --- Event chip styling --- */
-/* Event base - no colored backgrounds */
+/* Event base: slightly elevated card above the day cell surface. */
 .fc .fc-event {
-  border-radius: var(--radius-sm);
+  border-radius: var(--cal-radius-event);
   background: var(--cal-fill);
-  box-shadow: none;
+  box-shadow: var(--cal-shadow-event);
   cursor: pointer;
   margin: 2px 4px 2px 0;
   padding: 3px 6px;
+  transition:
+    box-shadow var(--cal-transition-normal),
+    filter var(--cal-transition-normal);
+}
+/* Pressed: gently recessed, no movement or size change. */
+.fc .fc-event:active {
+  box-shadow: var(--cal-shadow-event-press);
+}
+/* Keyboard focus must not rely on shadows alone. */
+.fc .fc-event:focus-visible {
+  outline: 2px solid var(--cal-ink);
+  outline-offset: 1px;
 }
 /* Time-grid (Week/Day) events must span exactly their time range: the
    generic chip margin above adds 2px at the top and bottom, which shrinks
@@ -311,7 +487,8 @@
 }
 /* Event hover state */
 .fc .fc-event:hover {
-  background: var(--cal-fill-soft);
+  box-shadow: var(--cal-shadow-event-hover);
+  filter: brightness(0.985);
 }
 /* Recurring event indicator */
 .fc .fc-event .calendar-event-recurring {
@@ -364,23 +541,38 @@
 .fc .fc-daygrid-multiple-events .calendar-event-time {
   display: none;
 }
-/* Event overflow indicator - matches monochrome design */
-.fc .fc .fc-more-link {
-  padding: 4px 8px;
-  background: var(--cal-surface);
-  border: 1px solid var(--cal-line-soft);
-  border-radius: var(--radius-sm);
-  color: var(--cal-ink);
+/* Event overflow indicator: a subtle interactive pill, slightly raised. */
+.fc .fc-more-link {
+  margin: 2px 4px 0;
+  padding: 2px 8px;
+  background: var(--cal-bg-subtle);
+  border-radius: var(--cal-radius-control);
+  box-shadow: var(--cal-shadow-control);
+  color: var(--cal-ink-secondary);
   font-size: 11px;
   font-weight: 500;
+  line-height: 1.4;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-  max-width: 100%;
+  max-width: calc(100% - 8px);
+  transition:
+    background-color var(--cal-transition-fast),
+    box-shadow var(--cal-transition-fast),
+    color var(--cal-transition-fast);
 }
-.fc .fc .fc-more-link:hover {
-  background: var(--cal-fill-soft);
+.fc .fc-more-link:hover {
+  background: var(--cal-surface-hover);
+  box-shadow: var(--cal-shadow-raised-hover);
   color: var(--cal-ink);
+  text-decoration: none;
+}
+.fc .fc-more-link:active {
+  box-shadow: var(--cal-shadow-control-press);
+}
+.fc .fc-more-link:focus-visible {
+  outline: 2px solid var(--cal-ink);
+  outline-offset: 1px;
 }
 /* ========================================== */
 /* === Month View Redesign (Task 3) End === */
@@ -388,12 +580,11 @@
 /* ========================================== */
 /* === Week & Day Views Redesign (Task 4) Start === */
 /* ========================================== */
-/* --- Timegrid month/basicDay (Week) day cell --- */
-.fc .fc-daygrid-day-frame {
+/* --- Timegrid week/day all-day day cell frame --- */
+.fc-timeGridWeek-view .fc-daygrid-day-frame,
+.fc-timeGridDay-view .fc-daygrid-day-frame {
   min-height: 0;
   background: var(--cal-surface);
-  border: 1px solid var(--cal-line-soft);
-  border-radius: var(--radius-sm);
 }
 /* Today highlighting in Week/Day views */
 /* Selected date in Week/Day */
@@ -407,35 +598,63 @@
   font-size: 11px;
   font-variant-numeric: tabular-nums;
 }
-/* --- All-Day Section --- */
-/* All-day events */
-.fc .fc-daygrid-event[data-is-all-day='true'] {
-  border-left: none;
-  border-radius: var(--radius-sm) var(--radius-sm) 0 0;
-  margin: 2px 2px 2px 0;
-  padding: 4px 6px;
-  font-size: 11px;
-  color: var(--cal-ink);
-  background: var(--cal-fill-soft);
+/* --- All-Day Section (Week/Day timegrid header) --- */
+/* All-day events shown as compact pills (distinct from timed blocks), without
+   bar/line styling that reads as horizontal stripes in the all-day row. */
+.fc-timeGridWeek-view .fc-daygrid-event[data-is-all-day='true'],
+.fc-timeGridDay-view .fc-daygrid-event[data-is-all-day='true'] {
+  border: none;
+  border-radius: 999px;
+  margin: 3px 6px 3px 4px;
+  padding: 3px 10px 3px 8px;
+  font-size: 11.5px;
+  color: var(--evc-text, var(--cal-ink));
+  background: var(--evc-bg, var(--cal-fill-soft));
+  box-shadow: 0 1px 2px rgba(55, 45, 30, 0.08);
 }
-.fc .fc-daygrid-event[data-is-all-day='true'] .fc-event-main {
+.fc-timeGridWeek-view .fc-daygrid-event[data-is-all-day='true'] .fc-event-main,
+.fc-timeGridDay-view .fc-daygrid-event[data-is-all-day='true'] .fc-event-main {
   padding: 0;
-  color: var(--cal-ink);
-  font-weight: 500;
-  font-size: 11px;
+  color: var(--evc-text, var(--cal-ink));
+  font-weight: 600;
+  font-size: 11.5px;
   line-height: 1.3;
 }
-/* Recurring all-day event indicator */
-.fc .fc-daygrid-event[data-is-all-day='true'] .calendar-event-recurring {
-  margin-left: 4px;
-  font-size: 10px;
-  color: var(--cal-ink-muted);
+.fc-timeGridWeek-view .fc-daygrid-event[data-is-all-day='true'] .calendar-event,
+.fc-timeGridDay-view .fc-daygrid-event[data-is-all-day='true'] .calendar-event {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
 }
-/* Multiple all-day events stacking */
-.fc .fc-daygrid-multiple-events .fc-daygrid-event[data-is-all-day='true'] {
-  margin: 2px 0;
-  padding: 3px 5px;
+.fc-timeGridWeek-view .fc-daygrid-event[data-is-all-day='true'] .calendar-event::before,
+.fc-timeGridDay-view .fc-daygrid-event[data-is-all-day='true'] .calendar-event::before {
+  content: '';
+  width: 7px;
+  height: 7px;
+  border-radius: 999px;
+  background: var(--evc-accent, var(--cal-ink));
+  flex: 0 0 auto;
+}
+.fc-timeGridWeek-view .fc-daygrid-event[data-is-all-day='true'] .calendar-event-title,
+.fc-timeGridDay-view .fc-daygrid-event[data-is-all-day='true'] .calendar-event-title {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.fc-timeGridWeek-view .fc-daygrid-event[data-is-all-day='true'] .calendar-event-recurring,
+.fc-timeGridDay-view .fc-daygrid-event[data-is-all-day='true'] .calendar-event-recurring {
+  margin-left: 0;
   font-size: 10px;
+  color: var(--evc-text, var(--cal-ink));
+  opacity: 0.7;
+  flex-shrink: 0;
+}
+.fc-timeGridWeek-view .fc-daygrid-multiple-events .fc-daygrid-event[data-is-all-day='true'],
+.fc-timeGridDay-view .fc-daygrid-multiple-events .fc-daygrid-event[data-is-all-day='true'] {
+  margin: 3px 6px 3px 4px;
+  padding: 3px 10px 3px 8px;
 }
 /* --- Timed Event Blocks --- */
 /* ============ Week View Specific ============ */
@@ -465,7 +684,7 @@
 /* Day event column */
 .fc .fc-daygrid-day .fc-daygrid-event {
   margin: 2px 2px 2px 0;
-  border-radius: var(--radius-sm);
+  border-radius: var(--cal-radius-event);
 }
 /* Ensure day events don't overflow horizontally */
 .fc .fc-daygrid-day .fc-event {
@@ -596,9 +815,14 @@
   color: var(--cal-ink-muted);
   line-height: 1;
 }
-/* Ensure no horizontal overflow */
+/* Keep the grid contained but let event shadows render inside cells/harnesses. */
 .fc .fc-daygrid {
   overflow: hidden;
+}
+.fc .fc-daygrid-day-events,
+.fc .fc-daygrid-event-harness,
+.fc .fc-daygrid-day-frame {
+  overflow: visible;
 }
 /* Selected state */
 .fc .fc-daygrid-day.fc-day-selected * {
@@ -647,6 +871,35 @@
 /* === Task 9: Polish & Interaction End    === */
 /* ========================================== */
 
+/*
+ * Calendar overlays (dialog portal + detail Sheet). Radix renders these in a
+ * portal outside .calendar-page, where the scoped tokens don't inherit, so
+ * these rules carry their own literal values. Structure and focus behaviour
+ * come from the existing shadcn components and stay untouched.
+ */
+.cal-dialog.cal-dialog {
+  border-color: #E5E1D9;
+  box-shadow: 0 4px 12px rgba(55, 45, 30, 0.1), 0 18px 40px -8px rgba(55, 45, 30, 0.18), 0 2px 6px rgba(55, 45, 30, 0.06);
+}
+.cal-dialog input,
+.cal-dialog textarea {
+  box-shadow: inset 1px 1px 3px rgba(55, 45, 30, 0.06),
+    inset -1px -1px 3px rgba(255, 255, 255, 0.9);
+  transition:
+    border-color 150ms ease,
+    box-shadow 150ms ease;
+}
+.cal-dialog input:focus,
+.cal-dialog textarea:focus {
+  box-shadow: inset 1px 1px 3px rgba(55, 45, 30, 0.06),
+    inset -1px -1px 3px rgba(255, 255, 255, 0.9),
+    0 0 0 3px rgba(119, 115, 108, 0.22);
+}
+.cal-sheet.cal-sheet {
+  border-color: #E5E1D9;
+  box-shadow: 0 4px 12px rgba(55, 45, 30, 0.1), 0 18px 40px -8px rgba(55, 45, 30, 0.18), 0 2px 6px rgba(55, 45, 30, 0.06);
+}
+
 /* Respect reduced-motion preferences: keep state changes instant. */
 @media (prefers-reduced-motion: reduce) {
   .calendar-page *, .calendar-page *::before, .calendar-page *::after {
@@ -674,52 +927,118 @@
   --fc-today-bg-color: transparent;
   --fc-now-indicator-color: var(--cal-ink);
 }
-/* Shared event card for Month (daygrid) and Week/Day (timegrid) events. */
-.fc .fc-daygrid-event, .fc .fc-timegrid-event {
+/* Shared event card base for Week/Day timed events (preserve existing non-month behavior). */
+.fc .fc-timegrid-event {
   background: var(--evc-bg, var(--cal-fill-soft));
   border: 1px solid var(--cal-line-soft);
   border-left: 3px solid var(--evc-accent, var(--cal-ink));
-  border-radius: var(--radius-sm);
-  box-shadow: none;
+  border-radius: var(--cal-radius-event);
+  box-shadow: var(--cal-shadow-event);
 }
-.fc .fc-daygrid-event:hover, .fc .fc-timegrid-event:hover {
-  background: var(--cal-fill);
+.fc .fc-timegrid-event:hover {
+  box-shadow: var(--cal-shadow-event-hover);
+  filter: brightness(0.985);
 }
-/* Bold titles in category text color. */
+.fc .fc-timegrid-event:active {
+  box-shadow: var(--cal-shadow-event-press);
+}
+.fc .calendar-event {
+  min-width: 0;
+  width: 100%;
+}
 .fc .calendar-event-title {
   color: var(--evc-text, var(--cal-ink));
-  font-weight: 700;
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
-/* All-day chips keep the same accent; all-day title stays bold. */
-.fc .fc-daygrid-event[data-is-all-day='true'] .calendar-event-title {
-  font-weight: 700;
-}
-/* --- Month view: title-only compact cards (time hidden, per reference) --- */
-/* FC renders short month chips in "dot" mode — remove its dot marker and
-   give the row the same card treatment. */
-.fc .fc-daygrid-dot-event .fc-daygrid-event-dot {
-  display: none;
-}
-.fc .fc-daygrid-dot-event {
-  margin: 2px 4px 2px 0;
-  padding: 2px 6px;
+
+/* --- Month view: compact, readable category chips --- */
+.fc-dayGridMonth-view .fc-daygrid-event,
+.fc-dayGridMonth-view .fc-daygrid-dot-event {
+  margin: 1px 4px 2px;
+  padding: 3px 6px 3px 5px;
   background: var(--evc-bg, var(--cal-fill-soft));
-  border: 1px solid var(--cal-line-soft);
+  border: none;
   border-left: 3px solid var(--evc-accent, var(--cal-ink));
-  border-radius: var(--radius-sm);
+  border-radius: var(--cal-radius-event);
+  box-shadow: var(--cal-shadow-event);
 }
-.fc .fc-daygrid-dot-event:hover {
-  background: var(--cal-fill);
+.fc-dayGridMonth-view .fc-daygrid-event:hover,
+.fc-dayGridMonth-view .fc-daygrid-dot-event:hover {
+  box-shadow: var(--cal-shadow-event-hover);
+  filter: brightness(0.985);
 }
-.fc .fc-daygrid-event .calendar-event-time {
+.fc-dayGridMonth-view .fc-daygrid-event:active,
+.fc-dayGridMonth-view .fc-daygrid-dot-event:active {
+  box-shadow: var(--cal-shadow-event-press);
+}
+.fc-dayGridMonth-view .fc-daygrid-dot-event .fc-daygrid-event-dot {
   display: none;
 }
-.fc .fc-daygrid-event .fc-event-main {
+.fc-dayGridMonth-view .fc-daygrid-event .fc-event-main,
+.fc-dayGridMonth-view .fc-daygrid-dot-event .fc-event-main {
   padding: 0;
-  font-size: 10.5px;
+  min-width: 0;
+  color: var(--evc-text, var(--cal-ink));
+  font-size: 11.5px;
+  line-height: 1.3;
 }
-.fc .fc-daygrid-event .calendar-event-title {
-  font-size: 10.5px;
+.fc-dayGridMonth-view .fc-daygrid-event .calendar-event,
+.fc-dayGridMonth-view .fc-daygrid-dot-event .calendar-event {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+}
+.fc-dayGridMonth-view .fc-daygrid-event .calendar-event-title,
+.fc-dayGridMonth-view .fc-daygrid-dot-event .calendar-event-title,
+.fc-dayGridMonth-view .fc-daygrid-dot-event .fc-event-title {
+  flex: 1 1 auto;
+  min-width: 0;
+  color: var(--evc-text, var(--cal-ink));
+  font-size: 11.5px;
+  font-weight: 600;
+  line-height: 1.3;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.fc-dayGridMonth-view .fc-daygrid-event .calendar-event-time {
+  display: none;
+}
+.fc-dayGridMonth-view .fc-daygrid-event .calendar-event-recurring {
+  margin-left: 0;
+  color: var(--evc-text, var(--cal-ink));
+  opacity: 0.7;
+  font-size: 10px;
+  flex-shrink: 0;
+}
+
+/* More-events popover (month overflow): layered surface, soft shadow. */
+.fc .fc-popover {
+  border: 1px solid var(--cal-line);
+  border-radius: var(--cal-radius-control);
+  background: var(--cal-raised);
+  box-shadow: var(--cal-shadow-popover);
+  overflow: hidden;
+}
+.fc .fc-popover-header {
+  padding: 8px 10px;
+  background: var(--cal-bg-subtle);
+  box-shadow: var(--cal-inset-soft);
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--cal-ink);
+}
+.fc .fc-popover-body {
+  padding: 8px;
+  max-width: min(320px, calc(100vw - 32px));
+}
+.fc .fc-more-popover .fc-popover-body {
+  max-height: min(320px, 50vh);
+  overflow: auto;
 }
 /* --- Week and Day views: title on top (bold), time below (secondary) --- */
 .fc .fc-timegrid-event .calendar-event {
@@ -734,13 +1053,6 @@
 .fc .fc-timegrid-event .calendar-event-time {
   font-size: 9.5px;
 }
-/* Short events: keep the single-line inline layout (time then title). */
-.fc .fc-timegrid-event.fc-event-short .calendar-event {
-  flex-direction: row;
-  align-items: baseline;
-  gap: 4px;
-}
-
 /* --- Week/Day guide lines --------------------------------------------- */
 /* Faint hairlines that connect each timed event's start and end edges to the
    hour labels on the left axis. The overlay is appended to the time grid body
@@ -795,11 +1107,21 @@
   background: transparent;
   border-bottom: 1px solid var(--cal-line-soft);
 }
-/* Event rows: time column on the left, accent-barred bold title on the right. */
+/* Event rows: time column on the left, accent-barred bold title on the right.
+   The title block reads as a small floating card within the row. */
 .fc .fc-list-event-title .calendar-event {
   border-left: 3px solid var(--evc-accent, var(--cal-ink));
   padding-left: 10px;
+  margin: 4px 0;
+  padding-top: 3px;
+  padding-bottom: 3px;
   background: var(--evc-bg, transparent);
+  border-radius: var(--cal-radius-event);
+  box-shadow: var(--cal-shadow-event);
+  transition: box-shadow var(--cal-transition-normal);
+}
+.fc .fc-list-event:hover .calendar-event {
+  box-shadow: var(--cal-shadow-event-hover);
 }
 .fc .fc-list-event-title .calendar-event-title {
   font-size: 13px;
@@ -829,4 +1151,313 @@
   .fc .fc-list-event-title {
     padding: 8px 8px 8px 0;
   }
+}
+
+/* ========================================== */
+/* === Week View Redesign (Task 2)         === */
+/* ========================================== */
+
+/* Sticky day headers and fixed time axis in week/day timegrid */
+.fc .fc-timegrid .fc-scrollgrid-section-header > * {
+  position: sticky;
+  top: 0;
+  z-index: 6;
+  background: var(--cal-surface);
+}
+.fc .fc-timegrid .fc-scrollgrid-section-header .fc-timegrid-axis,
+.fc .fc-timegrid .fc-scrollgrid-section-header .fc-col-header-cell {
+  background: var(--cal-bg-subtle);
+}
+.fc .fc-timegrid .fc-scrollgrid-section-header th {
+  border-bottom: 1px solid var(--cal-line-soft);
+}
+
+/* Week header: day name + date number, today emphasized */
+.fc .fc-timeGridWeek-view .fc-col-header-cell-cushion,
+.fc .fc-timeGridDay-view .fc-col-header-cell-cushion {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  padding: 10px 6px;
+  text-decoration: none;
+}
+.fc .fc-timeGridWeek-view .fc-col-header-cell .fc-day-name,
+.fc .fc-timeGridDay-view .fc-col-header-cell .fc-day-name {
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--cal-ink-muted);
+}
+.fc .fc-timeGridWeek-view .fc-col-header-cell .fc-day-number,
+.fc .fc-timeGridDay-view .fc-col-header-cell .fc-day-number {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 9999px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--cal-ink);
+}
+.fc .fc-timeGridWeek-view .fc-col-header-cell.fc-day-today .fc-day-number,
+.fc .fc-timeGridDay-view .fc-col-header-cell.fc-day-today .fc-day-number {
+  background: var(--cal-ink);
+  color: #fff;
+}
+.fc .fc-timeGridWeek-view .fc-col-header-cell.fc-day-today,
+.fc .fc-timeGridDay-view .fc-col-header-cell.fc-day-today {
+  background: var(--cal-bg-subtle);
+}
+
+/* Time axis */
+.fc .fc-timegrid-axis-cushion,
+.fc .fc-timegrid-slot-label-cushion {
+  color: var(--cal-ink-muted);
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+}
+.fc .fc-timegrid-axis-frame {
+  align-items: flex-start;
+  justify-content: flex-end;
+}
+.fc .fc-timegrid-slot-label {
+  vertical-align: top;
+  border-color: transparent;
+}
+.fc .fc-timegrid-slot-label-cushion {
+  padding: 0 8px 0 6px;
+  position: relative;
+  top: -8px;
+}
+
+/* Subtle grid lines and hourly divisions */
+.fc .fc-timegrid-slots td,
+.fc .fc-timegrid-cols td,
+.fc .fc-timegrid-divider {
+  border-color: var(--cal-line-soft);
+}
+.fc .fc-timegrid-slot {
+  height: 2.2em;
+}
+.fc .fc-timegrid-slot-minor {
+  border-top-style: dotted;
+  border-top-color: var(--cal-line-soft);
+}
+
+/* All-day section (Week/Day): distinct area above timeline without a drawn
+   separator line. Keep it clean so all-day chips read clearly. */
+.fc .fc-timeGridWeek-view .fc-scrollgrid-section-body.fc-scrollgrid-section-liquid .fc-daygrid-body,
+.fc .fc-timeGridDay-view .fc-scrollgrid-section-body.fc-scrollgrid-section-liquid .fc-daygrid-body {
+  min-height: 2.25rem;
+}
+.fc .fc-timegrid .fc-scrollgrid-section:nth-child(2) td,
+.fc .fc-timegrid .fc-scrollgrid-section:nth-child(2) th {
+  border-bottom-color: transparent;
+  background: var(--cal-bg-subtle);
+  box-shadow: none;
+}
+.fc .fc-timeGridWeek-view .fc-daygrid-body,
+.fc .fc-timeGridDay-view .fc-daygrid-body {
+  background: var(--cal-bg-subtle);
+}
+.fc .fc-timeGridWeek-view .fc-scrollgrid-section:nth-child(2) .fc-daygrid-day,
+.fc .fc-timeGridDay-view .fc-scrollgrid-section:nth-child(2) .fc-daygrid-day {
+  border-color: transparent;
+}
+.fc .fc-timegrid .fc-daygrid-day-events {
+  margin-bottom: 2px;
+}
+
+/* Timed events in week/day: duration-based blocks, readable content */
+.fc .fc-timegrid-event .fc-event-main {
+  padding: 2px 6px;
+  min-width: 0;
+  height: 100%;
+  box-sizing: border-box;
+}
+.fc .fc-timegrid-event .calendar-event {
+  min-height: 0;
+  height: 100%;
+  overflow: hidden;
+}
+.fc .fc-timegrid-event .calendar-event-title {
+  font-size: 12px;
+  line-height: 1.25;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  white-space: normal;
+  overflow: hidden;
+}
+.fc .fc-timegrid-event .calendar-event-time {
+  color: var(--cal-ink-muted);
+  font-size: 10.5px;
+  line-height: 1.2;
+  white-space: nowrap;
+}
+/* A 30-minute block is short: without this the flex column shrinks the title
+   line to a few pixels and cuts the text in half. Keep both lines at their
+   natural height; if anything must clip, it is the secondary time line. */
+.fc .fc-timegrid-event .calendar-event-title,
+.fc .fc-timegrid-event .calendar-event-time {
+  flex: 0 0 auto;
+}
+.fc .fc-timegrid-event-harness {
+  margin-right: 2px;
+}
+
+/* Current time indicator (today only, rendered by FullCalendar) */
+.fc .fc-timegrid-now-indicator-line {
+  border-color: var(--cal-ink);
+  border-width: 2px 0 0;
+  opacity: 0.9;
+  z-index: 4;
+}
+.fc .fc-timegrid-now-indicator-arrow {
+  border: none;
+  width: 8px;
+  height: 8px;
+  margin-top: -4px;
+  border-radius: 9999px;
+  background: var(--cal-ink);
+}
+.fc .fc-timegrid-now-indicator-container {
+  overflow: visible;
+}
+
+/* Week/day selection mirror */
+.fc .fc-highlight {
+  background: rgba(17, 17, 17, 0.06);
+}
+
+/* Week view responsive: keep readable columns with contained horizontal scroll */
+@media (max-width: 1024px) {
+  .fc-timeGridWeek-view .fc-timegrid .fc-scrollgrid,
+  .fc-timeGridWeek-view.fc-view .fc-scrollgrid {
+    min-width: 700px;
+  }
+}
+@media (max-width: 640px) {
+  .calendar-surface {
+    overflow: auto;
+  }
+  .fc-timeGridWeek-view .fc-timegrid .fc-scrollgrid,
+  .fc-timeGridWeek-view.fc-view .fc-scrollgrid {
+    min-width: 760px;
+  }
+  .fc-timeGridDay-view .fc-timegrid .fc-scrollgrid,
+  .fc-timeGridDay-view.fc-view .fc-scrollgrid {
+    min-width: 100%;
+  }
+  .fc .fc-timegrid-slot-label-cushion {
+    font-size: 10px;
+    padding: 0 6px 0 4px;
+  }
+  .fc .fc-timegrid-event .calendar-event-time {
+    display: block;
+    font-size: 10px;
+  }
+}
+
+/* Day view header: show full date clearly (weekday + number + full date) */
+.fc .fc-timeGridDay-view .fc-col-header-cell-cushion {
+  align-items: flex-start;
+  padding: 12px 14px;
+}
+.fc .fc-timeGridDay-view .fc-day-header-rich {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 10px;
+}
+.fc .fc-timeGridDay-view .fc-day-header-rich .fc-day-name {
+  font-size: 11px;
+}
+.fc .fc-timeGridDay-view .fc-day-header-rich .fc-day-number {
+  width: 30px;
+  height: 30px;
+  font-size: 14px;
+}
+.fc .fc-timeGridDay-view .fc-day-header-rich .fc-day-full {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--cal-ink);
+  letter-spacing: -0.01em;
+}
+.fc .fc-timeGridDay-view .fc-col-header-cell.fc-day-today .fc-day-header-rich .fc-day-full::after {
+  content: ' · Today';
+  color: var(--cal-ink-muted);
+  font-weight: 500;
+}
+
+/* Day view: more spacious, detailed hourly schedule */
+.fc .fc-timeGridDay-view .fc-timegrid-slot {
+  height: 2.8em;
+}
+.fc .fc-timeGridDay-view .fc-timegrid-slot-minor {
+  border-top-style: dotted;
+}
+.fc .fc-timeGridDay-view .fc-timegrid-event .fc-event-main {
+  padding: 4px 8px;
+}
+.fc .fc-timeGridDay-view .fc-timegrid-event .calendar-event {
+  gap: 3px;
+}
+.fc .fc-timeGridDay-view .fc-timegrid-event .calendar-event-title {
+  font-size: 13px;
+  line-height: 1.3;
+  -webkit-line-clamp: 3;
+}
+.fc .fc-timeGridDay-view .fc-timegrid-event .calendar-event-time {
+  font-size: 11px;
+}
+.fc .fc-timeGridDay-view .fc-timegrid-col-events {
+  margin: 0 4px 0 2px;
+}
+.fc .fc-timeGridDay-view .fc-daygrid-body {
+  min-height: 0;
+}
+.fc .fc-timeGridDay-view .fc-daygrid-day-events:empty {
+  min-height: 0;
+}
+
+/* Keep all-day section compact when empty in week/day views */
+.fc .fc-timegrid .fc-daygrid-day-frame {
+  min-height: 0;
+}
+.fc .fc-timegrid .fc-daygrid-day-events {
+  min-height: 0;
+  margin-top: 2px;
+  margin-bottom: 2px;
+}
+
+/* Mobile: full-width day timeline, compact time axis, usable touch targets */
+@media (max-width: 640px) {
+  .fc .fc-timeGridDay-view .fc-col-header-cell-cushion {
+    padding: 10px 12px;
+  }
+  .fc .fc-timeGridDay-view .fc-day-header-rich {
+    gap: 6px 8px;
+  }
+  .fc .fc-timeGridDay-view .fc-day-header-rich .fc-day-full {
+    font-size: 13px;
+  }
+  .fc .fc-timeGridDay-view .fc-timegrid-slot {
+    height: 2.6em;
+  }
+}
+
+/* Short (<= 30 minute) timed blocks: the chip padding would consume the
+   height of the block, and a second title line would push the time out. The
+   compact layout keeps one title line plus the time inside the block; taller
+   events keep the two-line clamp above. Declared last so it also wins in the
+   Day view, which raises the title clamp to three lines. */
+.fc .fc-timegrid-event.cal-event-compact {
+  padding: 0;
+}
+.fc .fc-timegrid-event.cal-event-compact .calendar-event-title {
+  -webkit-line-clamp: 1;
 }

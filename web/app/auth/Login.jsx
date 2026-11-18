@@ -44,7 +44,7 @@ export default function Login() {
     try {
       const data = await login({ username: username.trim(), password })
       storeSession(data.access_token)
-      navigate('/dashboard')
+      navigate('/home')
     } catch (err) {
       setError(err.message)
       setLoading(false)

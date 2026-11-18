@@ -159,7 +159,7 @@ export default function EventDetailPanel({
     >
       <SheetContent
         side="right"
-        className="flex w-full flex-col gap-0 border-l border-border p-0 sm:max-w-[420px] [&>button]:hidden"
+        className="cal-sheet flex w-full flex-col gap-0 border-l border-border p-0 sm:max-w-[420px] [&>button]:hidden"
       >
         <div className="flex items-center justify-between border-b border-border px-5 py-3">
           <span className="text-[11px] font-medium uppercase tracking-[0.08em] text-muted-foreground">

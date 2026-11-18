@@ -59,6 +59,18 @@ const SCOPES = [
   },
 ]
 
+/** RRULE weekday code for a wall date ("YYYY-MM-DD"), or "". */
+function weekdayCodeFor(wall) {
+  const datePart = String(wall || '').slice(0, 10)
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(datePart)) {
+    return ''
+  }
+  const [year, month, day] = datePart.split('-').map(Number)
+  return ['SU', 'MO', 'TU', 'WE', 'TH', 'FR', 'SA'][
+    new Date(year, month - 1, day).getDay()
+  ]
+}
+
 /** Wall times are "YYYY-MM-DDTHH:mm"; the time part starts after the "T". */
 function wallTimePart(wall) {
   const [, timePart = ''] = String(wall).split('T')
@@ -112,6 +124,12 @@ export default function EventDialog({
   occurrence = null,
   calendarId,
   calendars = [],
+  initialAllDay,
+  initialStartAt,
+  initialEndAt,
+  initialStartDate,
+  initialEndDate,
+  initialTimeZone,
   onClose,
   onSaved,
 }) {
@@ -175,20 +193,42 @@ export default function EventDialog({
       setScope(event.recurrence_rule ? 'occurrence' : 'series')
       setCategory(event.category || DEFAULT_CATEGORY)
     } else {
+      const initAllDay = Boolean(initialAllDay)
+      const initTz = initialTimeZone || getBrowserTimeZone()
       setTitle('')
       setDescription('')
       setLocation('')
-      setAllDay(false)
-      setStartAt(localWall(1))
-      setEndAt(localWall(2))
-      setStartDate(localDate(0))
-      setEndDate(nextDay(localDate(0)))
-      setTimeZone(getBrowserTimeZone())
+      setAllDay(initAllDay)
+      if (initAllDay) {
+        const sd = initialStartDate || localDate(0)
+        const ed = initialEndDate || nextDay(sd)
+        setStartAt(localWall(1))
+        setEndAt(localWall(2))
+        setStartDate(sd)
+        setEndDate(ed)
+      } else {
+        setStartAt(initialStartAt || localWall(1))
+        setEndAt(initialEndAt || localWall(2))
+        setStartDate(initialStartDate || localDate(0))
+        setEndDate(initialEndDate || nextDay(localDate(0)))
+      }
+      setTimeZone(initTz)
       setRecurrence(EMPTY_RECURRENCE)
       setScope('occurrence')
       setCategory(DEFAULT_CATEGORY)
     }
-  }, [open, isEdit, event, calendarId])
+  }, [
+    open,
+    isEdit,
+    event,
+    calendarId,
+    initialAllDay,
+    initialStartAt,
+    initialEndAt,
+    initialStartDate,
+    initialEndDate,
+    initialTimeZone,
+  ])
 
   // For recurring events the time fields follow the chosen scope: the
   // occurrence's times for "this occurrence", the series' times otherwise.
@@ -236,6 +276,7 @@ export default function EventDialog({
   // occurrence (on the occurrence's own day); the series end date is chosen
   // in the repeat options. Non-repeating events keep the full datetime field.
   const repeatingTimed = !allDay && Boolean(recurrence.frequency || event?.recurrence_rule)
+  const startWeekday = weekdayCodeFor(allDay ? startDate : startAt)
 
   function effectiveEndWall() {
     return repeatingTimed ? sameDayEnd(startAt, endAt) : endAt
@@ -442,6 +483,7 @@ export default function EventDialog({
     <DialogShell
       open={open}
       wide
+      contentClassName="cal-dialog"
       title={isEdit ? 'Edit event' : 'New event'}
       onClose={saving ? () => {} : onClose}
       footer={
@@ -764,6 +806,7 @@ export default function EventDialog({
             setRecurrenceDirty(true)
           }}
           isAllDay={allDay}
+          defaultWeekday={startWeekday}
           disabled={saving || detailsDisabled}
           error={fieldErrors.recurrence}
         />

@@ -1,4 +1,5 @@
-import { ChevronDown, LogOut, Settings } from 'lucide-react'
+import { Bot, ChevronDown, LogOut, Settings } from 'lucide-react'
+import { useNavigate } from 'react-router-dom'
 import { Avatar, AvatarFallback } from '@/components/ui/avatar'
 import {
   DropdownMenu,
@@ -36,6 +37,7 @@ function memberSince(user) {
  * shadcn/ui DropdownMenu and Avatar for focus handling and dismissal.
  */
 export default function ProfileMenu({ user, onLogout }) {
+  const navigate = useNavigate()
   const displayName = user?.name?.trim() || user?.username || 'Your account'
   const initials = initialsFor(user)
   const since = memberSince(user)
@@ -90,6 +92,14 @@ export default function ProfileMenu({ user, onLogout }) {
           <Settings size={15} aria-hidden="true" />
           Profile settings
           <span className="ml-auto text-[10.5px] text-muted-foreground">Soon</span>
+        </DropdownMenuItem>
+
+        <DropdownMenuItem
+          onSelect={() => navigate('/settings/ai')}
+          className="gap-2 px-2 py-[7px]"
+        >
+          <Bot size={15} aria-hidden="true" />
+          AI agent config
         </DropdownMenuItem>
 
         <DropdownMenuItem

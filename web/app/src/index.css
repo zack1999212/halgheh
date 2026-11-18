@@ -77,6 +77,10 @@ input {
   background: var(--color-accent-hover);
 }
 
+.button-primary:active {
+  box-shadow: var(--surface-shadow-pressed);
+}
+
 .button-primary:focus-visible {
   outline: none;
   box-shadow: var(--ring-accent);
@@ -97,6 +101,7 @@ input {
   font-weight: 500;
   white-space: nowrap;
   cursor: pointer;
+  box-shadow: var(--shadow-button);
   transition: background-color var(--transition), box-shadow var(--transition);
 }
 
@@ -104,9 +109,20 @@ input {
   background: var(--color-surface-muted);
 }
 
+.button-secondary:active {
+  box-shadow: var(--surface-shadow-pressed);
+}
+
 .button-secondary:focus-visible {
   outline: none;
   box-shadow: var(--ring-accent);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .button-primary,
+  .button-secondary {
+    transition: none;
+  }
 }
 
 

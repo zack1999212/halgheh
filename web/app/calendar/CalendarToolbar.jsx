@@ -51,7 +51,7 @@ export default function CalendarToolbar({
         <Button
           type="button"
           size="sm"
-          className="ml-auto h-8 gap-1.5"
+          className="cal-primary-btn ml-auto h-8 gap-1.5"
           onClick={onCreateEvent}
           disabled={!canCreate}
           title={canCreate ? undefined : 'Create a calendar first'}
@@ -61,16 +61,16 @@ export default function CalendarToolbar({
         </Button>
       </div>
 
-      {/* Navigation toolbar — prev, today, next, range, view selector */}
-      <div className="flex flex-wrap items-center gap-2">
-        <div className="flex items-center gap-1">
+      {/* Navigation toolbar — prev/today/next grouped, month label, view selector */}
+      <div className="flex flex-wrap items-center gap-2 sm:gap-3">
+        <div className="cal-control-group flex items-center">
           <Tooltip>
             <TooltipTrigger asChild>
               <Button
                 type="button"
-                variant="outline"
+                variant="ghost"
                 size="icon"
-                className="size-8"
+                className="size-8 rounded-[calc(var(--radius-sm)-2px)]"
                 onClick={onPrev}
                 aria-label={`Previous ${period}`}
               >
@@ -82,9 +82,9 @@ export default function CalendarToolbar({
 
           <Button
             type="button"
-            variant="outline"
+            variant="ghost"
             size="sm"
-            className="h-8"
+            className="h-8 rounded-[calc(var(--radius-sm)-2px)] px-2.5 text-[13px]"
             onClick={onToday}
           >
             Today
@@ -94,9 +94,9 @@ export default function CalendarToolbar({
             <TooltipTrigger asChild>
               <Button
                 type="button"
-                variant="outline"
+                variant="ghost"
                 size="icon"
-                className="size-8"
+                className="size-8 rounded-[calc(var(--radius-sm)-2px)]"
                 onClick={onNext}
                 aria-label={`Next ${period}`}
               >
@@ -108,13 +108,13 @@ export default function CalendarToolbar({
         </div>
 
         <p
-          className="min-w-0 truncate text-[13px] text-muted-foreground"
+          className="min-w-0 flex-1 truncate text-sm font-semibold tracking-[-0.01em] text-foreground"
           aria-live="polite"
         >
           {rangeLabel}
         </p>
 
-        <div className="ml-auto">
+        <div className="ml-auto flex items-center">
           <CalendarViewSelector view={view} onChange={onViewChange} />
         </div>
       </div>

@@ -1,0 +1,102 @@
+/*
+ * Workspace dashboard — Soft 3D visual design (Warm Mist).
+ * Scoped to `.workspace-page` so Calendar and global theme layering stay intact.
+ * Uses Warm Mist canvas and warm-tinted Soft 3D elevation tokens.
+ */
+.workspace-page {
+  /* Warm Mist tokens */
+  --ws-page-bg: #F2F0EB;
+  --ws-surface: #FFFFFF;
+  --ws-surface-subtle: #F7F5F1;
+  --ws-inset: #EAE7E0;
+  --ws-ink: #242321;
+  --ws-ink-muted: #77736C;
+  --ws-line: #E5E1D9;
+  --ws-line-soft: #E5E1D9;
+  --ws-radius-card: 16px;
+  --ws-radius-control: 10px;
+  --ws-shadow-raised: 0 4px 12px rgba(55, 45, 30, 0.07), 0 1px 3px rgba(55, 45, 30, 0.05);
+  --ws-shadow-raised-hover: 0 8px 20px rgba(55, 45, 30, 0.1), 0 2px 5px rgba(55, 45, 30, 0.06);
+  --ws-shadow-control: 0 1px 3px rgba(55, 45, 30, 0.08), 0 1px 2px rgba(55, 45, 30, 0.04), inset 0 1px 0 rgba(255, 255, 255, 0.7);
+  --ws-shadow-control-press: inset 0 2px 4px rgba(55, 45, 30, 0.08);
+  --ws-transition: 180ms ease;
+
+  background: var(--ws-page-bg);
+  border-radius: 18px;
+  padding: 20px;
+}
+
+/* Elevated dashboard cards */
+.workspace-page .ws-card {
+  background: var(--ws-surface);
+  border: 1px solid var(--ws-line);
+  border-radius: var(--ws-radius-card);
+  box-shadow: var(--ws-shadow-raised);
+}
+
+.workspace-page .ws-card-interactive {
+  transition:
+    box-shadow var(--ws-transition),
+    background-color var(--ws-transition),
+    transform var(--ws-transition);
+}
+.workspace-page .ws-card-interactive:hover {
+  box-shadow: var(--ws-shadow-raised-hover);
+}
+.workspace-page .ws-card-interactive:active {
+  box-shadow: var(--ws-shadow-raised);
+}
+
+/* Tactile buttons inside workspace */
+.workspace-page .ws-btn {
+  box-shadow: var(--ws-shadow-control);
+  transition:
+    box-shadow var(--ws-transition),
+    background-color var(--ws-transition);
+}
+.workspace-page .ws-btn:hover:not(:disabled) {
+  box-shadow: var(--ws-shadow-raised-hover);
+}
+.workspace-page .ws-btn:active:not(:disabled) {
+  box-shadow: var(--ws-shadow-control-press);
+}
+
+/* Soft 3D list/row surfaces */
+.workspace-page .ws-row {
+  border-radius: 10px;
+  transition:
+    background-color 150ms ease,
+    box-shadow 150ms ease;
+}
+.workspace-page .ws-row:hover {
+  background: var(--ws-surface-subtle);
+  box-shadow: 0 1px 3px rgba(55, 45, 30, 0.06);
+}
+
+.workspace-page .ws-section-title {
+  color: var(--ws-ink);
+}
+
+.workspace-page .ws-muted {
+  color: var(--ws-ink-muted);
+}
+
+/* Primary (Today's Schedule/Tasks) emphasis: slightly stronger presence */
+.workspace-page .ws-card-primary {
+  box-shadow: 0 4px 14px rgba(55, 45, 30, 0.08), 0 2px 5px rgba(55, 45, 30, 0.05);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .workspace-page .ws-card-interactive,
+  .workspace-page .ws-btn,
+  .workspace-page .ws-row {
+    transition: none !important;
+  }
+}
+
+@media (max-width: 640px) {
+  .workspace-page {
+    padding: 12px;
+    border-radius: 14px;
+  }
+}

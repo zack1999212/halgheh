@@ -38,7 +38,7 @@ class Event(Base):
             "AND start_at IS NULL AND end_at IS NULL AND end_date > start_date)",
             name="ck_events_timed_or_allday",
         ),
-        CheckConstraint("char_length(title) > 0", name="ck_events_title_not_empty"),
+        CheckConstraint("length(title) > 0", name="ck_events_title_not_empty"),
     )
 
     id: Mapped[int] = mapped_column(primary_key=True)

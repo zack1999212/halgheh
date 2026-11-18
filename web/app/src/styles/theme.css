@@ -13,8 +13,8 @@
  *    `bg-primary`, `text-muted-foreground`, `border-border` all follow the
  *    tokens below.
  *
- * The palette is intentionally monochrome: neutral black, white and gray with
- * subtle borders and restrained shadows. Calendar event category colors are
+ * The palette is Warm Mist: warm neutral canvas and surfaces with
+ * subtle warm borders and Soft 3D shadows. Calendar event category colors are
  * defined per category in `calendar/categories.js` and stay separate from this
  * theme.
  *
@@ -31,19 +31,20 @@
   --font-sans: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto,
     "Helvetica Neue", Arial, sans-serif;
 
-  /* Surfaces */
-  --color-bg: #f6f7f9;
-  --color-surface: #ffffff;
-  --color-surface-muted: #f8f9fb;
+  /* Surfaces — Warm Mist */
+  --color-bg: #F2F0EB;
+  --color-surface: #FFFFFF;
+  --color-surface-muted: #F7F5F1;
+  --color-surface-inset: #EAE7E0;
 
   /* Lines */
-  --color-border: #e6e8ec;
-  --color-border-input: #d5d9e0;
+  --color-border: #E5E1D9;
+  --color-border-input: #E5E1D9;
 
   /* Text */
-  --color-text: #12141a;
-  --color-text-muted: #6b7280;
-  --color-text-subtle: #9aa1ad;
+  --color-text: #242321;
+  --color-text-muted: #77736C;
+  --color-text-subtle: #77736C;
 
   /* Application shell */
   --color-sidebar: #0f1626;
@@ -87,11 +88,16 @@
   --space-8: 32px;
   --space-10: 40px;
 
-  /* Elevation and focus */
-  --shadow-card: 0 1px 2px rgba(16, 24, 40, 0.04),
-    0 16px 40px -20px rgba(16, 24, 40, 0.18);
-  --shadow-button: 0 1px 2px rgba(16, 24, 40, 0.08);
-  --ring-accent: 0 0 0 3px rgba(37, 99, 235, 0.18);
+  /* Elevation and focus — Warm Mist Soft 3D */
+  --surface-shadow-raised: 0 4px 12px rgba(55, 45, 30, 0.07), 0 1px 3px rgba(55, 45, 30, 0.05);
+  --surface-shadow-hover: 0 8px 20px rgba(55, 45, 30, 0.1), 0 2px 5px rgba(55, 45, 30, 0.06);
+  --surface-shadow-floating: 0 14px 36px rgba(55, 45, 30, 0.13), 0 3px 8px rgba(55, 45, 30, 0.06);
+  --surface-shadow-pressed: inset 0 2px 4px rgba(55, 45, 30, 0.08);
+  --surface-shadow-inset: inset 0 1px 3px rgba(55, 45, 30, 0.06);
+
+  --shadow-card: var(--surface-shadow-raised);
+  --shadow-button: 0 1px 3px rgba(55, 45, 30, 0.08), 0 1px 2px rgba(55, 45, 30, 0.04);
+  --ring-accent: 0 0 0 3px rgba(119, 115, 108, 0.22);
   --ring-danger: 0 0 0 3px rgba(180, 35, 24, 0.12);
   --transition: 140ms ease;
 
@@ -102,38 +108,38 @@
   -moz-osx-font-smoothing: grayscale;
 
   /* ---------------------------------------------------------------- */
-  /* shadcn/ui tokens — monochrome, HSL channels                      */
+  /* shadcn/ui tokens — Warm Mist, HSL channels                       */
   /* ---------------------------------------------------------------- */
 
-  --background: 220 20% 97.1%;
-  --foreground: 225 18% 8.6%;
+  --background: 42 21% 94%;
+  --foreground: 40 4% 14%;
 
   --card: 0 0% 100%;
-  --card-foreground: 225 18% 8.6%;
+  --card-foreground: 40 4% 14%;
 
   --popover: 0 0% 100%;
-  --popover-foreground: 225 18% 8.6%;
+  --popover-foreground: 40 4% 14%;
 
-  /* Primary action: near-black, not a colored brand accent. */
-  --primary: 225 18% 8.6%;
+  /* Primary action: near-black, remains clear and recognizable. */
+  --primary: 40 4% 14%;
   --primary-foreground: 0 0% 100%;
 
-  --secondary: 220 16% 95.3%;
-  --secondary-foreground: 225 18% 8.6%;
+  --secondary: 40 28% 96%;
+  --secondary-foreground: 40 4% 14%;
 
-  --muted: 220 25% 97.8%;
-  --muted-foreground: 220 9% 46.1%;
+  --muted: 40 28% 96%;
+  --muted-foreground: 38 5% 45%;
 
-  --accent: 220 16% 95.3%;
-  --accent-foreground: 225 18% 8.6%;
+  --accent: 42 20% 90%;
+  --accent-foreground: 40 4% 14%;
 
   /* Destructive stays a restrained red so errors remain recognizable. */
   --destructive: 4 77% 40%;
   --destructive-foreground: 0 0% 100%;
 
-  --border: 220 14% 91.4%;
-  --input: 218 15% 85.7%;
-  --ring: 220 9% 55%;
+  --border: 40 19% 87%;
+  --input: 40 19% 87%;
+  --ring: 38 5% 45%;
 
   /* Base radius; `rounded-lg` = 10px, `md` = 8px, `sm` = 6px. */
   --radius: 10px;
