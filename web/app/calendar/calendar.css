@@ -275,9 +275,6 @@
   .fc .fc-timegrid-event .calendar-event-time {
     display: block;
   }
-  .fc .fc-timegrid-event.fc-event-short {
-    padding: 1px 4px;
-  }
 }
 /* ========================================== */
 /* === Month View Redesign (Task 3) Start === */
@@ -1056,13 +1053,6 @@
 .fc .fc-timegrid-event .calendar-event-time {
   font-size: 9.5px;
 }
-/* Short events: keep the single-line inline layout (time then title). */
-.fc .fc-timegrid-event.fc-event-short .calendar-event {
-  flex-direction: row;
-  align-items: baseline;
-  gap: 4px;
-}
-
 /* --- Week/Day guide lines --------------------------------------------- */
 /* Faint hairlines that connect each timed event's start and end edges to the
    hour labels on the left axis. The overlay is appended to the time grid body
@@ -1314,15 +1304,6 @@
 .fc .fc-timegrid-event .calendar-event-title,
 .fc .fc-timegrid-event .calendar-event-time {
   flex: 0 0 auto;
-}
-.fc .fc-timegrid-event.fc-event-short .calendar-event {
-  flex-direction: row;
-  align-items: center;
-  gap: 4px;
-}
-.fc .fc-timegrid-event.fc-event-short .calendar-event-title {
-  -webkit-line-clamp: 1;
-  font-size: 11.5px;
 }
 .fc .fc-timegrid-event-harness {
   margin-right: 2px;
