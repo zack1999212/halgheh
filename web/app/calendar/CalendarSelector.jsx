@@ -36,7 +36,7 @@ export default function CalendarSelector({
 }) {
   if (loading) {
     return (
-      <div className="inline-flex h-8 items-center gap-2 rounded-[var(--radius-md)] border border-border bg-card px-2.5 text-[12.5px] text-muted-foreground">
+      <div className="cal-filter cal-filter--status">
         <LoaderCircle
           size={14}
           className="animate-spin motion-reduce:animate-none"
@@ -49,33 +49,29 @@ export default function CalendarSelector({
 
   if (error) {
     return (
-      <Button
+      <button
         type="button"
-        variant="outline"
-        size="sm"
-        className="h-8 gap-1.5 border-destructive/40 text-destructive hover:bg-destructive/10 hover:text-destructive"
+        className="cal-filter cal-filter--error"
         onClick={onRetry}
         title={error}
       >
         <RefreshCw size={14} aria-hidden="true" />
         Calendars unavailable
-      </Button>
+      </button>
     )
   }
 
   if (calendars.length === 0) {
     return (
-      <Button
+      <button
         type="button"
-        variant="outline"
-        size="sm"
-        className="h-8 gap-1.5"
+        className="cal-filter"
         onClick={onCreate}
         title="Create your first calendar"
       >
         <Plus size={14} aria-hidden="true" />
         Create calendar
-      </Button>
+      </button>
     )
   }
 
@@ -89,20 +85,20 @@ export default function CalendarSelector({
           type="button"
           variant="outline"
           size="sm"
-          className="h-8 max-w-[220px] gap-2"
+          className="cal-filter h-8 max-w-[220px] gap-2"
           aria-label="Select calendar"
         >
           <span
-            className="size-2.5 shrink-0 rounded-full border border-black/10"
+            className="cal-filter-dot"
             style={selected?.color ? { background: selected.color } : undefined}
             aria-hidden="true"
           />
           <span className="truncate">{selected?.name || 'Select calendar'}</span>
-          <ChevronDown size={14} className="opacity-50" aria-hidden="true" />
+          <ChevronDown size={14} className="opacity-60" aria-hidden="true" />
         </Button>
       </DropdownMenuTrigger>
 
-      <DropdownMenuContent align="start" className="w-[248px]">
+      <DropdownMenuContent align="start" className="cal-menu w-[248px]">
         <DropdownMenuLabel className="text-[11px] font-medium uppercase tracking-[0.06em] text-muted-foreground">
           Calendars
         </DropdownMenuLabel>

@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react'
 
-const STORAGE_KEY = 'halgheh:documents-theme'
+const STORAGE_KEY = 'halgheh:workspace-theme'
 
 function getInitialTheme() {
   try {
@@ -16,14 +16,7 @@ function getInitialTheme() {
   return 'light'
 }
 
-/**
- * Light/dark theme for the documents feature.
- *
- * The value is applied as `data-theme` on the feature root by the page and
- * persisted per browser. Tokens are scoped with `--docs-*` prefixes inside
- * documents.css, so no other page changes appearance.
- */
-export function useTheme() {
+export function useWorkspaceTheme() {
   const [theme, setTheme] = useState(getInitialTheme)
 
   useEffect(() => {

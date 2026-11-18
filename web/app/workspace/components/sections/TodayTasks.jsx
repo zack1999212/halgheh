@@ -84,8 +84,8 @@ function LoadingList() {
 export default function TodayTasks({ loading, error, items = [], todayStr, onRetry }) {
   return (
     <Card className="ws-card ws-card-primary min-w-0">
-      <CardHeader className="flex flex-row items-center justify-between gap-3 space-y-0 px-4 pb-2 pt-4 sm:px-5 sm:pt-5">
-        <CardTitle className="text-base font-semibold">Today&apos;s Tasks</CardTitle>
+      <CardHeader className="ws-card-head flex flex-row items-center justify-between gap-3 space-y-0 px-4 pb-2 pt-4 sm:px-5 sm:pt-5">
+        <CardTitle className="ws-card-title">Today&apos;s Tasks</CardTitle>
       </CardHeader>
       <CardContent className="px-3 pb-4 pt-0 sm:px-4 sm:pb-5">
         {loading ? (
