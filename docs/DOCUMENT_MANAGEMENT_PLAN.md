@@ -81,17 +81,21 @@ service/docs/
     └── document_version.py (new)
 ```
 
-### Frontend — dedicated feature area inside `web/app/docs/`
+### Frontend — dedicated feature area inside `web/app/features/documents/`
 
 ```
-web/app/docs/
-├── api.js               (new: wrappers around src/api.js; mirrors backend routes)
-├── DocumentsPage.jsx    (rewritten from placeholder: list, upload, search)
-├── DocumentDetailPanel.jsx (new: metadata, version history, download, delete)
-├── DocumentUploadDialog.jsx (new)
-├── useDocuments.js      (new: data hook)
-└── documents.css        (new; same approach as calendar.css / notifications.css)
+web/app/features/documents/
+├── api/client.js           (new: wrappers around src/api.js; mirrors backend routes)
+├── DocumentsPage.jsx       (rewritten from placeholder)
+├── components/             (feature-local components + layout)
+├── hooks/                  (use*.js data hooks)
+└── utils/                  (formatting / markdown helpers)
 ```
+
+UI rules for this feature area follow `AGENT.md` at the repo root: shadcn/ui
+components from `src/components/ui/`, shared components from
+`src/components/shared/`, and Tailwind utilities on the central theme tokens
+(`src/styles/theme.css`) — no feature-scoped token system.
 
 ### Files outside the boundary — and why each is sanctioned or forbidden
 
@@ -229,24 +233,22 @@ Error contract: identical to existing modules — `HTTPException` with `detail`;
 
 ## 6. Frontend design
 
-`web/app/docs/` follows the calendar/notifications feature pattern exactly:
+`web/app/features/documents/` reuses the shared frontend infrastructure:
 
-- `api.js`: mirrors `router.py` one-to-one; `apiRequest` supplies the bearer
-  token. Uploads are sent as `FormData` (a small `apiRequestUpload` wrapper in
-  **this feature's** `api.js`, not a change to shared `src/api.js`).
-- `DocumentsPage.jsx`: toolbar (upload, search input, sort), list table
-  (title, size, current version, updated), empty state, loading and error
-  states consistent with existing pages.
-- `DocumentUploadDialog.jsx`: file picker + title/description; client-side
-  20 MB pre-check matching the backend.
-- `DocumentDetailPanel.jsx`: metadata, version history list, per-version
-  download, "upload new version", rename, delete (+ confirm dialog), restore
-  for soft-deleted items.
-- `useDocuments.js`: fetch/list state hook, same shape as `useCalendars.js`.
-- `documents.css`: module-scoped classes (`docs-*`), consistent with
-  `calendar.css` / `notifications.css`.
+- `api/client.js`: mirrors `router.py` one-to-one; `apiRequest` from
+  `src/api.js` supplies the bearer token. Uploads are sent as `FormData` (a
+  small `apiRequestUpload` wrapper in **this feature's** api client, not a
+  change to shared `src/api.js`).
+- `DocumentsPage.jsx`: three-pane layout; toolbar (upload, search input,
+  sort), list (title, size, current version, updated), empty state, loading
+  and error states consistent with existing pages.
+- Dialogs use the shared `DialogShell` / `ConfirmDialog` components, loading
+  uses the `Skeleton` primitive, and states reuse `EmptyState`, `ErrorState`
+  and `LoadingState` from `src/components/shared/`.
+- Styling uses Tailwind utility classes on the central theme tokens — no
+  feature-local `--docs-*` token system.
 
-No changes to `App.jsx`, `workspace/`, `src/api.js`, or any other feature.
+No changes to `App.jsx` routing behavior, `workspace/`, or `src/api.js`.
 
 ## 7. Tests
 
