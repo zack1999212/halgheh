@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 from datetime import date, datetime, time, timedelta
 from dateutil.rrule import rrulestr
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
@@ -38,6 +39,35 @@ def _event_not_found() -> HTTPException:
 # Backward-compatible alias for existing internal use
 def _not_found() -> HTTPException:
     return _calendar_not_found()
+
+
+logger = logging.getLogger("halgheh.calendar")
+
+
+def _reschedule_event_reminders(db: Session, *events) -> None:
+    """Recompute pending reminders for one or more events.
+
+    Only called once the owning change is committed: the reminder worker
+    reconciles every event on each cycle, so a scheduling failure is logged and
+    left to that sweep rather than failing the request or being swallowed.
+    """
+    try:
+        for event in events:
+            scheduling.invalidate_future_pending_for_event(db, event.id)
+        # The session runs with autoflush disabled, so the deletions must be
+        # flushed here: otherwise the re-insert conflicts with the rows that
+        # are still present and matches them with ON CONFLICT DO NOTHING,
+        # leaving the event with no pending reminders at all.
+        db.flush()
+        for event in events:
+            scheduling.schedule_event_reminders(db, event)
+        db.commit()
+    except Exception:
+        db.rollback()
+        logger.exception(
+            "Could not reschedule reminders for event(s) %s",
+            ", ".join(str(event.id) for event in events),
+        )
 
 
 def create_default_calendar(db: Session, user_id: int) -> Calendar:
@@ -395,12 +425,6 @@ def update_event(
     event = _get_event_in_owned_calendar(db, calendar_id, event_id, user_id)
     _apply_event_update(event, data)
 
-    scheduling.invalidate_future_pending_for_event(db, event.id)
-    try:
-        scheduling.schedule_event_reminders(db, event)
-    except Exception:
-        pass
-
     try:
         db.commit()
     except IntegrityError:
@@ -409,6 +433,9 @@ def update_event(
             status_code=status.HTTP_400_BAD_REQUEST, detail="Could not update event"
         )
     db.refresh(event)
+    # Rescheduling runs in its own transaction: a reminder failure must neither
+    # roll back the saved edit nor disappear without a trace.
+    _reschedule_event_reminders(db, event)
     return event
 
 
@@ -855,12 +882,7 @@ def create_exception(db, calendar_id, event_id, user_id, data: EventExceptionCre
         db.rollback()
         raise HTTPException(status_code=409, detail="Exception already exists for this occurrence")
     db.refresh(exc)
-    try:
-        scheduling.invalidate_future_pending_for_event(db, event.id)
-        scheduling.schedule_event_reminders(db, event)
-        db.commit()
-    except Exception:
-        db.rollback()
+    _reschedule_event_reminders(db, event)
     return exc
 
 
@@ -913,18 +935,13 @@ def update_exception(db, calendar_id, event_id, exception_id, user_id, data: Eve
         db.rollback()
         raise HTTPException(status_code=409, detail="Could not update exception")
     db.refresh(exc)
-    try:
-        scheduling.invalidate_future_pending_for_event(db, event.id)
-        scheduling.schedule_event_reminders(db, event)
-        db.commit()
-    except Exception:
-        db.rollback()
+    _reschedule_event_reminders(db, event)
     return exc
 
 
 def delete_exception(db, calendar_id, event_id, exception_id, user_id):
     _get_owned_calendar(db, calendar_id, user_id)
-    _get_event_in_owned_calendar(db, calendar_id, event_id, user_id)
+    event = _get_event_in_owned_calendar(db, calendar_id, event_id, user_id)
     exc = repository.get_exception_for_event(db, event_id, exception_id)
     if exc is None:
         raise HTTPException(status_code=404, detail="Exception not found")
@@ -934,13 +951,7 @@ def delete_exception(db, calendar_id, event_id, exception_id, user_id):
     except IntegrityError:
         db.rollback()
         raise HTTPException(status_code=409, detail="Could not delete exception")
-    try:
-        scheduling.invalidate_future_pending_for_event(db, event_id)
-        event = _get_event_in_owned_calendar(db, calendar_id, event_id, user_id)
-        scheduling.schedule_event_reminders(db, event)
-        db.commit()
-    except Exception:
-        db.rollback()
+    _reschedule_event_reminders(db, event)
 
 
 # --- Occurrence editing (Phase 3.3) ---
@@ -1078,12 +1089,7 @@ def edit_occurrence(db, calendar_id, event_id, user_id, data):
         except IntegrityError:
             db.rollback()
             raise HTTPException(status_code=400, detail="Could not update event")
-        try:
-            scheduling.invalidate_future_pending_for_event(db, event.id)
-            scheduling.schedule_event_reminders(db, event)
-            db.commit()
-        except Exception:
-            db.rollback()
+        _reschedule_event_reminders(db, event)
         db.refresh(event)
         return {
             "scope": "series",
@@ -1243,6 +1249,11 @@ def edit_occurrence(db, calendar_id, event_id, user_id, data):
         try:
             new_event = repository.create_event(db, calendar_id, **new_event_data)
             db.flush()
+            # Reminders are per-event rows, so the new series inherits the
+            # original's settings; otherwise every future occurrence of the
+            # following part would silently stop reminding.
+            for reminder in repository.list_reminders_for_event(db, event.id):
+                repository.create_reminder(db, new_event.id, reminder.minutes_before)
             # Validate migrated exceptions against new event.
             for exc in to_migrate:
                 ident = exc.original_start_at if exc.original_start_at is not None else exc.original_start_date
@@ -1264,13 +1275,7 @@ def edit_occurrence(db, calendar_id, event_id, user_id, data):
             db.rollback()
             raise HTTPException(status_code=400, detail="Could not split event")
 
-        try:
-            scheduling.invalidate_future_pending_for_event(db, event.id)
-            scheduling.schedule_event_reminders(db, event)
-            scheduling.schedule_event_reminders(db, new_event)
-            db.commit()
-        except Exception:
-            db.rollback()
+        _reschedule_event_reminders(db, event, new_event)
         db.refresh(event)
         db.refresh(new_event)
         split_at = original
@@ -1296,7 +1301,7 @@ def list_reminders(db, calendar_id, event_id, user_id):
 
 def create_reminder(db, calendar_id, event_id, user_id, data: ReminderCreate):
     _get_owned_calendar(db, calendar_id, user_id)
-    _get_event_in_owned_calendar(db, calendar_id, event_id, user_id)
+    event = _get_event_in_owned_calendar(db, calendar_id, event_id, user_id)
     reminder = repository.create_reminder(db, event_id, data.minutes_before)
     try:
         db.commit()
@@ -1304,19 +1309,13 @@ def create_reminder(db, calendar_id, event_id, user_id, data: ReminderCreate):
         db.rollback()
         raise HTTPException(status_code=400, detail="Could not create reminder")
     db.refresh(reminder)
-    try:
-        event = _get_event_in_owned_calendar(db, calendar_id, event_id, user_id)
-        scheduling.invalidate_future_pending_for_event(db, event.id)
-        scheduling.schedule_event_reminders(db, event)
-        db.commit()
-    except Exception:
-        db.rollback()
+    _reschedule_event_reminders(db, event)
     return reminder
 
 
 def update_reminder(db, calendar_id, event_id, reminder_id, user_id, data: ReminderUpdate):
     _get_owned_calendar(db, calendar_id, user_id)
-    _get_event_in_owned_calendar(db, calendar_id, event_id, user_id)
+    event = _get_event_in_owned_calendar(db, calendar_id, event_id, user_id)
     reminder = repository.get_reminder_for_event(db, event_id, reminder_id)
     if reminder is None:
         raise HTTPException(status_code=404, detail="Reminder not found")
@@ -1331,14 +1330,9 @@ def update_reminder(db, calendar_id, event_id, reminder_id, user_id, data: Remin
         db.rollback()
         raise HTTPException(status_code=400, detail="Could not update reminder")
     db.refresh(reminder)
-    try:
-        scheduling.invalidate_future_pending_for_reminder(db, reminder.id)
-        event = _get_event_in_owned_calendar(db, calendar_id, event_id, user_id)
-        scheduling.invalidate_future_pending_for_event(db, event.id)
-        scheduling.schedule_event_reminders(db, event)
-        db.commit()
-    except Exception:
-        db.rollback()
+    # The event-level invalidation inside the helper also clears this
+    # reminder's pending rows, so no reminder-specific invalidation is needed.
+    _reschedule_event_reminders(db, event)
     return reminder
 
 

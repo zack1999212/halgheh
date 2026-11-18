@@ -754,6 +754,34 @@ def _reset_circuit_breaker(provider_id: str) -> None:
 
 # --- Endpoint: Check provider connection ---
 
+def _provider_connection_settings(
+    db: Session, user_id: int, provider: ProviderSpec
+) -> tuple[str, str | None, str, dict] | None:
+    """Credentials for *this* provider, or None when none are usable.
+
+    Only the requested provider's own active credential, or the application
+    default when it targets the same provider, is used: a connection check must
+    never send another provider's key or endpoint.
+    """
+    app_config = get_app_ai_config()
+    active = repository.get_active_for_user(db, user_id)
+
+    if active is not None and active.provider == provider.id:
+        api_key = decrypt_secret(active.api_key_encrypted)
+        base_url = active.base_url
+        model = active.model or provider.default_model
+        extra = active.extra_config or {}
+    elif app_config.provider == provider.id:
+        api_key = app_config.api_key
+        base_url = app_config.base_url
+        model = app_config.model or provider.default_model
+        extra = app_config.extra or {}
+    else:
+        return None
+
+    return (api_key, base_url, model, extra) if api_key else None
+
+
 def check_provider_connection(
     db: Session,
     user_id: int,
@@ -777,43 +805,46 @@ def check_provider_connection(
             message=f"Provider '{provider_id}' is not configured.",
         )
 
+    record = repository.get_model(db, model_id) if model_id is not None else None
+    if record is not None and record.provider_id != provider.id:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="The selected model does not belong to this provider.",
+        )
+
     try:
-        config = resolve_runtime_config(db, user_id)
-    except HTTPException as exc:
+        settings = _provider_connection_settings(db, user_id, provider)
+    except ValueError as exc:
+        # A stored key that cannot be decrypted is a configuration problem, not
+        # a network result: no request was made.
         return ConnectionCheckResponse(
-            provider=provider_id,
-            reachable=True,
+            provider=provider.id,
+            reachable=False,
             authenticated=False,
             status="configuration_error",
-            message=str(exc.detail),
+            message=str(exc),
         )
-    except Exception:
-        config = None
 
-    if config is None or not config.api_key:
+    if settings is None:
         return ConnectionCheckResponse(
-            provider=provider_id,
-            reachable=True,
+            provider=provider.id,
+            reachable=False,
             authenticated=False,
             status="no_credentials",
-            message="Provider is reachable but no API key is configured.",
+            message=f"No API key is configured for {provider.label}.",
         )
 
-    model = provider.default_model
-    if model_id is not None:
-        record = repository.get_model(db, model_id)
-        if record is not None and record.provider_id == provider.id:
-            model = record.upstream_model_id
-    elif config.provider == provider.id:
-        model = config.model
+    api_key, base_url, configured_model, extra = settings
+    base_url = base_url or provider.default_base_url
+    model = record.upstream_model_id if record is not None else configured_model
 
     try:
         request_config = build_request_config(
             provider=provider,
-            base_url=config.base_url,
-            api_key=config.api_key,
+            base_url=base_url,
+            api_key=api_key,
             model=model,
-            extra=config.extra or {},
+            extra=extra,
         )
 
         if not request_config.url:

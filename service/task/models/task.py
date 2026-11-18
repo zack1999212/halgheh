@@ -52,7 +52,7 @@ class Task(Base):
             "priority IN ('low', 'medium', 'high', 'urgent')",
             name="ck_tasks_priority",
         ),
-        CheckConstraint("char_length(title) > 0", name="ck_tasks_title_not_empty"),
+        CheckConstraint("length(title) > 0", name="ck_tasks_title_not_empty"),
         CheckConstraint(
             "(status = 'done' AND completed_at IS NOT NULL) OR "
             "(status != 'done' AND completed_at IS NULL)",

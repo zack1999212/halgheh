@@ -16,6 +16,20 @@ if TYPE_CHECKING:
     from ...auth.models import User
     from .task import Task
 
+# Portable "#RRGGBB" CHECK. PostgreSQL's ``~`` regex operator (used
+# originally) cannot be parsed by SQLite, which broke schema creation for the
+# in-memory test database; ``length``, ``lower`` and ``substr`` behave the same
+# on both dialects.
+_HEX_DIGITS = "'0','1','2','3','4','5','6','7','8','9','a','b','c','d','e','f'"
+_COLOR_HEX_CHECK = (
+    "color IS NULL OR (length(color) = 7 AND substr(color, 1, 1) = '#'"
+    + "".join(
+        f" AND lower(substr(color, {position}, 1)) IN ({_HEX_DIGITS})"
+        for position in range(2, 8)
+    )
+    + ")"
+)
+
 
 class TaskLabel(Base):
     """A user-defined label (tag) that can be attached to tasks.
@@ -28,11 +42,8 @@ class TaskLabel(Base):
 
     __tablename__ = "task_labels"
     __table_args__ = (
-        CheckConstraint("char_length(name) > 0", name="ck_task_labels_name_not_empty"),
-        CheckConstraint(
-            "color IS NULL OR color ~ '^#[0-9A-Fa-f]{6}$'",
-            name="ck_task_labels_color_format",
-        ),
+        CheckConstraint("length(name) > 0", name="ck_task_labels_name_not_empty"),
+        CheckConstraint(_COLOR_HEX_CHECK, name="ck_task_labels_color_format"),
         Index("uq_task_labels_creator_name", "created_by", "name", unique=True),
         Index("ix_task_labels_created_by", "created_by"),
     )

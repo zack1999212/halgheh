@@ -27,10 +27,18 @@ import CalendarAgent from './agent/CalendarAgent.jsx'
 import { createTimeGridGuides } from './timeGridGuides.js'
 import './calendar.css'
 
-/** Centered overlay used for the calendar's loading, empty and error states. */
-function CalendarOverlay({ children }) {
+/**
+ * Centered overlay for the calendar's loading, error and empty states.
+ * ``passthrough`` drops the wash and lets pointer events reach the grid, so an
+ * informational state never prevents selecting a time slot.
+ */
+function CalendarOverlay({ children, passthrough = false }) {
+  const classes = [
+    'absolute inset-0 z-10 flex items-center justify-center p-4',
+    passthrough ? 'pointer-events-none' : 'bg-card/70',
+  ].join(' ')
   return (
-    <div className="absolute inset-0 z-10 flex items-center justify-center bg-card/70 p-4">
+    <div className={classes}>
       <div className="w-full max-w-[320px] rounded-[var(--radius-lg)] border border-border bg-card p-5 text-center shadow-sm">
         {children}
       </div>
@@ -572,10 +580,10 @@ export default function CalendarPage() {
           )}
 
           {showNoEvents && (
-            <CalendarOverlay>
+            <CalendarOverlay passthrough>
               <EmptyState
                 title="No events scheduled"
-                description="Create an event to get started."
+                description="Select a time slot to create an event."
                 role="status"
               />
             </CalendarOverlay>

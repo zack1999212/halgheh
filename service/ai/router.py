@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, Query, Response, status
+from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
 from sqlalchemy.orm import Session
 
 from ..auth.dependencies import get_current_user
@@ -161,7 +161,10 @@ def get_diagnostic_record(
     """Retrieve the detailed diagnostic record for a specific request."""
     record = service.get_diagnostic_record(db, request_id)
     if record is None:
-        return Response(status_code=status.HTTP_404_NOT_FOUND, detail="Diagnostic record not found")
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Diagnostic record not found",
+        )
     return record
 
 

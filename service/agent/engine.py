@@ -202,6 +202,40 @@ def _append_tool_message(
     return message
 
 
+def _answer_unexecuted_tool_calls(
+    db: Session,
+    conversation_id: int,
+    calls: list[Any],
+    *,
+    reason: str,
+    created: list[AgentMessage],
+) -> None:
+    """Answer every tool call this turn will not execute.
+
+    A provider requires each entry in an assistant message's ``tool_calls`` to be
+    followed by a ``tool`` message with the same ``tool_call_id``. When a turn
+    stops early (pending confirmation or the per-turn limit), the calls after
+    the stopping point are answered here; otherwise the stored conversation
+    holds an incomplete exchange and the next request is rejected.
+    """
+    for call in calls:
+        name, _arguments, call_id, _parse_error = _parse_tool_call(call)
+        result: dict[str, Any] = {"status": "not_executed", "message": reason}
+        created.append(
+            _append_tool_message(
+                db,
+                conversation_id,
+                call_id=call_id,
+                name=name,
+                arguments=None,
+                result=result,
+                metadata=_execution_metadata(
+                    result, None, confirmation="not_required"
+                ),
+            )
+        )
+
+
 def run_turn(
     db: Session,
     *,
@@ -374,7 +408,7 @@ def run_turn(
             {"role": "assistant", "content": content or "", "tool_calls": tool_calls}
         )
 
-        for call in tool_calls:
+        for index, call in enumerate(tool_calls):
             name, arguments, call_id, parse_error = _parse_tool_call(call)
             tool_calls_used += 1
             if tool_calls_used > limits.max_tool_calls_per_turn:
@@ -399,6 +433,18 @@ def run_turn(
                         "tool_call_id": call_id,
                         "content": json.dumps(result),
                     }
+                )
+                # The batch stops here, so the remaining calls must still be
+                # answered or the stored history breaks on the next turn.
+                _answer_unexecuted_tool_calls(
+                    db,
+                    conversation.id,
+                    tool_calls[index + 1 :],
+                    reason=(
+                        "Not executed: this turn reached its tool-call limit. "
+                        "Ask the user to continue."
+                    ),
+                    created=created,
                 )
                 finished = True
                 break
@@ -493,6 +539,19 @@ def run_turn(
                     },
                 )
                 created.append(appended)
+                # The batch stops at the pending action; answer the rest of the
+                # calls so the assistant message is not left with tool_calls
+                # that no tool message replies to.
+                _answer_unexecuted_tool_calls(
+                    db,
+                    conversation.id,
+                    tool_calls[index + 1 :],
+                    reason=(
+                        "Not executed: an earlier action in this turn needs the "
+                        "user's approval first."
+                    ),
+                    created=created,
+                )
                 repository.touch_conversation(db, conversation, now=_now())
                 db.commit()
                 finished = True

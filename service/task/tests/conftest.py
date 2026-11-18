@@ -21,6 +21,14 @@ from sqlalchemy.pool import StaticPool
 from service.core.database import Base
 import service.auth.models  # noqa: F401  (registers the users table)
 import service.task.models  # noqa: F401  (registers the task-domain tables)
+# ``User`` relates to models in other modules (Calendar, Notification,
+# AICredential, AgentConversation); SQLAlchemy resolves those names when the
+# first instance is created, so they must be registered or mapper
+# configuration fails with "failed to locate a name".
+import service.calendar.models  # noqa: F401
+import service.ai.models  # noqa: F401
+import service.agent.models  # noqa: F401
+import service.notifications.models  # noqa: F401
 
 
 @pytest.fixture()

@@ -70,7 +70,9 @@ def test_unauthenticated_requests_rejected(api):
     client, holder, _make = api
     holder.user = None
     for method, path in (("get", PREFIX), ("post", PREFIX)):
-        res = getattr(client, method)(path, json={"title": "x"} if method == "post" else None)
+        # ``json=`` is only valid on requests that carry a body.
+        kwargs = {"json": {"title": "x"}} if method == "post" else {}
+        res = getattr(client, method)(path, **kwargs)
         assert res.status_code == 401
         assert res.json() == {"detail": "Not authenticated"}
 
