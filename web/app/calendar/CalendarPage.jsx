@@ -519,6 +519,14 @@ export default function CalendarPage() {
             eventDrop={handleEventDrop}
             eventResize={handleEventResize}
             select={handleSlotSelect}
+            dateClick={(info) => {
+              if (info.view.type !== 'dayGridMonth') {
+                return
+              }
+              setView('timeGridDay')
+              calendarRef.current?.getApi().changeView('timeGridDay', info.date)
+              setSelectedOccurrence(null)
+            }}
             dayCellDidMount={(info) => {
               if (info.view.type !== 'dayGridMonth') {
                 return
@@ -535,17 +543,6 @@ export default function CalendarPage() {
                   day: 'numeric',
                 })
               )
-              const handleClick = (e) => {
-                if (e.target?.closest?.('.fc-event, .fc-more-link, .fc-daygrid-more-link')) {
-                  return
-                }
-                const api = calendarRef.current?.getApi()
-                if (!api) return
-                setView('timeGridDay')
-                api.changeView('timeGridDay', info.date)
-                setSelectedOccurrence(null)
-              }
-              cell.addEventListener('click', handleClick)
               const handleKeyDown = (e) => {
                 if (e.key === 'Enter' || e.key === ' ') {
                   e.preventDefault()
