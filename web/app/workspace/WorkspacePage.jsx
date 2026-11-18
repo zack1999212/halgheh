@@ -9,6 +9,7 @@ import { clearSession } from '../auth/api.js'
 import useWorkspaceCalendarData from './hooks/useWorkspaceCalendarData.js'
 import useWorkspaceDocumentsData from './hooks/useWorkspaceDocumentsData.js'
 import useWorkspaceTasksData from './hooks/useWorkspaceTasksData.js'
+import { useWorkspaceTheme } from './hooks/useWorkspaceTheme.js'
 import WorkspaceHeader from './components/WorkspaceHeader.jsx'
 import OverviewCards from './components/OverviewCards.jsx'
 import QuickActions from './components/QuickActions.jsx'
@@ -21,6 +22,7 @@ import './workspace.css'
 
 export default function WorkspacePage() {
   const navigate = useNavigate()
+  const { theme, toggleTheme } = useWorkspaceTheme()
 
   const handleUnauthorized = useCallback(() => {
     clearSession()
@@ -132,131 +134,142 @@ export default function WorkspacePage() {
   const selectedCalendar = selectedItem?.calendar || null
 
   return (
-    <div className="workspace-page mx-auto flex w-full max-w-6xl flex-col gap-4 sm:gap-5">
-      <WorkspaceHeader timeZone={calendar.timeZone} />
+    <div className="workspace-page" data-theme={theme}>
+      <div className="ws-blob ws-blob-1" aria-hidden="true" />
+      <div className="ws-blob ws-blob-2" aria-hidden="true" />
+      <div className="ws-blob ws-blob-3" aria-hidden="true" />
 
-      <OverviewCards
-        calendarLoading={calendar.loading}
-        calendarError={calendar.error}
-        documentsLoading={documents.loading}
-        documentsError={documents.error}
-        tasksLoading={tasks.loading}
-        tasksError={tasks.error}
-        timeZone={calendar.timeZone}
-        todayCount={calendar.todayCount}
-        nextTodayEvent={calendar.nextTodayEvent}
-        upcomingCount={calendar.upcomingCount}
-        nearestUpcoming={calendar.nearestUpcoming}
-        documentsTotal={documents.total}
-        activeTasksCount={tasks.activeCount}
-        overdueTasksCount={tasks.overdueCount}
-      />
-
-      {/* Balanced dashboard: Today's Schedule and Today's Tasks are primary;
-          upcoming, documents, and quick actions follow. Each section handles
-          its own loading/empty/error state independently. */}
-      <div className="grid grid-cols-1 gap-4 lg:grid-cols-2 lg:items-start">
-        <TodaySchedule
-          loading={calendar.loading}
-          error={calendar.error}
-          items={calendar.todayItems}
+      <div className="relative z-10 flex flex-col gap-4 sm:gap-5">
+        <WorkspaceHeader
           timeZone={calendar.timeZone}
-          onRetry={calendar.reload}
-          onOpenEvent={openEvent}
-          onCreateEvent={canCreateEvent ? openCreateEvent : undefined}
+          theme={theme}
+          onToggleTheme={toggleTheme}
         />
-        <TodayTasks
-          loading={tasks.loading}
-          error={tasks.error}
-          items={tasks.todayTasks}
-          todayStr={tasks.todayStr}
-          onRetry={tasks.reload}
-        />
-        <UpcomingEvents
-          loading={calendar.loading}
-          error={calendar.error}
-          items={calendar.upcomingItems}
+
+        <OverviewCards
+          calendarLoading={calendar.loading}
+          calendarError={calendar.error}
+          documentsLoading={documents.loading}
+          documentsError={documents.error}
+          tasksLoading={tasks.loading}
+          tasksError={tasks.error}
           timeZone={calendar.timeZone}
-          onRetry={calendar.reload}
-          onOpenEvent={openEvent}
-          onCreateEvent={canCreateEvent ? openCreateEvent : undefined}
+          todayCount={calendar.todayCount}
+          nextTodayEvent={calendar.nextTodayEvent}
+          upcomingCount={calendar.upcomingCount}
+          nearestUpcoming={calendar.nearestUpcoming}
+          documentsTotal={documents.total}
+          activeTasksCount={tasks.activeCount}
+          overdueTasksCount={tasks.overdueCount}
         />
-        <UpcomingTasks
-          loading={tasks.loading}
-          error={tasks.error}
-          items={tasks.upcomingTasks}
-          onRetry={tasks.reload}
-        />
-        <RecentDocuments
-          loading={documents.loading}
-          error={documents.error}
-          documents={documents.documents}
-          onRetry={documents.reload}
-        />
-        <QuickActions onCreateEvent={openCreateEvent} canCreateEvent={canCreateEvent} />
-      </div>
 
-      {selectedOccurrence && selectedCalendar && (
-        <EventDetailPanel
-          occurrence={selectedOccurrence}
-          calendar={selectedCalendar}
-          refreshKey={detailsRefreshKey}
-          onClose={closeDetail}
-          onEdit={handleEdit}
-          onDelete={openDelete}
-          onUnauthorized={handleUnauthorized}
-        />
-      )}
-
-      <EventDialog
-        open={editor.open}
-        mode={editor.mode}
-        event={editor.event}
-        occurrence={editor.occurrence}
-        calendarId={editor.calendarId}
-        calendars={calendar.calendars}
-        onClose={() => setEditor((s) => ({ ...s, open: false }))}
-        onSaved={handleSaved}
-      />
-
-      <ConfirmDialog
-        open={Boolean(deleteTarget)}
-        title="Delete event"
-        description={
-          deleteTarget?.event?.recurrence_rule
-            ? 'This event repeats. Choose what to delete.'
-            : `Delete “${deleteTarget?.event?.title || deleteTarget?.occurrence?.title || 'this event'}”?`
-        }
-        confirmLabel="Delete"
-        busy={deleteBusy}
-        error={deleteError}
-        onConfirm={confirmDelete}
-        onClose={() => {
-          setDeleteTarget(null)
-          setDeleteError('')
-        }}
-      >
-        {deleteTarget?.event?.recurrence_rule && (
-          <div className="grid gap-2">
-            <RadioOption
-              name="workspace-delete-scope"
-              value="occurrence"
-              title="This occurrence"
-              description="Cancels only the selected occurrence."
-              checked={deleteScope === 'occurrence'}
-              onChange={() => setDeleteScope('occurrence')}
+        <div className="ws-grid">
+          <div className="ws-col">
+            <TodaySchedule
+              loading={calendar.loading}
+              error={calendar.error}
+              items={calendar.todayItems}
+              timeZone={calendar.timeZone}
+              onRetry={calendar.reload}
+              onOpenEvent={openEvent}
+              onCreateEvent={canCreateEvent ? openCreateEvent : undefined}
             />
-            <RadioOption
-              name="workspace-delete-scope"
-              value="series"
-              title="All occurrences"
-              description="Deletes the whole series."
-              checked={deleteScope === 'series'}
-              onChange={() => setDeleteScope('series')}
+            <UpcomingEvents
+              loading={calendar.loading}
+              error={calendar.error}
+              items={calendar.upcomingItems}
+              timeZone={calendar.timeZone}
+              onRetry={calendar.reload}
+              onOpenEvent={openEvent}
+              onCreateEvent={canCreateEvent ? openCreateEvent : undefined}
             />
           </div>
+          <div className="ws-col">
+            <TodayTasks
+              loading={tasks.loading}
+              error={tasks.error}
+              items={tasks.todayTasks}
+              todayStr={tasks.todayStr}
+              onRetry={tasks.reload}
+            />
+            <UpcomingTasks
+              loading={tasks.loading}
+              error={tasks.error}
+              items={tasks.upcomingTasks}
+              onRetry={tasks.reload}
+            />
+            <RecentDocuments
+              loading={documents.loading}
+              error={documents.error}
+              documents={documents.documents}
+              onRetry={documents.reload}
+            />
+            <QuickActions onCreateEvent={openCreateEvent} canCreateEvent={canCreateEvent} />
+          </div>
+        </div>
+
+        {selectedOccurrence && selectedCalendar && (
+          <EventDetailPanel
+            occurrence={selectedOccurrence}
+            calendar={selectedCalendar}
+            refreshKey={detailsRefreshKey}
+            onClose={closeDetail}
+            onEdit={handleEdit}
+            onDelete={openDelete}
+            onUnauthorized={handleUnauthorized}
+          />
         )}
-      </ConfirmDialog>
+
+        <EventDialog
+          open={editor.open}
+          mode={editor.mode}
+          event={editor.event}
+          occurrence={editor.occurrence}
+          calendarId={editor.calendarId}
+          calendars={calendar.calendars}
+          onClose={() => setEditor((s) => ({ ...s, open: false }))}
+          onSaved={handleSaved}
+        />
+
+        <ConfirmDialog
+          open={Boolean(deleteTarget)}
+          title="Delete event"
+          description={
+            deleteTarget?.event?.recurrence_rule
+              ? 'This event repeats. Choose what to delete.'
+              : `Delete “${deleteTarget?.event?.title || deleteTarget?.occurrence?.title || 'this event'}”?`
+          }
+          confirmLabel="Delete"
+          busy={deleteBusy}
+          error={deleteError}
+          onConfirm={confirmDelete}
+          onClose={() => {
+            setDeleteTarget(null)
+            setDeleteError('')
+          }}
+        >
+          {deleteTarget?.event?.recurrence_rule && (
+            <div className="grid gap-2">
+              <RadioOption
+                name="workspace-delete-scope"
+                value="occurrence"
+                title="This occurrence"
+                description="Cancels only the selected occurrence."
+                checked={deleteScope === 'occurrence'}
+                onChange={() => setDeleteScope('occurrence')}
+              />
+              <RadioOption
+                name="workspace-delete-scope"
+                value="series"
+                title="All occurrences"
+                description="Deletes the whole series."
+                checked={deleteScope === 'series'}
+                onChange={() => setDeleteScope('series')}
+              />
+            </div>
+          )}
+        </ConfirmDialog>
+      </div>
     </div>
   )
 }

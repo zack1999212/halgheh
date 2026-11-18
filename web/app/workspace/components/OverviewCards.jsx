@@ -1,6 +1,5 @@
 import { useNavigate } from 'react-router-dom'
 import { CalendarDays, CheckSquare2, Clock3, FileText } from 'lucide-react'
-import { Card, CardContent } from '@/components/ui/card'
 import { Skeleton } from '@/components/ui/skeleton'
 
 function formatTime(value, timeZone) {
@@ -26,30 +25,25 @@ function formatShortDate(value, timeZone) {
   })
 }
 
-function CardShell({ icon: Icon, title, onClick, children }) {
+const TONES = ['g-yellow', 'g-ink', 'g-gold', 'g-ink']
+
+function StatTile({ tone, icon: Icon, title, onClick, children, loading, error }) {
   const clickable = typeof onClick === 'function'
   const content = (
-    <Card className={`ws-card h-full ${clickable ? 'ws-card-interactive' : ''}`}>
-      <CardContent className="flex h-full flex-col gap-3 p-4 sm:p-5">
-        <div className="flex items-center gap-2.5">
-          <span className="grid size-9 shrink-0 place-items-center rounded-[10px] border border-border/80 bg-muted/30 text-foreground">
-            <Icon className="size-4" aria-hidden="true" />
-          </span>
-          <span className="text-sm font-medium text-foreground">{title}</span>
-        </div>
-        {children}
-      </CardContent>
-    </Card>
+    <div className={`ws-stat ${tone}`}>
+      <div className="ws-stat-top">
+        <span className={`ws-chip ${tone}`}>
+          <Icon className="ws-icon size-4" aria-hidden="true" />
+        </span>
+        <span className="ws-stat-label">{title}</span>
+      </div>
+      {children}
+    </div>
   )
 
-  if (!clickable) return <div className="h-full">{content}</div>
-
+  if (!clickable) return <div>{content}</div>
   return (
-    <button
-      type="button"
-      className="block h-full w-full rounded-[16px] text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
-      onClick={onClick}
-    >
+    <button type="button" className="block w-full text-left" onClick={onClick}>
       {content}
     </button>
   )
@@ -120,8 +114,9 @@ export default function OverviewCards({
   const showDocuments = typeof documentsTotal === 'number'
 
   return (
-    <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
-      <CardShell
+    <div className="ws-stats" aria-label="Overview">
+      <StatTile
+        tone="g-yellow"
         icon={CalendarDays}
         title="Today's Events"
         onClick={() => navigate(`/calendar?view=timeGridDay&date=${todayParam}`)}
@@ -132,15 +127,14 @@ export default function OverviewCards({
           <p className="text-sm text-muted-foreground">Unavailable</p>
         ) : (
           <>
-            <div className="text-3xl font-semibold leading-none tracking-tight text-foreground">
-              {todayCount}
-            </div>
-            <p className="text-xs text-muted-foreground">{nextTodayLabel}</p>
+            <div className="ws-stat-num">{todayCount}</div>
+            <p className="ws-stat-sub">{nextTodayLabel}</p>
           </>
         )}
-      </CardShell>
+      </StatTile>
 
-      <CardShell
+      <StatTile
+        tone="g-ink"
         icon={Clock3}
         title="Upcoming Events"
         onClick={() => navigate('/calendar?view=listMonth')}
@@ -151,15 +145,14 @@ export default function OverviewCards({
           <p className="text-sm text-muted-foreground">Unavailable</p>
         ) : (
           <>
-            <div className="text-3xl font-semibold leading-none tracking-tight text-foreground">
-              {upcomingCount}
-            </div>
-            <p className="text-xs text-muted-foreground">{nearestUpcomingLabel}</p>
+            <div className="ws-stat-num">{upcomingCount}</div>
+            <p className="ws-stat-sub">{nearestUpcomingLabel}</p>
           </>
         )}
-      </CardShell>
+      </StatTile>
 
-      <CardShell
+      <StatTile
+        tone="g-gold"
         icon={CheckSquare2}
         title="Active Tasks"
         onClick={() => navigate('/tasks')}
@@ -170,33 +163,36 @@ export default function OverviewCards({
           <p className="text-sm text-muted-foreground">Unavailable</p>
         ) : (
           <>
-            <div className="text-3xl font-semibold leading-none tracking-tight text-foreground">
+            <div className="ws-stat-num">
               {typeof activeTasksCount === 'number' ? activeTasksCount : '—'}
             </div>
-            <p className="text-xs text-muted-foreground">{tasksLabel}</p>
+            <p className="ws-stat-sub">{tasksLabel}</p>
           </>
         )}
-      </CardShell>
+      </StatTile>
 
       {showDocuments ? (
-        <CardShell icon={FileText} title="Documents" onClick={() => navigate('/documents')}>
+        <StatTile
+          tone="g-ink"
+          icon={FileText}
+          title="Documents"
+          onClick={() => navigate('/documents')}
+        >
           {documentsLoading ? (
             <MetricSkeleton />
           ) : documentsError ? (
             <p className="text-sm text-muted-foreground">Unavailable</p>
           ) : (
             <>
-              <div className="text-3xl font-semibold leading-none tracking-tight text-foreground">
-                {documentsTotal}
-              </div>
-              <p className="text-xs text-muted-foreground">Total documents</p>
+              <div className="ws-stat-num">{documentsTotal}</div>
+              <p className="ws-stat-sub">Total documents</p>
             </>
           )}
-        </CardShell>
+        </StatTile>
       ) : (
-        <CardShell icon={FileText} title="Documents">
+        <StatTile tone="g-ink" icon={FileText} title="Documents">
           <p className="text-sm text-muted-foreground">Count unavailable</p>
-        </CardShell>
+        </StatTile>
       )}
     </div>
   )

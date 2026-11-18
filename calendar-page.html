@@ -1,0 +1,855 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1"/>
+<meta name="color-scheme" content="dark"/>
+<meta name="theme-color" content="#0A0A0A"/>
+<title>Calendar — 3D Pop</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Outfit:wght@700;800&display=swap" rel="stylesheet">
+<style>
+/* ==========================================================================
+   3D POP DESIGN SYSTEM — black canvas / white cards / yellow accents
+   Event surfaces use the product's real category palette (soft background,
+   strong accent border, dark readable text). The shell itself stays strictly
+   black / white / yellow, exactly like the Workspace dashboard.
+   Techniques: layered soft shadows (cards on black), hard offset "sticker"
+   shadows (chips + buttons + blocks), yellow glow (today + primary actions),
+   pop-stack offset (mini calendar), offset-face cubes (date cubes),
+   hover lift + press-down everywhere.
+   This page is a FIXED black-canvas look by design (no light/dark toggle).
+   ========================================================================== */
+:root{
+  --bg:#0A0A0A;
+  --card:#FFFFFF;
+  --dim:#F5F5F5;
+  --ink:#111111;
+  --black:#0A0A0A;
+  --yellow:#FFD60A;
+  --yellow-2:#FFC300;
+  --grad-y:linear-gradient(180deg,#FFD60A,#FFC300);
+  --line:#ECECEC;                       /* hairline on white */
+  --text-2:#6E6E6E;                     /* secondary on white */
+  --muted-on-black:rgba(255,255,255,.6);
+  --faint-on-black:rgba(255,255,255,.4);
+  --glass:rgba(20,20,20,.72);
+  --glass-edge:rgba(255,255,255,.1);
+  --glass-hi:rgba(255,255,255,.08);
+  --shadow-card:0 8px 24px rgba(0,0,0,.35);
+  --shadow-deep:0 16px 48px rgba(0,0,0,.5);
+  --sticker:3px 3px 0 #0A0A0A;
+  --sticker-sm:2px 2px 0 #0A0A0A;
+  --glow-y:0 0 24px rgba(255,214,10,.35);
+  --ease:cubic-bezier(.2,0,0,1);
+  --r-card:24px; --r-tile:12px; --r-chip:8px;
+  --hour-h:56px;
+  --grid-start:360;                     /* time grid begins at 6:00 AM */
+}
+*{box-sizing:border-box}
+html{-webkit-text-size-adjust:100%}
+body{margin:0;background:var(--bg);color:#fff;
+  font:400 14px/1.5 'Inter',-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Arial,sans-serif;
+  letter-spacing:-.006em;-webkit-font-smoothing:antialiased;overflow-x:hidden}
+svg{display:block}
+.icon{width:16px;height:16px;stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;flex-shrink:0}
+button{font:inherit;color:inherit;background:none;border:0;cursor:pointer;padding:0;text-align:left}
+:focus-visible{outline:2px solid var(--yellow);outline-offset:2px;border-radius:8px}
+.on-white :focus-visible{outline-color:var(--black)}
+[hidden]{display:none!important}
+kbd{font:500 11px/1 'Inter',sans-serif;color:var(--muted-on-black);background:rgba(255,255,255,.08);
+  border:1px solid rgba(255,255,255,.16);border-bottom-width:2px;border-radius:6px;padding:3px 6px}
+::selection{background:rgba(255,214,10,.35)}
+.rise{opacity:0;animation:rise .55s var(--ease) forwards;animation-delay:calc(var(--i,0)*70ms)}
+@keyframes rise{from{opacity:0;transform:translateY(14px)}to{opacity:1;transform:none}}
+
+/* ==========================================================================
+   CATEGORY PALETTE — mirrors web/app/calendar/categories.js (the old design)
+   Each category provides a soft surface, an accent, and dark readable text.
+   ========================================================================== */
+.cat-work     { --evc-bg:#DCE9FF; --evc-accent:#4285F4; --evc-text:#172554; }
+.cat-personal { --evc-bg:#D6F0DE; --evc-accent:#299D5B; --evc-text:#14532D; }
+.cat-meeting  { --evc-bg:#FFE4C7; --evc-accent:#E58A26; --evc-text:#78350F; }
+.cat-focus    { --evc-bg:#E6DAFF; --evc-accent:#8656D9; --evc-text:#4C1D95; }
+.cat-important{ --evc-bg:#FAD6DD; --evc-accent:#D94B62; --evc-text:#881337; }
+.cat-other    { --evc-bg:#E2E8EE; --evc-accent:#64748B; --evc-text:#334155; }
+
+/* ==========================================================================
+   FLOATING GLASS TOPBAR — same shell as the dashboard, black glass
+   ========================================================================== */
+.topbar{position:sticky;top:0;z-index:40;padding:14px clamp(16px,4vw,28px) 6px}
+.topbar-inner{max-width:1280px;margin:0 auto;height:58px;display:flex;align-items:center;gap:12px;
+  padding:0 12px 0 16px;border-radius:20px;background:var(--glass);
+  backdrop-filter:blur(18px);-webkit-backdrop-filter:blur(18px);
+  border:1px solid var(--glass-edge);box-shadow:var(--shadow-deep),inset 0 1px 0 var(--glass-hi)}
+.brand{display:flex;align-items:center;gap:10px;font:700 14px/1 'Outfit','Inter',sans-serif;white-space:nowrap}
+.brand .crumb{color:var(--muted-on-black);font-weight:600}
+.brand-mark{width:30px;height:30px;border-radius:10px;display:grid;place-items:center;color:var(--black);flex-shrink:0;
+  background:var(--grad-y);box-shadow:var(--glow-y)}
+.brand-mark .icon{width:14px;height:14px;stroke-width:2.6}
+.search{flex:1;max-width:380px;margin:0 auto;display:flex;align-items:center;gap:9px;height:38px;min-width:0;
+  padding:0 10px 0 13px;border-radius:999px;background:rgba(255,255,255,.06);
+  border:1px solid rgba(255,255,255,.12);color:var(--faint-on-black);transition:border-color .15s,color .15s}
+.search:hover{border-color:rgba(255,255,255,.3);color:var(--muted-on-black)}
+.search .grow{flex:1;text-align:left;font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.filter{height:38px;padding:0 12px;border-radius:12px;display:inline-flex;align-items:center;gap:8px;flex-shrink:0;
+  background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.12);color:#fff;font-size:12.5px;font-weight:600;white-space:nowrap}
+.filter .fdot{width:8px;height:8px;border-radius:50%;background:var(--grad-y);box-shadow:0 0 8px rgba(255,214,10,.6)}
+.cta{height:38px;padding:0 16px;border-radius:12px;background:var(--grad-y);color:var(--black);
+  font-weight:700;font-size:13px;display:inline-flex;align-items:center;gap:7px;flex-shrink:0;white-space:nowrap;
+  box-shadow:var(--glow-y);transition:transform .15s var(--ease),filter .15s}
+.cta:hover{transform:translateY(-1px);filter:brightness(1.04)}
+.cta:active{transform:translateY(1.5px)}
+
+/* ==========================================================================
+   PAGE LAYOUT — month card + aside / full-width for Week, Day, Agenda
+   ========================================================================== */
+.layout{max-width:1280px;margin:0 auto;padding:8px clamp(16px,4vw,28px) 90px;
+  display:grid;grid-template-columns:1fr 330px;gap:20px;align-items:start}
+.layout.solo{grid-template-columns:1fr}
+.layout > *{min-width:0}
+.card{background:var(--card);color:var(--ink);border-radius:var(--r-card);
+  border:1px solid rgba(255,255,255,.08);box-shadow:var(--shadow-card);padding:20px;position:relative;min-width:0}
+
+/* month card head: nav + title + deco cluster, view switcher right */
+.card-head{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-bottom:6px}
+.nav-group{display:flex;align-items:center;gap:8px;min-width:0;flex-wrap:wrap}
+.nb{width:36px;height:36px;border-radius:10px;background:var(--card);border:1.5px solid var(--black);
+  box-shadow:var(--sticker);display:grid;place-items:center;color:var(--black);flex-shrink:0;
+  transition:transform .12s var(--ease),box-shadow .12s var(--ease)}
+.nb:hover{transform:translate(-1px,-1px);box-shadow:4px 4px 0 var(--black)}
+.nb:active{transform:translate(3px,3px);box-shadow:0 0 0 var(--black)}
+.today-btn{height:36px;padding:0 14px;border-radius:10px;background:var(--card);border:1.5px solid var(--black);
+  box-shadow:var(--sticker);color:var(--black);font-weight:700;font-size:12.5px;flex-shrink:0;
+  transition:transform .12s var(--ease),box-shadow .12s var(--ease)}
+.today-btn:hover{transform:translate(-1px,-1px);box-shadow:4px 4px 0 var(--black)}
+.today-btn:active{transform:translate(3px,3px);box-shadow:0 0 0 var(--black)}
+.month-title{font:800 clamp(20px,3vw,26px)/1.1 'Outfit','Inter',sans-serif;letter-spacing:-.02em;color:var(--ink);white-space:nowrap}
+/* floating yellow cube + sphere cluster near the title (decoration) */
+.deco{position:relative;width:92px;height:44px;flex-shrink:0}
+.deco .d-cube{position:absolute;left:2px;top:9px;width:30px;height:30px;border-radius:8px;background:var(--grad-y);
+  box-shadow:4px -4px 0 0 var(--black);animation:bob 6s ease-in-out infinite}
+.deco .d-sph{position:absolute;right:14px;top:2px;width:30px;height:30px;border-radius:50%;
+  background:radial-gradient(circle at 32% 28%,#FFF3B0 0%,#FFD60A 45%,#E0A800 100%);
+  box-shadow:0 6px 14px rgba(255,214,10,.35);animation:bob 7s ease-in-out -2s infinite}
+.deco .d-dot{position:absolute;right:2px;bottom:6px;width:12px;height:12px;border-radius:50%;background:var(--black);
+  animation:bob 8s ease-in-out -4s infinite}
+@keyframes bob{0%,100%{transform:translateY(0)}50%{transform:translateY(-8px)}}
+.seg{display:flex;gap:4px;background:var(--glass);border:1px solid var(--glass-edge);border-radius:14px;padding:4px}
+.seg button{height:32px;padding:0 14px;border-radius:10px;font-size:12.5px;font-weight:600;
+  color:var(--muted-on-black);transition:background .15s,color .15s;white-space:nowrap}
+.seg button:hover{color:#fff;background:rgba(255,255,255,.06)}
+.seg button.on{background:var(--grad-y);color:var(--black);font-weight:700;box-shadow:var(--glow-y)}
+
+/* ==========================================================================
+   MONTH GRID — white tiles, recessed dim out-of-month, glowing yellow today
+   ========================================================================== */
+.weekdays{display:grid;grid-template-columns:repeat(7,1fr);gap:6px;margin:14px 0 6px}
+.weekdays span{font-weight:700;font-size:11px;letter-spacing:.08em;color:var(--text-2);text-align:center;padding:6px 0}
+.grid{display:grid;grid-template-columns:repeat(7,1fr);gap:6px;grid-auto-rows:minmax(92px,auto)}
+.tile{position:relative;display:flex;flex-direction:column;gap:3px;min-width:0;
+  background:var(--card);border:1px solid var(--line);border-radius:var(--r-tile);padding:6px;
+  transition:transform .16s var(--ease),box-shadow .16s var(--ease)}
+.tile[data-day]{cursor:pointer}
+.tile:hover{transform:translateY(-2px);box-shadow:0 8px 20px rgba(17,17,17,.12)}
+.tile.weekend{background:#FAFAFA}
+.tile.out{background:var(--dim);cursor:default}
+.tile.out:hover{transform:none;box-shadow:none}
+.num{font-weight:700;font-size:13px;color:var(--ink);width:24px;height:24px;display:grid;place-items:center;border-radius:8px}
+.tile.out .num{color:#B9B9B9}
+/* Selection first: the today identity below must win when both apply. */
+.tile.sel{background:var(--black);border-color:var(--black);box-shadow:0 0 0 2px var(--yellow),var(--shadow-card)}
+.tile.sel .num{color:#fff}
+.tile.sel:hover{transform:translateY(-2px)}
+.tile.sel .chip{box-shadow:2px 2px 0 rgba(255,255,255,.3)}
+.tile.sel .more{background:rgba(255,255,255,.14);color:#fff}
+.tile.sel .more:hover{background:rgba(255,255,255,.24);color:#fff}
+.tile.today{background:var(--grad-y);border-color:rgba(17,17,17,.15);box-shadow:var(--glow-y)}
+.tile.today .num{color:var(--black);font-weight:800}
+.tile.today .more{background:rgba(255,255,255,.55);color:var(--ink)}
+
+/* event sticker chips — category surface + accent edge + hard offset shadow.
+   Follow-up request: events are colored by their category (the old design's
+   palette), so the former black/yellow-only b-* finishes are intentionally
+   not used for events. The black/yellow shell around them is unchanged. */
+.chip{display:inline-flex;align-items:center;gap:4px;max-width:100%;min-width:0;
+  padding:2px 7px;border-radius:var(--r-chip);
+  font-weight:600;font-size:11px;line-height:1.4;
+  color:var(--evc-text);background:var(--evc-bg);
+  border:1px solid var(--evc-accent);border-left-width:3px;
+  white-space:nowrap;overflow:hidden;box-shadow:var(--sticker-sm)}
+.chip .t{overflow:hidden;text-overflow:ellipsis;min-width:0}
+.chip .rpt{width:10px;height:10px;stroke-width:2.4;flex-shrink:0;color:var(--evc-accent)}
+.more{margin-right:auto;font-weight:600;font-size:10.5px;color:var(--text-2);background:var(--dim);
+  border-radius:8px;padding:2px 7px;width:max-content;cursor:pointer;transition:background .15s,color .15s}
+.more:hover{background:#EBEBEB;color:var(--ink)}
+
+/* ==========================================================================
+   ASIDE — mini calendar with yellow pop-stack, upcoming with date cubes
+   ========================================================================== */
+.aside{display:flex;flex-direction:column;gap:20px;min-width:0}
+.popwrap{position:relative}
+.popwrap::before{content:"";position:absolute;inset:0;background:var(--yellow);border-radius:18px;transform:translate(8px,8px)}
+.mini{position:relative;background:var(--card);color:var(--ink);border-radius:18px;padding:14px;box-shadow:var(--shadow-card)}
+.mini-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:10px}
+.mini-title{font:700 13.5px/1 'Outfit','Inter',sans-serif;color:var(--ink)}
+.mini-nav{display:flex;gap:2px}
+.mini-nav button{width:26px;height:26px;border-radius:8px;display:grid;place-items:center;color:var(--text-2);transition:background .15s,color .15s}
+.mini-nav button:hover{background:var(--dim);color:var(--ink)}
+.mini-nav .icon{width:13px;height:13px}
+.mini-week{display:grid;grid-template-columns:repeat(7,1fr);gap:2px;margin-bottom:2px}
+.mini-week span{font-weight:700;font-size:9.5px;letter-spacing:.05em;color:var(--text-2);text-align:center;padding:4px 0}
+.mini-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:2px}
+.md{position:relative;height:30px;display:grid;place-items:center;font-weight:600;font-size:11.5px;
+  color:var(--ink);border-radius:8px;transition:background .15s}
+button.md{cursor:pointer}
+.md:hover{background:var(--dim)}
+.md.out{color:#C9C9C9;cursor:default}
+.md.out:hover{background:none}
+/* Selection first: today wins in the mini grid too. */
+.md.sel{background:var(--black);color:#fff;box-shadow:0 0 0 2px var(--yellow)}
+.md.today{background:var(--grad-y);color:var(--black);font-weight:800;box-shadow:0 0 12px rgba(255,214,10,.45)}
+.md .dots{position:absolute;bottom:2px;left:50%;transform:translateX(-50%);display:flex;gap:2px}
+.md .dot{width:4px;height:4px;border-radius:50%;background:var(--evc-accent);
+  box-shadow:0 0 0 1px rgba(255,255,255,.7)}
+
+/* category legend, tucked under the mini calendar */
+.legend{margin-top:12px;padding-top:11px;border-top:1px solid var(--line)}
+.legend-title{display:block;font-weight:700;font-size:9.5px;letter-spacing:.09em;text-transform:uppercase;color:var(--text-2)}
+.legend-grid{display:grid;grid-template-columns:1fr 1fr;gap:6px 10px;margin-top:8px}
+.legend-item{display:flex;align-items:center;gap:6px;font-size:10.5px;font-weight:600;color:var(--ink);white-space:nowrap}
+.legend-dot{width:7px;height:7px;border-radius:50%;background:var(--evc-accent);flex-shrink:0;
+  box-shadow:1px 1px 0 rgba(10,10,10,.3)}
+
+.upcoming{background:var(--card);color:var(--ink);border-radius:var(--r-card);border-left:6px solid var(--yellow);
+  padding:16px;box-shadow:var(--shadow-card)}
+.up-title{margin:0 0 12px;font:800 15px/1.2 'Outfit','Inter',sans-serif;color:var(--ink)}
+.up-item{display:flex;align-items:center;gap:12px;padding:10px 0;border-bottom:1px solid var(--line)}
+.up-item:last-child{border-bottom:0;padding-bottom:2px}
+/* 3D date cube: black front face + yellow depth face offset top-right */
+.cube{position:relative;width:44px;height:44px;flex-shrink:0}
+.cube .d{position:absolute;left:6px;top:0;width:38px;height:38px;border-radius:8px;background:var(--grad-y)}
+.cube .f{position:absolute;left:0;top:6px;width:38px;height:38px;border-radius:8px;background:var(--black);color:#fff;
+  display:grid;place-items:center;font:800 15px/1 'Outfit','Inter',sans-serif;z-index:1}
+.up-info{flex:1;min-width:0}
+.up-name{display:flex;align-items:center;gap:6px;font-weight:600;font-size:13.5px;color:var(--ink);
+  white-space:nowrap;overflow:hidden}
+.up-name .t{overflow:hidden;text-overflow:ellipsis;min-width:0}
+.up-dot{width:7px;height:7px;border-radius:50%;background:var(--evc-accent);flex-shrink:0;
+  box-shadow:1px 1px 0 rgba(10,10,10,.3)}
+.up-time{font-size:12px;color:var(--text-2);margin-top:2px}
+.cat{flex-shrink:0;font-size:10px;font-weight:600;padding:2px 7px;border-radius:6px;
+  background:var(--card);border:1px solid var(--black);color:var(--ink)}
+
+/* ==========================================================================
+   WEEK + DAY TIME GRIDS — sticky headers, hour lines, category event blocks
+   ========================================================================== */
+.tscroll{overflow:auto;max-width:100%;max-height:640px;border:1px solid var(--line);
+  border-radius:16px;background:var(--card)}
+.tinner{min-width:720px}
+.tinner.day1{min-width:440px}
+.thead{display:flex;position:sticky;top:0;z-index:3;background:var(--card);border-bottom:1px solid var(--line);height:62px}
+.tcorner{width:56px;flex-shrink:0}
+.dayhead{flex:1;min-width:90px;padding:0 6px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;
+  border-left:1px solid var(--line);height:100%}
+.dh-dow{font-weight:700;font-size:10px;letter-spacing:.08em;color:var(--text-2)}
+.dh-num{width:30px;height:30px;display:grid;place-items:center;border-radius:10px;
+  font-weight:700;font-size:13px;color:var(--ink);background:var(--card);
+  border:1.5px solid var(--black);box-shadow:2px 2px 0 var(--black)}
+.dayhead.today .dh-num{background:var(--grad-y);box-shadow:2px 2px 0 var(--black),var(--glow-y)}
+.dayhead.today .dh-dow{color:var(--ink)}
+.allday{display:flex;position:sticky;top:62px;z-index:2;border-bottom:1px solid var(--line);background:#FBFBFB}
+.allabel{width:56px;flex-shrink:0;display:grid;place-items:center;
+  font-weight:600;font-size:10px;color:var(--text-2)}
+.allday-cell{flex:1;min-width:90px;padding:5px 4px;border-left:1px solid var(--line);
+  display:flex;flex-direction:column;gap:3px;min-height:34px}
+.allday-cell.todaycell{background:rgba(255,214,10,.08)}
+.tbody{display:flex;position:relative}
+.tlabels{width:56px;flex-shrink:0;position:relative;background:var(--card);height:952px}
+.tl{position:absolute;right:8px;transform:translateY(-50%);
+  font-weight:600;font-size:10px;color:var(--text-2);font-variant-numeric:tabular-nums}
+.tcol{flex:1;min-width:90px;position:relative;height:952px;border-left:1px solid var(--line);
+  background:repeating-linear-gradient(to bottom,var(--line) 0 1px,transparent 1px var(--hour-h))}
+.tcol.todaycol{background:linear-gradient(rgba(255,214,10,.09),rgba(255,214,10,.09)),
+  repeating-linear-gradient(to bottom,var(--line) 0 1px,transparent 1px var(--hour-h))}
+.evblock{position:absolute;left:4px;right:4px;border-radius:10px;padding:6px 8px;
+  font-weight:600;font-size:11.5px;line-height:1.35;color:var(--evc-text);
+  background:var(--evc-bg);border:1px solid var(--evc-accent);border-left:3px solid var(--evc-accent);
+  overflow:hidden;box-shadow:var(--sticker-sm);cursor:pointer;min-height:24px;
+  display:flex;flex-direction:column;align-items:stretch;justify-content:flex-start;
+  transition:transform .15s var(--ease),filter .15s}
+.evblock:hover{transform:translateY(-1px);filter:brightness(1.02)}
+.evblock .bt{display:flex;align-items:center;gap:4px;white-space:nowrap;overflow:hidden}
+.evblock .bt .t{overflow:hidden;text-overflow:ellipsis;min-width:0}
+.evblock .bt .rpt{width:10px;height:10px;stroke-width:2.4;flex-shrink:0;color:var(--evc-accent)}
+.evblock .btime{display:block;font-size:10px;font-weight:500;opacity:.72;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.tnow{position:absolute;left:56px;right:0;pointer-events:none;z-index:2}
+.tnow .line{height:2px;background:var(--yellow);box-shadow:0 0 8px rgba(255,214,10,.8)}
+.tnow .ndot{position:absolute;left:-4px;top:-3px;width:8px;height:8px;border-radius:50%;
+  background:var(--yellow);box-shadow:0 0 8px rgba(255,214,10,.8)}
+
+/* ==========================================================================
+   AGENDA — day groups with 3D date cubes, category accent bars + tags
+   ========================================================================== */
+.ag{display:flex;flex-direction:column;gap:20px}
+.ag-head{display:flex;align-items:center;gap:12px;margin-bottom:10px}
+.ag-headtext{flex:1;min-width:0}
+.ag-day{font:700 15px/1.2 'Outfit','Inter',sans-serif;color:var(--ink);display:flex;align-items:center;flex-wrap:wrap;gap:8px}
+.today-tag{flex-shrink:0;font-size:10px;font-weight:700;color:var(--black);background:var(--grad-y);
+  border:1px solid var(--black);border-radius:6px;padding:2px 7px;box-shadow:var(--sticker-sm)}
+.ag-count{margin-left:auto;flex-shrink:0;font-weight:600;font-size:11px;color:var(--text-2);
+  background:var(--dim);padding:3px 9px;border-radius:999px}
+.ag-item{display:flex;align-items:center;gap:12px;width:100%;background:var(--card);
+  border:1px solid var(--line);border-radius:14px;padding:12px 14px;margin-bottom:8px;
+  box-shadow:0 2px 6px rgba(17,17,17,.06);cursor:pointer;
+  transition:transform .15s var(--ease),box-shadow .15s var(--ease)}
+.ag-item:hover{transform:translateY(-2px);box-shadow:0 8px 20px rgba(17,17,17,.12)}
+.bar{width:4px;align-self:stretch;border-radius:99px;flex-shrink:0;background:var(--evc-accent);
+  box-shadow:1px 1px 0 rgba(10,10,10,.25)}
+.ag-time{width:118px;flex-shrink:0;font-weight:600;font-size:12px;color:var(--text-2);font-variant-numeric:tabular-nums}
+.ag-name{flex:1;min-width:0;display:flex;align-items:center;gap:6px;
+  font-weight:600;font-size:13.5px;color:var(--ink);white-space:nowrap;overflow:hidden}
+.ag-name .t{overflow:hidden;text-overflow:ellipsis;min-width:0}
+.ag-name .rpt{width:12px;height:12px;stroke-width:2.4;color:var(--evc-accent);flex-shrink:0}
+.ag-tag{flex-shrink:0;font-size:10px;font-weight:700;padding:3px 8px;border-radius:6px;
+  background:var(--evc-bg);color:var(--evc-text);border:1px solid var(--evc-accent);
+  box-shadow:1px 1px 0 rgba(10,10,10,.18)}
+.ag-empty{border:1.5px dashed #D9D9D9;border-radius:14px;padding:18px;text-align:center;
+  color:var(--text-2);font-weight:600;background:#FAFAFA}
+
+/* floating AI action button */
+.ai{position:fixed;right:22px;bottom:22px;width:52px;height:52px;border-radius:50%;background:var(--grad-y);
+  display:grid;place-items:center;color:var(--black);z-index:45;
+  box-shadow:var(--glow-y),0 8px 20px rgba(0,0,0,.4);transition:transform .16s var(--ease)}
+.ai:hover{transform:translateY(-2px)}
+.ai:active{transform:translateY(1px) scale(.97)}
+.ai .icon{width:20px;height:20px;stroke-width:2.2}
+
+/* toast — white sticker pill on black canvas */
+.toast{position:fixed;left:50%;bottom:26px;transform:translateX(-50%) translateY(8px);color:var(--ink);
+  font-size:13px;font-weight:600;padding:10px 16px;border-radius:999px;z-index:70;max-width:88vw;text-align:center;
+  background:var(--card);box-shadow:var(--sticker-sm),0 12px 24px rgba(0,0,0,.4);
+  opacity:0;pointer-events:none;transition:.25s var(--ease)}
+.toast.show{opacity:1;transform:translateX(-50%)}
+
+/* ==========================================================================
+   RESPONSIVE
+   ========================================================================== */
+@media(max-width:1020px){
+  .layout{grid-template-columns:1fr}
+  .aside{display:grid;grid-template-columns:1fr 1fr;gap:20px;align-items:start}
+}
+@media(max-width:640px){.aside{grid-template-columns:1fr}}
+@media(max-width:600px){
+  .search .search-label,.search kbd{display:none}
+  .search{flex:0 0 38px;width:38px;padding:0;justify-content:center;border-radius:13px}
+  .brand-text{display:none}
+  .deco{display:none}
+  .grid{grid-auto-rows:minmax(64px,auto);gap:4px}
+  .weekdays{gap:4px}
+  .tile{padding:4px}
+  .chip{font-size:9.5px;padding:1px 3px;gap:2px;border-left-width:2px}
+  .chip .rpt{width:9px;height:9px}
+  /* Month tiles are only ~41px wide on phones: keep the category edge and
+     drop the repeat glyph so the event name stays legible. */
+  .tile .chip .rpt{display:none}
+  .more{font-size:9px;padding:1px 3px;max-width:100%;overflow:hidden;text-overflow:ellipsis}
+  .more .more-word{display:none}
+  .num{width:20px;height:20px;font-size:12px}
+  .seg button{padding:0 9px;font-size:11.5px}
+  .cta .cta-label{display:none}
+  .cta{width:38px;padding:0;justify-content:center}
+  .card{padding:14px}
+  .month-title{white-space:normal}
+  .tinner{min-width:660px}
+  .tinner.day1{min-width:400px}
+  .evblock{font-size:10.5px;padding:4px 6px}
+  .dh-num{width:26px;height:26px;font-size:12px}
+  .ag-time{width:82px;font-size:11px}
+  .ag-item{padding:10px;gap:8px}
+  .ag-tag{font-size:9px;padding:2px 6px}
+  .ag-count{display:none}
+  .up-title{font-size:14px}
+}
+@media (prefers-reduced-motion:reduce){
+  .rise{animation:none;opacity:1}
+  .deco *{animation:none}
+  *{transition:none!important;animation:none!important}
+}
+</style>
+</head>
+<body>
+
+<svg xmlns="http://www.w3.org/2000/svg" style="position:absolute;width:0;height:0;overflow:hidden" aria-hidden="true">
+  <defs>
+    <symbol id="i-plus" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></symbol>
+    <symbol id="i-chev-l" viewBox="0 0 24 24"><path d="m15 18-6-6 6-6"/></symbol>
+    <symbol id="i-chev-r" viewBox="0 0 24 24"><path d="m9 6 6 6-6 6"/></symbol>
+    <symbol id="i-chev-d" viewBox="0 0 24 24"><path d="m6 9 6 6 6-6"/></symbol>
+    <symbol id="i-search" viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="m16.2 16.2 4.3 4.3"/></symbol>
+    <symbol id="i-repeat" viewBox="0 0 24 24"><path d="M17 2l4 4-4 4"/><path d="M3 11v-1a4 4 0 0 1 4-4h14"/><path d="M7 22l-4-4 4-4"/><path d="M21 13v1a4 4 0 0 1-4 4H3"/></symbol>
+    <symbol id="i-sparkle" viewBox="0 0 24 24"><path d="M12 3l1.9 5.1L19 10l-5.1 1.9L12 17l-1.9-5.1L5 10l5.1-1.9z"/><path d="M18.5 15.5l.6 1.9 1.9.6-1.9.6-.6 1.9-.6-1.9-1.9-.6 1.9-.6z"/></symbol>
+  </defs>
+</svg>
+
+<header class="topbar">
+  <div class="topbar-inner">
+    <div class="brand">
+      <span class="brand-mark"><svg class="icon"><use href="#i-plus"/></svg></span>
+      <span class="brand-text">Workspace&nbsp;·&nbsp;<span class="crumb">Calendar</span></span>
+    </div>
+    <button class="search" id="searchBtn" aria-label="Search">
+      <svg class="icon"><use href="#i-search"/></svg>
+      <span class="grow search-label">Search…</span>
+      <kbd>⌘K</kbd>
+    </button>
+    <div class="actions" style="display:flex;align-items:center;gap:8px;flex-shrink:0">
+      <button class="filter" id="filterBtn" aria-haspopup="menu">
+        <span class="fdot" aria-hidden="true"></span>Personal
+        <svg class="icon" style="width:13px;height:13px;opacity:.7"><use href="#i-chev-d"/></svg>
+      </button>
+      <button class="cta" id="createBtn">
+        <svg class="icon"><use href="#i-plus"/></svg>
+        <span class="cta-label">Create event</span>
+      </button>
+    </div>
+  </div>
+</header>
+
+<main class="layout" id="layout">
+
+  <section class="card on-white rise" style="--i:0" aria-label="Calendar">
+    <div class="card-head">
+      <div class="nav-group">
+        <button class="nb" id="prevBtn" aria-label="Previous month"><svg class="icon"><use href="#i-chev-l"/></svg></button>
+        <button class="nb" id="nextBtn" aria-label="Next month"><svg class="icon"><use href="#i-chev-r"/></svg></button>
+        <button class="today-btn" id="todayBtn">Today</button>
+        <h1 class="month-title" id="monthTitle">November 2026</h1>
+        <div class="deco" aria-hidden="true">
+          <span class="d-cube"></span><span class="d-sph"></span><span class="d-dot"></span>
+        </div>
+      </div>
+      <div class="seg" role="tablist" aria-label="Calendar view">
+        <button class="on" data-view="month" role="tab" aria-selected="true">Month</button>
+        <button data-view="week" role="tab" aria-selected="false">Week</button>
+        <button data-view="day" role="tab" aria-selected="false">Day</button>
+        <button data-view="agenda" role="tab" aria-selected="false">Agenda</button>
+      </div>
+    </div>
+
+    <div id="monthView">
+      <div class="weekdays" aria-hidden="true">
+        <span>SUN</span><span>MON</span><span>TUE</span><span>WED</span><span>THU</span><span>FRI</span><span>SAT</span>
+      </div>
+      <div class="grid" id="bigGrid"></div>
+    </div>
+
+    <div id="otherView"></div>
+  </section>
+
+  <aside class="aside" id="aside">
+    <div class="popwrap rise" style="--i:1">
+      <div class="mini on-white" aria-label="Mini calendar">
+        <div class="mini-head">
+          <span class="mini-title" id="miniTitle">November 2026</span>
+          <div class="mini-nav">
+            <button id="miniPrev" aria-label="Previous month"><svg class="icon"><use href="#i-chev-l"/></svg></button>
+            <button id="miniNext" aria-label="Next month"><svg class="icon"><use href="#i-chev-r"/></svg></button>
+          </div>
+        </div>
+        <div class="mini-week" aria-hidden="true">
+          <span>S</span><span>M</span><span>T</span><span>W</span><span>T</span><span>F</span><span>S</span>
+        </div>
+        <div class="mini-grid" id="miniGrid"></div>
+
+        <div class="legend" aria-label="Event categories">
+          <span class="legend-title">Categories</span>
+          <div class="legend-grid">
+            <span class="legend-item cat-work"><span class="legend-dot" aria-hidden="true"></span>Work</span>
+            <span class="legend-item cat-personal"><span class="legend-dot" aria-hidden="true"></span>Personal</span>
+            <span class="legend-item cat-meeting"><span class="legend-dot" aria-hidden="true"></span>Meeting</span>
+            <span class="legend-item cat-focus"><span class="legend-dot" aria-hidden="true"></span>Focus</span>
+            <span class="legend-item cat-important"><span class="legend-dot" aria-hidden="true"></span>Important</span>
+            <span class="legend-item cat-other"><span class="legend-dot" aria-hidden="true"></span>Other</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="upcoming on-white rise" style="--i:2">
+      <h2 class="up-title">Upcoming</h2>
+      <div class="up-item cat-work">
+        <div class="cube" aria-hidden="true"><span class="d"></span><span class="f">19</span></div>
+        <div class="up-info"><div class="up-name"><span class="up-dot" aria-hidden="true"></span><span class="t">task1</span></div><div class="up-time">Thu · 6:00 AM – 10:00 AM</div></div>
+        <span class="cat">Personal</span>
+      </div>
+      <div class="up-item cat-focus">
+        <div class="cube" aria-hidden="true"><span class="d"></span><span class="f">19</span></div>
+        <div class="up-info"><div class="up-name"><span class="up-dot" aria-hidden="true"></span><span class="t">Evening Work Session</span></div><div class="up-time">Thu · 6:00 PM – 8:00 PM</div></div>
+        <span class="cat">Personal</span>
+      </div>
+      <div class="up-item cat-work">
+        <div class="cube" aria-hidden="true"><span class="d"></span><span class="f">20</span></div>
+        <div class="up-info"><div class="up-name"><span class="up-dot" aria-hidden="true"></span><span class="t">task1</span></div><div class="up-time">Fri · 6:00 AM – 10:00 AM</div></div>
+        <span class="cat">Personal</span>
+      </div>
+      <div class="up-item cat-focus">
+        <div class="cube" aria-hidden="true"><span class="d"></span><span class="f">20</span></div>
+        <div class="up-info"><div class="up-name"><span class="up-dot" aria-hidden="true"></span><span class="t">Evening Work Session</span></div><div class="up-time">Fri · 6:00 PM – 8:00 PM</div></div>
+        <span class="cat">Personal</span>
+      </div>
+      <div class="up-item cat-focus">
+        <div class="cube" aria-hidden="true"><span class="d"></span><span class="f">21</span></div>
+        <div class="up-info"><div class="up-name"><span class="up-dot" aria-hidden="true"></span><span class="t">Evening Work Session</span></div><div class="up-time">Sat · 6:00 PM – 8:00 PM</div></div>
+        <span class="cat">Personal</span>
+      </div>
+    </div>
+  </aside>
+
+</main>
+
+<button class="ai" id="aiBtn" aria-label="AI assistant">
+  <svg class="icon"><use href="#i-sparkle"/></svg>
+</button>
+
+<div class="toast" id="toast" role="status"></div>
+
+<script>
+(function(){
+  'use strict';
+  var $=function(s){return document.querySelector(s)};
+  var $$=function(s){return Array.prototype.slice.call(document.querySelectorAll(s))};
+  var MONTHS=['January','February','March','April','May','June','July','August','September','October','November','December'];
+  var MON_S=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+  var DOW=['SUN','MON','TUE','WED','THU','FRI','SAT'];
+  var DOW_FULL=['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
+
+  /* ---- Real data from the user's calendar screenshots ----
+     Category ids mirror web/app/calendar/categories.js (the old design).
+     s/e = start/end minutes from midnight; a = all-day; r = repeats.
+     NOTE: "qwewqe" appears in the real app with a repeat icon; its exact
+     date is not clearly visible in the screenshots, so Nov 23 is assumed. */
+  var EVENTS={
+    '2026-11-17':[{n:'Meeting (notification test)',cat:'meeting',r:1,s:540,e:600}],
+    '2026-11-18':[{n:'test',cat:'other',a:1},
+                  {n:'task1',cat:'work',r:1,s:360,e:600},
+                  {n:'meeting',cat:'meeting',s:600,e:660},
+                  {n:'Evening Work Session',cat:'focus',r:1,s:1080,e:1200}],
+    '2026-11-19':[{n:'task1',cat:'work',r:1,s:360,e:600},
+                  {n:'Evening Work Session',cat:'focus',r:1,s:1080,e:1200}],
+    '2026-11-20':[{n:'task1',cat:'work',r:1,s:360,e:600},
+                  {n:'Evening Work Session',cat:'focus',r:1,s:1080,e:1200}],
+    '2026-11-21':[{n:'Evening Work Session',cat:'focus',r:1,s:1080,e:1200}],
+    '2026-11-23':[{n:'qwewqe',cat:'personal',r:1,a:1}]
+  };
+  var GRID_START=360, HOUR_H=56, HOURS=17; /* 6 AM → 11 PM */
+
+  var now=new Date();
+  var st={view:'month',cursor:new Date(now.getFullYear(),now.getMonth(),now.getDate()),sel:key(now)};
+
+  function key(d){
+    return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');
+  }
+  function addDays(d,n){return new Date(d.getFullYear(),d.getMonth(),d.getDate()+n)}
+  function sameDay(a,b){return a.getFullYear()===b.getFullYear()&&a.getMonth()===b.getMonth()&&a.getDate()===b.getDate()}
+  function esc(s){return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;')}
+  function ap(m){return m<720?'AM':'PM'}
+  function h12(m){return ((Math.floor(m/60)+11)%12)+1}
+  function two(n){return String(n).padStart(2,'0')}
+  function fmtFull(m){return h12(m)+':'+two(Math.round(m%60))+' '+ap(m)}
+  function fmtRange(s,e){
+    if(ap(s)===ap(e)) return h12(s)+':'+two(Math.round(s%60))+' – '+fmtFull(e);
+    return fmtFull(s)+' – '+fmtFull(e);
+  }
+  function fmtHour(min){return h12(min)+' '+ap(min)}
+
+  /* ---- shared markup helpers ---- */
+  function chipHTML(e){
+    return '<span class="chip cat-'+e.cat+'" title="'+esc(e.n)+'">'+
+      (e.r?'<svg class="icon rpt" aria-hidden="true"><use href="#i-repeat"/></svg>':'')+
+      '<span class="t">'+esc(e.n)+'</span></span>';
+  }
+
+  /* ---- Month grid ---- */
+  function renderBig(){
+    var y=st.cursor.getFullYear(), m=st.cursor.getMonth();
+    var start=new Date(y,m,1).getDay();
+    var todayK=key(new Date());
+    var html='';
+    for(var i=0;i<42;i++){
+      var d=new Date(y,m,1-start+i);
+      var k=key(d);
+      var out=d.getMonth()!==m;
+      var wk=d.getDay()===0||d.getDay()===6;
+      /* Selection class comes before today class in CSS so today wins. */
+      var cls='tile'+(out?' out':'')+((wk&&!out)?' weekend':'')+(k===st.sel?' sel':'')+(k===todayK?' today':'');
+      var ev=EVENTS[k]||[], chips='';
+      if(!out){
+        for(var j=0;j<Math.min(ev.length,3);j++) chips+=chipHTML(ev[j]);
+        if(ev.length>3) chips+='<button type="button" class="more" data-more="'+k+'">+'+(ev.length-3)+'<span class="more-word"> more</span></button>';
+      }
+      if(out){
+        html+='<div class="'+cls+'" aria-hidden="true"><span class="num">'+d.getDate()+'</span></div>';
+      }else{
+        /* Tiles are divs with role=button: never nest a <button> inside a
+           <button>, or the browser closes the outer element and breaks the grid. */
+        html+='<div class="'+cls+'" role="button" tabindex="0" data-day="'+k+'"'+
+          (k===todayK?' aria-current="date"':'')+(k===st.sel?' aria-pressed="true"':'')+
+          ' aria-label="'+d.toDateString()+(ev.length?', '+ev.length+' event'+(ev.length>1?'s':''):'')+'">'+
+          '<span class="num">'+d.getDate()+'</span>'+chips+'</div>';
+      }
+    }
+    $('#bigGrid').innerHTML=html;
+    $('#monthTitle').textContent=MONTHS[m]+' '+y;
+    $('#miniTitle').textContent=MONTHS[m]+' '+y;
+    $$('#bigGrid [data-day]').forEach(function(b){
+      b.addEventListener('click',function(){st.sel=b.dataset.day;renderBig();renderMini()});
+      b.addEventListener('keydown',function(e){
+        if(e.key==='Enter'||e.key===' '){e.preventDefault();b.click()}
+      });
+    });
+    $$('#bigGrid .more').forEach(function(b){
+      b.addEventListener('click',function(e){
+        e.stopPropagation();
+        toast('"Day view" — connect this to your app');
+      });
+    });
+  }
+
+  /* ---- Mini calendar ---- */
+  function renderMini(){
+    var y=st.cursor.getFullYear(), m=st.cursor.getMonth();
+    var start=new Date(y,m,1).getDay();
+    var dim=new Date(y,m+1,0).getDate();
+    var todayK=key(new Date());
+    var html='';
+    for(var i=0;i<start;i++) html+='<span class="md out"></span>';
+    for(var d=1;d<=dim;d++){
+      var k=y+'-'+two(m+1)+'-'+two(d);
+      /* Selection class comes before today class in CSS so today wins. */
+      var cls='md'+(k===st.sel?' sel':'')+(k===todayK?' today':'');
+      var ev=EVENTS[k]||[], dots='';
+      if(ev.length){
+        dots='<span class="dots" aria-hidden="true">';
+        for(var z=0;z<Math.min(ev.length,3);z++) dots+='<span class="dot cat-'+ev[z].cat+'"></span>';
+        dots+='</span>';
+      }
+      html+='<button type="button" class="'+cls+'" data-mday="'+k+'" aria-label="'+MONTHS[m]+' '+d+
+        (ev.length?', '+ev.length+' event'+(ev.length>1?'s':''):'')+'">'+d+dots+'</button>';
+    }
+    $('#miniGrid').innerHTML=html;
+    $$('#miniGrid [data-mday]').forEach(function(b){
+      b.addEventListener('click',function(){st.sel=b.dataset.mday;renderMini();renderBig()});
+    });
+  }
+
+  /* ---- Time grid scaffolding shared by Week + Day ---- */
+  function hourLabels(){
+    var out='';
+    for(var i=0;i<HOURS-1;i++){
+      var top=i*HOUR_H;
+      /* The first label sits just below the grid edge so it is never clipped
+         by the scroll container. */
+      out+='<span class="tl" style="top:'+(top===0?10:top)+'px'+(top===0?';transform:none':'')+
+        '">'+fmtHour(GRID_START+i*60)+'</span>';
+    }
+    return out;
+  }
+  function nowLine(){
+    var nm=now.getHours()*60+now.getMinutes();
+    if(nm<GRID_START||nm>GRID_START+(HOURS-1)*60) return '';
+    return '<div class="tnow" style="top:'+((nm-GRID_START)/60*HOUR_H)+'px"><span class="ndot"></span><div class="line"></div></div>';
+  }
+  function blockFor(e,k,idx){
+    var top=(e.s-GRID_START)/60*HOUR_H;
+    var h=Math.max(24,(e.e-e.s)/60*HOUR_H-4);
+    return '<button type="button" class="evblock cat-'+e.cat+'" style="top:'+top+'px;height:'+h+'px" data-ev="'+k+':'+idx+
+      '" aria-label="'+esc(e.n)+', '+fmtRange(e.s,e.e)+'">'+
+      '<span class="bt">'+(e.r?'<svg class="icon rpt" aria-hidden="true"><use href="#i-repeat"/></svg>':'')+
+      '<span class="t">'+esc(e.n)+'</span></span>'+
+      '<span class="btime">'+fmtRange(e.s,e.e)+'</span></button>';
+  }
+  function bindBlocks(){
+    $$('#otherView [data-ev]').forEach(function(b){
+      b.addEventListener('click',function(){toast('"Event details" — connect this to your app')});
+    });
+  }
+  function autoScroll(inRange){
+    var sc=$('#tscroll');if(!sc)return;
+    var ref=inRange?(now.getHours()*60+now.getMinutes()):420; /* 7 AM fallback */
+    /* Keep an hour of context above the current time; early hours start at
+       the top so the 6 AM label and first events stay visible. */
+    sc.scrollTop=Math.max(0,(ref-GRID_START)/60*HOUR_H-100);
+  }
+  function allDayChips(k){
+    return (EVENTS[k]||[]).filter(function(e){return e.a}).map(chipHTML).join('');
+  }
+
+  /* ---- WEEK ---- */
+  function renderWeek(){
+    var start=addDays(st.cursor,-st.cursor.getDay());
+    var days=[];for(var i=0;i<7;i++)days.push(addDays(start,i));
+    var todayK=key(now);
+    var heads=days.map(function(d){
+      var t=sameDay(d,now);
+      return '<div class="dayhead'+(t?' today':'')+'" aria-label="'+DOW_FULL[d.getDay()]+', '+MONTHS[d.getMonth()]+' '+d.getDate()+'">'+
+        '<span class="dh-dow">'+DOW[d.getDay()]+'</span><span class="dh-num">'+d.getDate()+'</span></div>';
+    }).join('');
+    var alls=days.map(function(d){
+      return '<div class="allday-cell'+(sameDay(d,now)?' todaycell':'')+'">'+allDayChips(key(d))+'</div>';
+    }).join('');
+    var cols=days.map(function(d){
+      var k=key(d);
+      var ev=(EVENTS[k]||[]).filter(function(e){return !e.a&&e.s!=null});
+      var blocks=ev.map(function(e,idx){return blockFor(e,k,idx)}).join('');
+      return '<div class="tcol'+(k===todayK?' todaycol':'')+'">'+blocks+'</div>';
+    }).join('');
+    var inRange=days.some(function(d){return sameDay(d,now)});
+    $('#otherView').innerHTML=
+      '<div class="tscroll" id="tscroll" tabindex="0" aria-label="Week time grid, scrollable"><div class="tinner">'+
+      '<div class="thead"><div class="tcorner"></div>'+heads+'</div>'+
+      '<div class="allday"><div class="allabel">All day</div>'+alls+'</div>'+
+      '<div class="tbody"><div class="tlabels">'+hourLabels()+'</div>'+cols+nowLine()+'</div>'+
+      '</div></div>';
+    setTitle(weekTitle(days));
+    bindBlocks();
+    autoScroll(inRange);
+  }
+
+  function weekTitle(days){
+    var a=days[0],b=days[6];
+    var sameM=a.getMonth()===b.getMonth();
+    return MON_S[a.getMonth()]+' '+a.getDate()+' – '+
+      (sameM?'':MON_S[b.getMonth()]+' ')+b.getDate()+', '+b.getFullYear();
+  }
+
+  /* ---- DAY ---- */
+  function renderDay(){
+    var d=st.cursor,k=key(d),t=sameDay(d,now);
+    var ev=EVENTS[k]||[];
+    var all=ev.filter(function(e){return e.a}).map(chipHTML).join('');
+    var timed=ev.filter(function(e){return !e.a&&e.s!=null});
+    var blocks=timed.map(function(e,idx){return blockFor(e,k,idx)}).join('');
+    $('#otherView').innerHTML=
+      '<div class="tscroll" id="tscroll" tabindex="0" aria-label="Day time grid, scrollable"><div class="tinner day1">'+
+      '<div class="thead"><div class="tcorner"></div>'+
+      '<div class="dayhead'+(t?' today':'')+'" aria-label="'+DOW_FULL[d.getDay()]+', '+MONTHS[d.getMonth()]+' '+d.getDate()+'">'+
+      '<span class="dh-dow">'+DOW[d.getDay()]+'</span><span class="dh-num">'+d.getDate()+'</span></div></div>'+
+      '<div class="allday"><div class="allabel">All day</div>'+
+      '<div class="allday-cell'+(t?' todaycell':'')+'">'+all+'</div></div>'+
+      '<div class="tbody"><div class="tlabels">'+hourLabels()+'</div>'+
+      '<div class="tcol'+(t?' todaycol':'')+'">'+blocks+'</div>'+nowLine()+'</div>'+
+      '</div></div>';
+    setTitle(DOW_FULL[d.getDay()]+', '+MONTHS[d.getMonth()]+' '+d.getDate()+', '+d.getFullYear());
+    bindBlocks();
+    autoScroll(t);
+  }
+
+  /* ---- AGENDA ---- */
+  function renderAgenda(){
+    var groups='',seen=0;
+    for(var i=0;i<14;i++){
+      var d=addDays(st.cursor,i),k=key(d),ev=EVENTS[k]||[];
+      if(!ev.length)continue;
+      seen+=ev.length;
+      var t=sameDay(d,now);
+      var items=ev.map(function(e,idx){
+        var time=e.s!=null?fmtRange(e.s,e.e):(e.a?'All day':'');
+        var label=catLabel(e.cat);
+        return '<button type="button" class="ag-item cat-'+e.cat+'" data-ev="'+k+':'+idx+
+          '" aria-label="'+esc(e.n)+', '+time+', '+label+' category, Personal calendar">'+
+          '<span class="bar" aria-hidden="true"></span>'+
+          '<span class="ag-time">'+time+'</span>'+
+          '<span class="ag-name">'+(e.r?'<svg class="icon rpt" aria-hidden="true"><use href="#i-repeat"/></svg>':'')+
+          '<span class="t">'+esc(e.n)+'</span></span>'+
+          '<span class="ag-tag">'+label+'</span></button>';
+      }).join('');
+      groups+='<div class="ag-group"><div class="ag-head">'+
+        '<div class="cube" aria-hidden="true"><span class="d"></span><span class="f">'+d.getDate()+'</span></div>'+
+        '<div class="ag-headtext"><div class="ag-day">'+(t?'<span class="today-tag">Today</span>':'')+
+        '<span>'+DOW_FULL[d.getDay()]+', '+MONTHS[d.getMonth()]+' '+d.getDate()+'</span></div></div>'+
+        '<span class="ag-count">'+ev.length+' event'+(ev.length>1?'s':'')+'</span></div>'+items+'</div>';
+    }
+    $('#otherView').innerHTML='<div class="ag">'+groups+
+      '<div class="ag-empty">'+(seen?'No more events in the next two weeks':'No events in the next two weeks')+'</div></div>';
+    setTitle(MONTHS[st.cursor.getMonth()]+' '+st.cursor.getFullYear());
+    bindBlocks();
+  }
+
+  function catLabel(id){
+    return ({work:'Work',personal:'Personal',meeting:'Meeting',focus:'Focus',important:'Important',other:'Other'})[id]||'Other';
+  }
+
+  function setTitle(text){$('#monthTitle').textContent=text}
+
+  /* ---- render dispatch ---- */
+  function render(){
+    var isMonth=st.view==='month';
+    var period=st.view==='month'?'month':st.view==='week'?'week':st.view==='day'?'day':'two weeks';
+    $('#prevBtn').setAttribute('aria-label','Previous '+period);
+    $('#nextBtn').setAttribute('aria-label','Next '+period);
+    $('#monthView').hidden=!isMonth;
+    $('#aside').hidden=!isMonth;
+    $('#layout').classList.toggle('solo',!isMonth);
+    $$('.seg [data-view]').forEach(function(b){
+      var on=b.dataset.view===st.view;
+      b.classList.toggle('on',on);
+      b.setAttribute('aria-selected',on?'true':'false');
+    });
+    if(isMonth){renderBig();renderMini();}
+    else if(st.view==='week')renderWeek();
+    else if(st.view==='day')renderDay();
+    else renderAgenda();
+  }
+
+  /* ---- navigation ---- */
+  function shift(n){
+    if(st.view==='month'){
+      st.cursor=new Date(st.cursor.getFullYear(),st.cursor.getMonth()+n,1);
+    }else if(st.view==='week'){
+      st.cursor=addDays(st.cursor,7*n);
+    }else if(st.view==='day'){
+      st.cursor=addDays(st.cursor,n);
+    }else{
+      st.cursor=addDays(st.cursor,14*n);
+    }
+    render();
+  }
+  function goToday(){
+    var d=new Date();
+    st.cursor=new Date(d.getFullYear(),d.getMonth(),d.getDate());
+    st.sel=key(d);
+    render();
+  }
+
+  $('#prevBtn').addEventListener('click',function(){shift(-1)});
+  $('#nextBtn').addEventListener('click',function(){shift(1)});
+  $('#miniPrev').addEventListener('click',function(){shift(-1)});
+  $('#miniNext').addEventListener('click',function(){shift(1)});
+  $('#todayBtn').addEventListener('click',goToday);
+
+  $$('.seg [data-view]').forEach(function(b){
+    b.addEventListener('click',function(){
+      if(st.view===b.dataset.view)return;
+      st.view=b.dataset.view;
+      render();
+    });
+  });
+
+  /* ---- Toast + stub actions ---- */
+  var tt;
+  function toast(m){
+    var t=$('#toast');t.textContent=m;t.classList.add('show');
+    clearTimeout(tt);tt=setTimeout(function(){t.classList.remove('show')},2400);
+  }
+  $('#createBtn').addEventListener('click',function(){toast('"Create event" — connect this to your app')});
+  $('#searchBtn').addEventListener('click',function(){toast('"Search" — connect this to your app')});
+  $('#filterBtn').addEventListener('click',function(){toast('"Personal" calendar filter — connect this to your app')});
+  $('#aiBtn').addEventListener('click',function(){toast('"AI assistant" — connect this to your app')});
+
+  render();
+})();
+</script>
+</body>
+</html>

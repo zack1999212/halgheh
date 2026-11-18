@@ -89,13 +89,13 @@ export default function TodaySchedule({
 
   return (
     <Card className="ws-card ws-card-primary min-w-0">
-      <CardHeader className="flex flex-row items-center justify-between gap-3 space-y-0 px-4 pb-2 pt-4 sm:px-5 sm:pt-5">
-        <CardTitle className="text-base font-semibold">Today&apos;s Schedule</CardTitle>
+      <CardHeader className="ws-card-head flex flex-row items-center justify-between gap-3 space-y-0 px-4 pb-2 pt-4 sm:px-5 sm:pt-5">
+        <CardTitle className="ws-card-title">Today&apos;s Schedule</CardTitle>
         <Button
           type="button"
           variant="ghost"
           size="sm"
-          className="ws-btn h-8 rounded-[10px] px-3 text-muted-foreground"
+          className="ws-link h-8 rounded-[10px] px-3"
           onClick={() => navigate(`/calendar?view=timeGridDay&date=${todayParam}`)}
         >
           View Calendar
