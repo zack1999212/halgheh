@@ -100,6 +100,7 @@ class EventCreate(BaseModel):
     timezone: str | None = None
     recurrence_rule: str | None = None
     category: str = DEFAULT_EVENT_CATEGORY
+    project_id: int | None = None
 
     @field_validator("title")
     @classmethod
@@ -155,6 +156,7 @@ class EventUpdate(BaseModel):
     timezone: str | None = None
     recurrence_rule: str | None = None
     category: str | None = None
+    project_id: int | None = None
 
     @field_validator("title")
     @classmethod
@@ -210,6 +212,7 @@ class EventResponse(BaseModel):
     timezone: str | None
     recurrence_rule: str | None
     category: str
+    project_id: int | None = None
     created_at: datetime
     updated_at: datetime
 
@@ -264,6 +267,7 @@ class OccurrenceEditRequest(BaseModel):
     timezone: str | None = None
     recurrence_rule: str | None = None
     category: str | None = None
+    project_id: int | None = None
 
     @field_validator("title")
     @classmethod
@@ -346,6 +350,7 @@ class EventExceptionResponse(BaseModel):
 
 class OccurrenceResponse(BaseModel):
     event_id: int
+    calendar_id: int | None = None
     title: str
     description: str | None
     is_all_day: bool
@@ -359,6 +364,7 @@ class OccurrenceResponse(BaseModel):
     is_recurring: bool
     is_exception: bool
     category: str
+    project_id: int | None = None
 
 
 class ReminderCreate(BaseModel):

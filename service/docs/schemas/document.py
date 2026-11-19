@@ -21,6 +21,7 @@ DocumentSort = Literal[
 class DocumentCreate(BaseModel):
     workspace_id: int
     folder_id: int | None = None
+    project_id: int | None = None
     title: str = Field(min_length=1, max_length=256)
     content: str = Field(default="", max_length=500_000)
     icon: str | None = Field(default=None, max_length=32)
@@ -32,6 +33,7 @@ class DocumentUpdate(BaseModel):
     content: str | None = Field(default=None, max_length=500_000)
     icon: str | None = Field(default=None, max_length=32)
     folder_id: int | None = None
+    project_id: int | None = None
     is_archived: bool | None = None
 
     @model_validator(mode="after")
@@ -47,6 +49,7 @@ class DocumentResponse(BaseModel):
     id: int
     workspace_id: int
     folder_id: int | None
+    project_id: int | None = None
     owner_id: int
     title: str
     content: str

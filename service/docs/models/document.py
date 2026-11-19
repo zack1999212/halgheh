@@ -19,6 +19,7 @@ from ...core.database import Base
 
 if TYPE_CHECKING:
     from ...auth.models import User
+    from ...project.models import Project
     from .document_favorite import DocumentFavorite
     from .document_link import DocumentLink
     from .document_permission import DocumentPermission
@@ -50,6 +51,7 @@ class Document(Base):
     __table_args__ = (
         Index("ix_documents_workspace_folder", "workspace_id", "folder_id"),
         Index("ix_documents_owner_id", "owner_id"),
+        Index("ix_documents_project_id", "project_id"),
         Index("ix_documents_workspace_archived", "workspace_id", "is_archived"),
         UniqueConstraint(
             "workspace_id", "slug", name="uq_documents_workspace_slug"
@@ -74,6 +76,9 @@ class Document(Base):
     )
     owner_id: Mapped[int] = mapped_column(
         ForeignKey("users.id", ondelete="CASCADE"), nullable=False
+    )
+    project_id: Mapped[int | None] = mapped_column(
+        ForeignKey("projects.id", ondelete="SET NULL"), nullable=True
     )
     title: Mapped[str] = mapped_column(String(256), nullable=False)
     content: Mapped[str] = mapped_column(Text, nullable=False, default="")

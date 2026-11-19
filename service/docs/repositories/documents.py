@@ -9,6 +9,7 @@ from ..models import (
     PERMISSION_EDITOR,
     PERMISSION_VIEWER,
 )
+from ...project.models import Project, ProjectMember
 
 
 def get(db: Session, document_id: int) -> Document | None:
@@ -50,6 +51,7 @@ def list_for_user(
     limit: int,
     offset: int,
     workspace_id: int | None = None,
+    project_id: int | None = None,
     folder_id: int | None = None,
     q: str | None = None,
     tag_id: int | None = None,
@@ -63,6 +65,10 @@ def list_for_user(
     Access scope: owned by the user OR granted a viewer/editor permission.
     The same conditions feed the count query so pagination totals match.
     """
+    accessible_projects = (
+        select(Project.id).where(Project.owner_id == user_id)
+    ).union(select(ProjectMember.project_id).where(ProjectMember.user_id == user_id))
+
     conditions = [
         exists().where(
             DocumentPermission.document_id == Document.id,
@@ -72,9 +78,12 @@ def list_for_user(
             ),
         )
         | (Document.owner_id == user_id)
+        | (Document.project_id.in_(accessible_projects))
     ]
     if workspace_id is not None:
         conditions.append(Document.workspace_id == workspace_id)
+    if project_id is not None:
+        conditions.append(Document.project_id == project_id)
     if folder_id is not None:
         conditions.append(Document.folder_id == folder_id)
     if q:
@@ -157,6 +166,7 @@ def create(
     *,
     workspace_id: int,
     folder_id: int | None,
+    project_id: int | None = None,
     owner_id: int,
     title: str,
     content: str,
@@ -166,6 +176,7 @@ def create(
     document = Document(
         workspace_id=workspace_id,
         folder_id=folder_id,
+        project_id=project_id,
         owner_id=owner_id,
         title=title,
         content=content,

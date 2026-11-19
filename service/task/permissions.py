@@ -29,6 +29,7 @@ from .models import Task
 
 ROLE_OWNER = "owner"
 ROLE_ASSIGNEE = "assignee"
+ROLE_PROJECT_VIEWER = "project_viewer"
 ROLE_NONE = "none"
 
 

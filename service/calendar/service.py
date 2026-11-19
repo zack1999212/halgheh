@@ -11,6 +11,8 @@ from sqlalchemy.orm import Session
 
 from . import recurrence, repository, scheduling
 from .models import Calendar, Event
+from ..project import permissions as project_permissions
+from ..project import service as project_service
 from .schemas import (
     ALLOWED_EVENT_CATEGORIES,
     CalendarCreate,
@@ -34,6 +36,32 @@ def _calendar_not_found() -> HTTPException:
 
 def _event_not_found() -> HTTPException:
     return HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Event not found")
+
+
+def _readable_event(db: Session, calendar_id: int, event_id: int, user_id: int) -> Event:
+    event = repository.get_event_for_calendar(db, calendar_id, event_id)
+    if event is None:
+        raise _event_not_found()
+    if event.project_id is None:
+        calendar = db.get(Calendar, calendar_id)
+        if calendar is None or calendar.user_id != user_id:
+            raise _event_not_found()
+    else:
+        project_service.require_project_view(db, user_id, event.project_id)
+    return event
+
+
+def _managed_event(db: Session, calendar_id: int, event_id: int, user_id: int) -> Event:
+    event = repository.get_event_for_calendar(db, calendar_id, event_id)
+    if event is None:
+        raise _event_not_found()
+    if event.project_id is None:
+        calendar = db.get(Calendar, calendar_id)
+        if calendar is None or calendar.user_id != user_id:
+            raise _event_not_found()
+    else:
+        project_service.require_project_manage(db, user_id, event.project_id)
+    return event
 
 
 # Backward-compatible alias for existing internal use
@@ -198,18 +226,10 @@ def _get_owned_calendar(db: Session, calendar_id: int, user_id: int) -> Calendar
     return calendar
 
 
-def _get_event_in_owned_calendar(
-    db: Session, calendar_id: int, event_id: int, user_id: int
-) -> Event:
-    _get_owned_calendar(db, calendar_id, user_id)
-    event = repository.get_event_for_calendar(db, calendar_id, event_id)
-    if event is None:
-        raise _event_not_found()
-    return event
-
-
 def create_event(db: Session, calendar_id: int, user_id: int, data: EventCreate) -> Event:
     _get_owned_calendar(db, calendar_id, user_id)
+    if data.project_id is not None:
+        project_service.require_project_manage(db, user_id, data.project_id)
     if data.recurrence_rule is not None:
         try:
             recurrence.validate_event_recurrence(
@@ -266,51 +286,75 @@ def list_events(
     start: datetime | None = None,
     end: datetime | None = None,
     timezone: str | None = None,
+    project_id: int | None = None,
 ) -> list[Event]:
-    _get_owned_calendar(db, calendar_id, user_id)
+    calendar = db.get(Calendar, calendar_id)
+    if calendar is None:
+        raise _calendar_not_found()
+
+    if project_id is not None:
+        project_service.require_project_view(db, user_id, project_id)
 
     if start is None and end is None and timezone is None:
-        return repository.list_events_for_calendar(db, calendar_id)
-
-    if (start is None) != (end is None):
-        raise HTTPException(
-            status_code=422, detail="Both start and end must be supplied together"
-        )
-    if start is None or end is None:
-        # timezone supplied without range is not a supported query mode.
-        raise HTTPException(
-            status_code=422, detail="Both start and end must be supplied together"
-        )
-
-    if start.tzinfo is None or start.utcoffset() is None:
-        raise HTTPException(status_code=422, detail="start must be timezone-aware")
-    if end.tzinfo is None or end.utcoffset() is None:
-        raise HTTPException(status_code=422, detail="end must be timezone-aware")
-    if start >= end:
-        raise HTTPException(status_code=422, detail="start must be earlier than end")
-
-    if timezone is not None:
-        tz = _validate_range_timezone(timezone)
+        events = repository.list_events_for_calendar(db, calendar_id)
     else:
-        # Interpret using the timezone offset supplied by the timestamps.
-        tz = start.tzinfo  # type: ignore[assignment]
+        if (start is None) != (end is None):
+            raise HTTPException(
+                status_code=422, detail="Both start and end must be supplied together"
+            )
+        if start is None or end is None:
+            # timezone supplied without range is not a supported query mode.
+            raise HTTPException(
+                status_code=422, detail="Both start and end must be supplied together"
+            )
 
-    local_start_date, local_end_date = _compute_local_date_bounds(start, end, tz)
-    start_utc = start.astimezone(ZoneInfo("UTC"))
-    end_utc = end.astimezone(ZoneInfo("UTC"))
+        if start.tzinfo is None or start.utcoffset() is None:
+            raise HTTPException(status_code=422, detail="start must be timezone-aware")
+        if end.tzinfo is None or end.utcoffset() is None:
+            raise HTTPException(status_code=422, detail="end must be timezone-aware")
+        if start >= end:
+            raise HTTPException(status_code=422, detail="start must be earlier than end")
 
-    return repository.list_events_for_calendar_range(
-        db,
-        calendar_id,
-        start=start_utc,
-        end=end_utc,
-        local_start_date=local_start_date,
-        local_end_date=local_end_date,
-    )
+        if timezone is not None:
+            tz = _validate_range_timezone(timezone)
+        else:
+            # Interpret using the timezone offset supplied by the timestamps.
+            tz = start.tzinfo  # type: ignore[assignment]
+
+        local_start_date, local_end_date = _compute_local_date_bounds(start, end, tz)
+        start_utc = start.astimezone(ZoneInfo("UTC"))
+        end_utc = end.astimezone(ZoneInfo("UTC"))
+
+        events = repository.list_events_for_calendar_range(
+            db,
+            calendar_id,
+            start=start_utc,
+            end=end_utc,
+            local_start_date=local_start_date,
+            local_end_date=local_end_date,
+        )
+
+    def _accessible(event: Event) -> bool:
+        if event.project_id is None:
+            return calendar.user_id == user_id
+        if not project_permissions.can_view(
+            project_service.get_project_role(db, user_id, event.project_id)
+        ):
+            return False
+        if project_id is not None and event.project_id != project_id:
+            return False
+        return True
+
+    result = [e for e in events if _accessible(e)]
+    if not result and calendar.user_id != user_id:
+        # Hide the existence of a personal calendar that exposes no accessible
+        # project events to this caller.
+        raise _calendar_not_found()
+    return result
 
 
 def get_event(db: Session, calendar_id: int, event_id: int, user_id: int) -> Event:
-    return _get_event_in_owned_calendar(db, calendar_id, event_id, user_id)
+    return _readable_event(db, calendar_id, event_id, user_id)
 
 
 def _validate_timed_values(start_at: datetime | None, end_at: datetime | None, timezone: str | None) -> None:
@@ -422,8 +466,18 @@ def _apply_event_update(event: Event, data: EventUpdate) -> None:
 def update_event(
     db: Session, calendar_id: int, event_id: int, user_id: int, data: EventUpdate
 ) -> Event:
-    event = _get_event_in_owned_calendar(db, calendar_id, event_id, user_id)
-    _apply_event_update(event, data)
+    event = _managed_event(db, calendar_id, event_id, user_id)
+    updates = data.model_dump(exclude_unset=True)
+    if "project_id" in updates:
+        new_project_id = updates.pop("project_id")
+        if event.project_id is not None:
+            project_service.require_project_manage(db, user_id, event.project_id)
+        if new_project_id is not None:
+            project_service.require_project_manage(db, user_id, new_project_id)
+        event.project_id = new_project_id
+    if updates:
+        eu = EventUpdate(**updates)
+        _apply_event_update(event, eu)
 
     try:
         db.commit()
@@ -440,7 +494,7 @@ def update_event(
 
 
 def delete_event(db: Session, calendar_id: int, event_id: int, user_id: int) -> None:
-    event = _get_event_in_owned_calendar(db, calendar_id, event_id, user_id)
+    event = _managed_event(db, calendar_id, event_id, user_id)
     try:
         repository.delete_event(db, event)
         db.commit()
@@ -476,22 +530,62 @@ def _apply_allday_exception(event, exc, base_start_date, base_end_date):
     return start_date, end_date
 
 
-def list_occurrences(
+def list_project_events(
     db: Session,
-    calendar_id: int,
+    project_id: int,
     user_id: int,
-    start: datetime,
-    end: datetime,
-    timezone_name: str,
-) -> list[OccurrenceResponse]:
-    calendar = repository.get_for_user(db, calendar_id, user_id)
-    if calendar is None:
-        raise _calendar_not_found()
+    *,
+    start: datetime | None = None,
+    end: datetime | None = None,
+    timezone: str | None = None,
+) -> list[Event]:
+    """Events associated with ``project_id``, readable by an accepted member.
 
-    try:
-        tz = _validate_range_timezone(timezone_name)
-    except HTTPException:
-        raise
+    Project events live in their creator's calendar, so this query is scoped by
+    project membership rather than by calendar ownership and never returns
+    personal events from those calendars.
+    """
+    project_service.require_project_view(db, user_id, project_id)
+    events = repository.list_events_for_project(db, project_id)
+
+    if start is None and end is None and timezone is None:
+        return events
+    if start is None or end is None:
+        raise HTTPException(
+            status_code=422, detail="Both start and end must be supplied together"
+        )
+    if start.tzinfo is None or start.utcoffset() is None:
+        raise HTTPException(status_code=422, detail="start must be timezone-aware")
+    if end.tzinfo is None or end.utcoffset() is None:
+        raise HTTPException(status_code=422, detail="end must be timezone-aware")
+    if start >= end:
+        raise HTTPException(status_code=422, detail="start must be earlier than end")
+
+    if timezone is not None:
+        tz = _validate_range_timezone(timezone)
+    else:
+        tz = start.tzinfo  # type: ignore[assignment]
+    local_start_date, local_end_date = _compute_local_date_bounds(start, end, tz)
+    start_utc = start.astimezone(ZoneInfo("UTC"))
+    end_utc = end.astimezone(ZoneInfo("UTC"))
+
+    result = []
+    for event in events:
+        if event.is_all_day:
+            overlaps = event.start_date < local_end_date and event.end_date > local_start_date
+        else:
+            overlaps = event.start_at < end_utc and event.end_at > start_utc
+        # Recurring events have no single interval; range filtering is done by
+        # the occurrence expansion endpoint.
+        if event.recurrence_rule is not None or overlaps:
+            result.append(event)
+    return result
+
+
+def _validate_occurrence_window(
+    start: datetime, end: datetime, timezone_name: str
+) -> tuple[ZoneInfo, date, date]:
+    tz = _validate_range_timezone(timezone_name)
 
     if start.tzinfo is None or start.utcoffset() is None:
         raise HTTPException(status_code=422, detail="start must be timezone-aware")
@@ -503,15 +597,155 @@ def list_occurrences(
         raise HTTPException(status_code=422, detail="Requested range must not exceed one year")
 
     local_start_date, local_end_date = _compute_local_date_bounds(start, end, tz)
+    return tz, local_start_date, local_end_date
 
-    # Query events.
-    nonrec_timed = repository.list_nonrecurring_timed_overlapping(
-        db, calendar_id, start=start, end=end
+
+def _accessible_event(db: Session, calendar: Calendar, event: Event, user_id: int) -> bool:
+    """Personal events require calendar ownership; project events require
+    accepted membership in the event's project."""
+    if event.project_id is None:
+        return calendar.user_id == user_id
+    return project_permissions.can_view(
+        project_service.get_project_role(db, user_id, event.project_id)
     )
-    nonrec_allday = repository.list_nonrecurring_allday_overlapping(
-        db, calendar_id, local_start_date=local_start_date, local_end_date=local_end_date
+
+
+def _has_accessible_event(
+    db: Session, calendar: Calendar, user_id: int, project_id: int | None = None
+) -> bool:
+    if calendar.user_id == user_id:
+        return True
+    for candidate_project_id in repository.list_project_ids_for_calendar(db, calendar.id):
+        if project_id is not None and candidate_project_id != project_id:
+            continue
+        if project_permissions.can_view(
+            project_service.get_project_role(db, user_id, candidate_project_id)
+        ):
+            return True
+    return False
+
+
+def list_occurrences(
+    db: Session,
+    calendar_id: int,
+    user_id: int,
+    start: datetime,
+    end: datetime,
+    timezone_name: str,
+    project_id: int | None = None,
+) -> list[OccurrenceResponse]:
+    calendar = db.get(Calendar, calendar_id)
+    if calendar is None:
+        raise _calendar_not_found()
+
+    if project_id is not None:
+        project_service.require_project_view(db, user_id, project_id)
+
+    tz, local_start_date, local_end_date = _validate_occurrence_window(
+        start, end, timezone_name
     )
-    recurring_events = repository.list_recurring_events_for_calendar(db, calendar_id)
+
+    if not _has_accessible_event(db, calendar, user_id, project_id):
+        # Hide another user's personal calendar from callers who receive no
+        # project events from it.
+        raise _calendar_not_found()
+
+    results = _expand_calendar_occurrences(
+        db,
+        calendar,
+        user_id,
+        start=start,
+        end=end,
+        tz=tz,
+        local_start_date=local_start_date,
+        local_end_date=local_end_date,
+        project_id=project_id,
+    )
+    return results
+
+
+def list_project_occurrences(
+    db: Session,
+    project_id: int,
+    user_id: int,
+    start: datetime,
+    end: datetime,
+    timezone_name: str,
+) -> list[OccurrenceResponse]:
+    """Expanded occurrences of every event associated with a project.
+
+    Spans the calendars that hold project events without granting access to
+    the creators' private calendars or to their personal events.
+    """
+    project_service.require_project_view(db, user_id, project_id)
+    tz, local_start_date, local_end_date = _validate_occurrence_window(
+        start, end, timezone_name
+    )
+
+    merged: list[OccurrenceResponse] = []
+    for calendar_id in repository.list_calendar_ids_for_project(db, project_id):
+        calendar = db.get(Calendar, calendar_id)
+        if calendar is None:
+            continue
+        merged.extend(
+            _expand_calendar_occurrences(
+                db,
+                calendar,
+                user_id,
+                start=start,
+                end=end,
+                tz=tz,
+                local_start_date=local_start_date,
+                local_end_date=local_end_date,
+                project_id=project_id,
+            )
+        )
+        if len(merged) > recurrence.MAX_OCCURRENCES:
+            raise HTTPException(
+                status_code=422,
+                detail="Occurrence expansion exceeded the maximum of 5000",
+            )
+
+    return _sort_occurrences(merged, tz)
+
+
+def _expand_calendar_occurrences(
+    db: Session,
+    calendar: Calendar,
+    user_id: int,
+    *,
+    start: datetime,
+    end: datetime,
+    tz: ZoneInfo,
+    local_start_date: date,
+    local_end_date: date,
+    project_id: int | None = None,
+) -> list[OccurrenceResponse]:
+    calendar_id = calendar.id
+
+    nonrec_timed = [
+        e
+        for e in repository.list_nonrecurring_timed_overlapping(
+            db, calendar_id, start=start, end=end
+        )
+        if _accessible_event(db, calendar, e, user_id)
+        and (project_id is None or e.project_id == project_id)
+    ]
+    nonrec_allday = [
+        e
+        for e in repository.list_nonrecurring_allday_overlapping(
+            db, calendar_id, local_start_date=local_start_date, local_end_date=local_end_date
+        )
+        if _accessible_event(db, calendar, e, user_id)
+        and (project_id is None or e.project_id == project_id)
+    ]
+    recurring_events = [
+        e
+        for e in repository.list_recurring_events_for_calendar(db, calendar_id)
+        if _accessible_event(db, calendar, e, user_id)
+        and (project_id is None or e.project_id == project_id)
+    ]
+
     recurring_ids = [e.id for e in recurring_events]
     exceptions = repository.list_exceptions_for_events(db, recurring_ids)
     exceptions_by_event: dict[int, list] = {}
@@ -547,6 +781,7 @@ def list_occurrences(
                     is_recurring=False,
                     is_exception=False,
                     category=event.category,
+                    project_id=event.project_id,
                 )
             )
 
@@ -569,6 +804,7 @@ def list_occurrences(
                     is_recurring=False,
                     is_exception=False,
                     category=event.category,
+                    project_id=event.project_id,
                 )
             )
 
@@ -619,6 +855,7 @@ def list_occurrences(
                             is_recurring=True,
                             is_exception=True,
                             category=event.category,
+                            project_id=event.project_id,
                         )
                     )
                 else:
@@ -639,6 +876,7 @@ def list_occurrences(
                                 is_recurring=True,
                                 is_exception=False,
                                 category=event.category,
+                                project_id=event.project_id,
                             )
                         )
         else:
@@ -673,6 +911,7 @@ def list_occurrences(
                             is_recurring=True,
                             is_exception=True,
                             category=event.category,
+                            project_id=event.project_id,
                         )
                     )
                 else:
@@ -693,6 +932,7 @@ def list_occurrences(
                                 is_recurring=True,
                                 is_exception=False,
                                 category=event.category,
+                                project_id=event.project_id,
                             )
                         )
 
@@ -731,6 +971,7 @@ def list_occurrences(
                         is_recurring=True,
                         is_exception=True,
                         category=event.category,
+                        project_id=event.project_id,
                     )
                 )
             else:
@@ -764,10 +1005,21 @@ def list_occurrences(
                         is_recurring=True,
                         is_exception=True,
                         category=event.category,
+                        project_id=event.project_id,
                     )
                 )
 
-    # Sort deterministically by effective start instant, then stable tie-breakers.
+    for occ in results:
+        occ.calendar_id = calendar_id
+    return _sort_occurrences(results, tz)
+
+
+def _sort_occurrences(
+    results: list[OccurrenceResponse], tz: ZoneInfo
+) -> list[OccurrenceResponse]:
+    """Sort deterministically by effective start instant, then stable
+    tie-breakers."""
+
     def _effective_start(o: OccurrenceResponse) -> datetime:
         if o.is_all_day:
             return datetime.combine(o.start_date, time.min, tzinfo=tz)
@@ -797,8 +1049,7 @@ def _validate_exception_type_fields(event, data_dict):
 
 
 def list_exceptions(db, calendar_id, event_id, user_id):
-    _get_owned_calendar(db, calendar_id, user_id)
-    event = _get_event_in_owned_calendar(db, calendar_id, event_id, user_id)
+    event = _readable_event(db, calendar_id, event_id, user_id)
     if event.recurrence_rule is None:
         raise HTTPException(status_code=422, detail="Event is not recurring")
     excs = repository.list_exceptions_for_event(db, event_id)
@@ -806,8 +1057,7 @@ def list_exceptions(db, calendar_id, event_id, user_id):
 
 
 def get_exception(db, calendar_id, event_id, exception_id, user_id):
-    _get_owned_calendar(db, calendar_id, user_id)
-    _get_event_in_owned_calendar(db, calendar_id, event_id, user_id)
+    _readable_event(db, calendar_id, event_id, user_id)
     exc = repository.get_exception_for_event(db, event_id, exception_id)
     if exc is None:
         raise HTTPException(status_code=404, detail="Exception not found")
@@ -815,8 +1065,7 @@ def get_exception(db, calendar_id, event_id, exception_id, user_id):
 
 
 def create_exception(db, calendar_id, event_id, user_id, data: EventExceptionCreate):
-    _get_owned_calendar(db, calendar_id, user_id)
-    event = _get_event_in_owned_calendar(db, calendar_id, event_id, user_id)
+    event = _managed_event(db, calendar_id, event_id, user_id)
     if event.recurrence_rule is None:
         raise HTTPException(status_code=422, detail="Event is not recurring")
 
@@ -887,8 +1136,7 @@ def create_exception(db, calendar_id, event_id, user_id, data: EventExceptionCre
 
 
 def update_exception(db, calendar_id, event_id, exception_id, user_id, data: EventExceptionUpdate):
-    _get_owned_calendar(db, calendar_id, user_id)
-    event = _get_event_in_owned_calendar(db, calendar_id, event_id, user_id)
+    event = _managed_event(db, calendar_id, event_id, user_id)
     exc = repository.get_exception_for_event(db, event_id, exception_id)
     if exc is None:
         raise HTTPException(status_code=404, detail="Exception not found")
@@ -940,8 +1188,7 @@ def update_exception(db, calendar_id, event_id, exception_id, user_id, data: Eve
 
 
 def delete_exception(db, calendar_id, event_id, exception_id, user_id):
-    _get_owned_calendar(db, calendar_id, user_id)
-    event = _get_event_in_owned_calendar(db, calendar_id, event_id, user_id)
+    event = _managed_event(db, calendar_id, event_id, user_id)
     exc = repository.get_exception_for_event(db, event_id, exception_id)
     if exc is None:
         raise HTTPException(status_code=404, detail="Exception not found")
@@ -1014,8 +1261,7 @@ def _count_before_selected(event, selected) -> int:
 
 
 def edit_occurrence(db, calendar_id, event_id, user_id, data):
-    _get_owned_calendar(db, calendar_id, user_id)
-    event = _get_event_in_owned_calendar(db, calendar_id, event_id, user_id)
+    event = _managed_event(db, calendar_id, event_id, user_id)
     if event.recurrence_rule is None:
         raise HTTPException(status_code=422, detail="Event is not recurring")
 
@@ -1082,8 +1328,16 @@ def edit_occurrence(db, calendar_id, event_id, user_id, data):
                 detail="Existing exceptions must be resolved before changing series timing or recurrence",
             )
 
-        eu = EventUpdate(**updates)
-        _apply_event_update(event, eu)
+        if "project_id" in updates:
+            new_project_id = updates.pop("project_id")
+            if event.project_id is not None:
+                project_service.require_project_manage(db, user_id, event.project_id)
+            if new_project_id is not None:
+                project_service.require_project_manage(db, user_id, new_project_id)
+            event.project_id = new_project_id
+        if updates:
+            eu = EventUpdate(**updates)
+            _apply_event_update(event, eu)
         try:
             db.commit()
         except IntegrityError:
@@ -1101,7 +1355,7 @@ def edit_occurrence(db, calendar_id, event_id, user_id, data):
 
     if scope == "following":
         # Only safe fields for future series.
-        allowed = {"title", "description", "location", "recurrence_rule"}
+        allowed = {"title", "description", "location", "recurrence_rule", "project_id"}
         if not set(updates).issubset(allowed):
             raise HTTPException(
                 status_code=422,
@@ -1184,6 +1438,15 @@ def edit_occurrence(db, calendar_id, event_id, user_id, data):
         new_location = updates.get("location", event.location)
         new_timezone = event.timezone
 
+        if "project_id" in updates:
+            new_project_id = updates["project_id"]
+            if event.project_id is not None:
+                project_service.require_project_manage(db, user_id, event.project_id)
+            if new_project_id is not None:
+                project_service.require_project_manage(db, user_id, new_project_id)
+        else:
+            new_project_id = event.project_id
+
         if event.is_all_day:
             sel_date = original if not isinstance(original, datetime) else original.date()
             duration_days = (event.end_date - event.start_date).days
@@ -1199,6 +1462,7 @@ def edit_occurrence(db, calendar_id, event_id, user_id, data):
                 "timezone": None,
                 "recurrence_rule": new_rule,
                 "category": event.category,
+                "project_id": new_project_id,
             }
         else:
             sel_dt = original.astimezone(ZoneInfo(event.timezone)) if isinstance(original, datetime) else original
@@ -1215,6 +1479,7 @@ def edit_occurrence(db, calendar_id, event_id, user_id, data):
                 "timezone": new_timezone,
                 "recurrence_rule": new_rule,
                 "category": event.category,
+                "project_id": new_project_id,
             }
 
         # Migrate exceptions.
@@ -1294,14 +1559,12 @@ def edit_occurrence(db, calendar_id, event_id, user_id, data):
 
 
 def list_reminders(db, calendar_id, event_id, user_id):
-    _get_owned_calendar(db, calendar_id, user_id)
-    _get_event_in_owned_calendar(db, calendar_id, event_id, user_id)
+    _readable_event(db, calendar_id, event_id, user_id)
     return repository.list_reminders_for_event(db, event_id)
 
 
 def create_reminder(db, calendar_id, event_id, user_id, data: ReminderCreate):
-    _get_owned_calendar(db, calendar_id, user_id)
-    event = _get_event_in_owned_calendar(db, calendar_id, event_id, user_id)
+    event = _managed_event(db, calendar_id, event_id, user_id)
     reminder = repository.create_reminder(db, event_id, data.minutes_before)
     try:
         db.commit()
@@ -1314,8 +1577,7 @@ def create_reminder(db, calendar_id, event_id, user_id, data: ReminderCreate):
 
 
 def update_reminder(db, calendar_id, event_id, reminder_id, user_id, data: ReminderUpdate):
-    _get_owned_calendar(db, calendar_id, user_id)
-    event = _get_event_in_owned_calendar(db, calendar_id, event_id, user_id)
+    event = _managed_event(db, calendar_id, event_id, user_id)
     reminder = repository.get_reminder_for_event(db, event_id, reminder_id)
     if reminder is None:
         raise HTTPException(status_code=404, detail="Reminder not found")
@@ -1337,8 +1599,7 @@ def update_reminder(db, calendar_id, event_id, reminder_id, user_id, data: Remin
 
 
 def delete_reminder(db, calendar_id, event_id, reminder_id, user_id):
-    _get_owned_calendar(db, calendar_id, user_id)
-    _get_event_in_owned_calendar(db, calendar_id, event_id, user_id)
+    event = _managed_event(db, calendar_id, event_id, user_id)
     reminder = repository.get_reminder_for_event(db, event_id, reminder_id)
     if reminder is None:
         raise HTTPException(status_code=404, detail="Reminder not found")
@@ -1357,14 +1618,14 @@ def delete_reminder(db, calendar_id, event_id, reminder_id, user_id):
 def list_comments(
     db: Session, calendar_id: int, event_id: int, user_id: int, *, limit: int = 50, offset: int = 0
 ):
-    _get_event_in_owned_calendar(db, calendar_id, event_id, user_id)
+    _readable_event(db, calendar_id, event_id, user_id)
     return repository.list_comments_for_event(db, event_id, limit=limit, offset=offset)
 
 
 def create_comment(
     db: Session, calendar_id: int, event_id: int, user_id: int, data: EventCommentCreate
 ):
-    _get_event_in_owned_calendar(db, calendar_id, event_id, user_id)
+    _managed_event(db, calendar_id, event_id, user_id)
     comment = repository.create_comment(db, event_id=event_id, user_id=user_id, content=data.content)
     try:
         db.commit()
@@ -1378,7 +1639,7 @@ def create_comment(
 def update_comment(
     db: Session, calendar_id: int, event_id: int, comment_id: int, user_id: int, data: EventCommentUpdate
 ):
-    _get_event_in_owned_calendar(db, calendar_id, event_id, user_id)
+    _managed_event(db, calendar_id, event_id, user_id)
     comment = repository.get_comment_for_event(db, event_id, comment_id)
     if comment is None or comment.user_id != user_id:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Comment not found")
@@ -1402,7 +1663,7 @@ def update_comment(
 def delete_comment(
     db: Session, calendar_id: int, event_id: int, comment_id: int, user_id: int
 ) -> None:
-    _get_event_in_owned_calendar(db, calendar_id, event_id, user_id)
+    _managed_event(db, calendar_id, event_id, user_id)
     comment = repository.get_comment_for_event(db, event_id, comment_id)
     if comment is None or comment.user_id != user_id:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Comment not found")

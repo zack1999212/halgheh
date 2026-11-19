@@ -86,3 +86,9 @@ def delete_expired_batch(db: Session, cutoff: datetime, batch_size: int) -> int:
     stmt = delete(Notification).where(Notification.id.in_(subq))
     result = db.execute(stmt)
     return int(result.rowcount or 0)
+
+
+def create(db: Session, **fields) -> Notification:
+    notification = Notification(**fields)
+    db.add(notification)
+    return notification

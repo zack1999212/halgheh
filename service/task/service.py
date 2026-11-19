@@ -32,6 +32,8 @@ from sqlalchemy.orm import Session
 
 from . import permissions, repository
 from .models import DONE_STATUS, TASK_STATUSES, Task
+from ..project import permissions as project_permissions
+from ..project import service as project_service
 from .schemas import (
     SubtaskCreate,
     TaskCreate,
@@ -95,11 +97,30 @@ def _commit(db: Session, *, conflict_detail: str, conflict_status: int) -> None:
         raise HTTPException(status_code=conflict_status, detail=conflict_detail)
 
 
+def _project_role_for_task(db: Session, task: Task, actor_id: int) -> str:
+    if task.project_id is None:
+        return project_permissions.ROLE_NONE
+    return project_service.get_project_role(db, actor_id, task.project_id)
+
+
+def _access_role(db: Session, task: Task | None, actor_id: int) -> str:
+    if task is None:
+        return permissions.ROLE_NONE
+    if task.project_id is not None:
+        prole = _project_role_for_task(db, task, actor_id)
+        if not project_permissions.can_view(prole):
+            return permissions.ROLE_NONE
+        if project_permissions.can_manage_project_content(prole):
+            return permissions.ROLE_OWNER
+        return permissions.ROLE_PROJECT_VIEWER
+    return permissions.task_role(task, actor_id)
+
+
 def _visible_task(db: Session, actor_id: int, task_id: int) -> tuple[Task, str]:
     """Load a task the actor can see, else 404 (indistinguishable from
     nonexistent — guessed ids reveal nothing)."""
     task = repository.get_task(db, task_id)
-    role = permissions.task_role(task, actor_id)
+    role = _access_role(db, task, actor_id)
     if role == permissions.ROLE_NONE:
         raise _not_found()
     return task, role
@@ -131,6 +152,7 @@ def serialize_task(task: Task) -> dict:
         "completed_at": task.completed_at,
         "parent_task_id": task.parent_task_id,
         "created_by": task.created_by,
+        "project_id": task.project_id,
         "created_at": task.created_at,
         "updated_at": task.updated_at,
         "labels": [link.label for link in task.label_assignments],
@@ -147,6 +169,9 @@ def create_task(db: Session, actor_id: int, data: TaskCreate) -> Task:
     """Create a task owned by the authenticated actor (rule: every task has
     an authenticated creator; ids from the request body are never trusted)."""
     _validate_dates(data.start_date, data.due_date)
+    project_id = getattr(data, "project_id", None)
+    if project_id is not None:
+        project_service.require_project_manage(db, actor_id, project_id)
     task = repository.create_task(
         db,
         title=data.title,
@@ -155,6 +180,7 @@ def create_task(db: Session, actor_id: int, data: TaskCreate) -> Task:
         priority=data.priority,
         created_by=actor_id,
         parent_task_id=None,
+        project_id=project_id,
         start_date=data.start_date,
         due_date=data.due_date,
         completed_at=None,
@@ -199,6 +225,7 @@ def create_subtask(
         priority=data.priority,
         created_by=actor_id,
         parent_task_id=parent.id,
+        project_id=parent.project_id,
         start_date=data.start_date,
         due_date=data.due_date,
         completed_at=None,
@@ -256,6 +283,28 @@ def update_task(db: Session, actor_id: int, task_id: int, data: TaskUpdate) -> T
     task = _owned_task(db, actor_id, task_id)
     updates = data.model_dump(exclude_unset=True)
 
+    old_project_id = task.project_id
+    project_changed = False
+    if "project_id" in updates:
+        new_project_id = updates.pop("project_id")
+        if task.project_id is not None:
+            project_service.require_project_manage(db, actor_id, task.project_id)
+        if new_project_id is not None:
+            project_service.require_project_manage(db, actor_id, new_project_id)
+        if task.project_id is None and task.created_by != actor_id:
+            raise _forbidden("Not allowed to modify this task")
+        task.project_id = new_project_id
+        if old_project_id != new_project_id:
+            project_changed = True
+            repository.add_activity(
+                db,
+                task_id=task.id,
+                actor_id=actor_id,
+                action="project_changed",
+                old_value=_snap(old_project_id),
+                new_value=_snap(new_project_id),
+            )
+
     if "start_date" in updates or "due_date" in updates:
         merged_start = updates.get("start_date", task.start_date)
         merged_due = updates.get("due_date", task.due_date)
@@ -270,7 +319,7 @@ def update_task(db: Session, actor_id: int, task_id: int, data: TaskUpdate) -> T
             (field, _FIELD_ACTIONS.get(field, "task_updated"), _snap(old_value), _snap(new_value))
         )
 
-    if not changed:
+    if not changed and not project_changed:
         return task
 
     repository.update_task(db, task, **updates)
@@ -413,7 +462,7 @@ def list_subtasks(
     db: Session, actor_id: int, parent_task_id: int, flt: TaskFilter
 ) -> tuple[list[Task], int]:
     _visible_task(db, actor_id, parent_task_id)
-    return repository.list_subtasks(db, parent_task_id, flt)
+    return repository.list_subtasks(db, actor_id, parent_task_id, flt)
 
 
 def get_parent_task(db: Session, actor_id: int, task_id: int) -> Task | None:

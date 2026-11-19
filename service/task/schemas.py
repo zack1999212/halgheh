@@ -42,6 +42,7 @@ class TaskFilter(BaseModel):
     priority: list[str] = Field(default_factory=list)
     created_by: int | None = None
     assigned_user_id: int | None = None
+    project_id: int | None = None
     parent_task_id: int | None = None
     label_id: int | None = None
     due: StatusFilterValue | None = None
@@ -87,6 +88,7 @@ class TaskCreate(BaseModel):
     title: str = Field(..., min_length=1, max_length=200)
     description: str | None = None
     priority: str = "medium"
+    project_id: int | None = None
     start_date: date | None = None
     due_date: date | None = None
 
@@ -124,6 +126,7 @@ class TaskUpdate(BaseModel):
     title: str | None = Field(default=None, min_length=1, max_length=200)
     description: str | None = None
     priority: str | None = None
+    project_id: int | None = None
     start_date: date | None = None
     due_date: date | None = None
 
@@ -348,6 +351,7 @@ class TaskSummary(BaseModel):
     completed_at: datetime | None
     parent_task_id: int | None
     created_by: int
+    project_id: int | None = None
     created_at: datetime
     updated_at: datetime
 

@@ -11,6 +11,8 @@ from .calendar.router import router as calendar_router
 from .notifications.router import router as notifications_router
 import service.notifications.models  # noqa: F401
 from .docs.router import router as docs_router
+from .project.router import invitations_router as project_invitations_router
+from .project.router import router as project_router
 from .share.router import router as share_router
 from .task.router import router as task_router
 
@@ -37,6 +39,8 @@ app.include_router(agent_router)
 app.include_router(docs_router)
 app.include_router(calendar_router)
 app.include_router(notifications_router)
+app.include_router(project_router)
+app.include_router(project_invitations_router)
 app.include_router(task_router)
 app.include_router(share_router)
 

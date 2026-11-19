@@ -130,3 +130,15 @@ def update_preferences(db: Session, user_id: int, data: NotificationPreferenceUp
         raise
     db.refresh(preference)
     return NotificationPreferenceResponse.model_validate(preference)
+
+
+def add_notification(db: Session, *, user_id: int, type: str, title: str, message: str, **extra):
+    """Create a notification in the current session without committing."""
+    return repository.create(
+        db,
+        user_id=user_id,
+        type=type,
+        title=title,
+        message=message,
+        **extra,
+    )

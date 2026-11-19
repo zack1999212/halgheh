@@ -22,6 +22,7 @@ from sqlalchemy import Select, and_, case, func, or_, select
 from sqlalchemy.orm import Session, selectinload
 
 from ..auth.models import User
+from ..project.models import Project, ProjectMember
 from .models import (
     Task,
     TaskActivity,
@@ -67,24 +68,44 @@ def _active_assignment_for(user_id: int):
     )
 
 
+def _accessible_projects_subquery(user_id: int):
+    owned = select(Project.id).where(Project.owner_id == user_id)
+    joined = select(ProjectMember.project_id).where(ProjectMember.user_id == user_id)
+    return owned.union(joined)
+
+
 def _visible_clause(user_id: int):
-    """Visibility predicate: creator, active assignee, or a subtask whose
-    parent is visible one level up (subtasks are owner-created, so deeper
-    chains inherit the creator's visibility)."""
+    """Visibility predicate.
+
+    Personal tasks (project_id IS NULL): creator, active assignee, or a
+    subtask whose parent is visible one level up.
+    Project tasks: any task whose project is accessible to the user.
+    """
     assignee_active = _active_assignment_for(user_id)
-    parent_visible = Task.parent_task_id.in_(
+    personal_parent_visible = Task.parent_task_id.in_(
         select(Task.id).where(
-            or_(
-                Task.created_by == user_id,
-                Task.assignments.any(assignee_active),
+            and_(
+                Task.project_id.is_(None),
+                or_(
+                    Task.created_by == user_id,
+                    Task.assignments.any(assignee_active),
+                ),
             )
         )
     )
-    return or_(
-        Task.created_by == user_id,
-        Task.assignments.any(assignee_active),
-        parent_visible,
+    personal_visible = and_(
+        Task.project_id.is_(None),
+        or_(
+            Task.created_by == user_id,
+            Task.assignments.any(assignee_active),
+            personal_parent_visible,
+        ),
     )
+    project_visible = and_(
+        Task.project_id.is_not(None),
+        Task.project_id.in_(_accessible_projects_subquery(user_id)),
+    )
+    return or_(personal_visible, project_visible)
 
 
 def _order_clause(sort: str | None, order: str) -> tuple:
@@ -113,6 +134,8 @@ def _apply_filters(stmt: Select, flt: TaskFilter) -> Select:
         )
     if flt.parent_task_id is not None:
         stmt = stmt.where(Task.parent_task_id == flt.parent_task_id)
+    if getattr(flt, "project_id", None) is not None:
+        stmt = stmt.where(Task.project_id == flt.project_id)
     if flt.label_id is not None:
         stmt = stmt.where(
             Task.label_assignments.any(TaskLabelAssignment.label_id == flt.label_id)
@@ -181,12 +204,19 @@ def list_visible(db: Session, user_id: int, flt: TaskFilter):
 
 
 def list_created_by(db: Session, user_id: int, flt: TaskFilter):
-    return _list_with_filters(db, Task.created_by == user_id, flt)
+    return _list_with_filters(
+        db, and_(Task.created_by == user_id, _visible_clause(user_id)), flt
+    )
 
 
 def list_assigned_to(db: Session, user_id: int, flt: TaskFilter):
     return _list_with_filters(
-        db, Task.assignments.any(_active_assignment_for(user_id)), flt
+        db,
+        and_(
+            Task.assignments.any(_active_assignment_for(user_id)),
+            _visible_clause(user_id),
+        ),
+        flt,
     )
 
 
@@ -195,18 +225,25 @@ def list_assigned_by(db: Session, user_id: int, flt: TaskFilter):
     delegated" list; the future manager view)."""
     return _list_with_filters(
         db,
-        Task.assignments.any(
-            and_(
-                TaskAssignment.assigned_by == user_id,
-                TaskAssignment.assignment_status == "active",
-            )
+        and_(
+            Task.assignments.any(
+                and_(
+                    TaskAssignment.assigned_by == user_id,
+                    TaskAssignment.assignment_status == "active",
+                )
+            ),
+            _visible_clause(user_id),
         ),
         flt,
     )
 
 
-def list_subtasks(db: Session, parent_task_id: int, flt: TaskFilter):
-    return _list_with_filters(db, Task.parent_task_id == parent_task_id, flt)
+def list_subtasks(db: Session, user_id: int, parent_task_id: int, flt: TaskFilter):
+    return _list_with_filters(
+        db,
+        and_(Task.parent_task_id == parent_task_id, _visible_clause(user_id)),
+        flt,
+    )
 
 
 def task_statistics(db: Session, user_id: int) -> dict:

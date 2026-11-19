@@ -12,6 +12,8 @@ from ..repositories import folders as folder_repository
 from ..repositories import tags as tag_repository
 from ..schemas import DocumentCreate, DocumentUpdate
 from . import access
+from ...project import permissions as project_permissions
+from ...project import service as project_service
 
 # Keep room for the "-2", "-3"... disambiguation suffixes.
 MAX_SLUG_LENGTH = 240
@@ -46,10 +48,14 @@ def create_document(db: Session, user: User, data: DocumentCreate) -> Document:
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail="Folder not found",
             )
+    project_id = getattr(data, "project_id", None)
+    if project_id is not None:
+        project_service.require_project_manage(db, user.id, project_id)
     document = document_repository.create(
         db,
         workspace_id=data.workspace_id,
         folder_id=data.folder_id,
+        project_id=project_id,
         owner_id=user.id,
         title=data.title,
         content=data.content,
@@ -87,6 +93,18 @@ def update_document(
     a new immutable version created by ``user``. Slugs stay stable across
     renames so links to a document never break."""
     updates = data.model_dump(exclude_unset=True)
+    if "project_id" in updates:
+        new_project_id = updates.pop("project_id")
+        if document.project_id is not None:
+            project_service.require_project_manage(db, user.id, document.project_id)
+        if new_project_id is not None:
+            project_service.require_project_manage(db, user.id, new_project_id)
+        if document.project_id is None and document.owner_id != user.id:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Only the document owner can perform this action",
+            )
+        document.project_id = new_project_id
     if "folder_id" in updates and updates["folder_id"] is not None:
         folder = folder_repository.get_in_workspace(
             db, updates["folder_id"], document.workspace_id
@@ -146,6 +164,7 @@ def list_documents(
     limit: int,
     offset: int,
     workspace_id: int | None = None,
+    project_id: int | None = None,
     folder_id: int | None = None,
     q: str | None = None,
     tag_id: int | None = None,
@@ -161,6 +180,7 @@ def list_documents(
         limit=limit,
         offset=offset,
         workspace_id=workspace_id,
+        project_id=project_id,
         folder_id=folder_id,
         q=q,
         tag_id=tag_id,
