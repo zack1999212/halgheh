@@ -38,6 +38,9 @@ export default function TaskDetailPanel({
   taskId,
   currentUserId,
   refreshKey = 0,
+  readOnly = false,
+  canManage: canManageProp,
+  canComment: canCommentProp,
   onClose,
   onEdit,
   onDeleted,
@@ -62,6 +65,10 @@ export default function TaskDetailPanel({
 
   const task = details.task
   const isOwner = Boolean(task && currentUserId != null && task.created_by === currentUserId)
+  const canManage = canManageProp != null ? Boolean(canManageProp) : isOwner
+  const canMutate = !readOnly && canManage
+  const canChangeStatus = !readOnly && (canManage || isOwner || (Array.isArray(task?.assignments) && currentUserId != null && task.assignments.some((a) => a.assigned_user_id === currentUserId && a.assignment_status === 'active')))
+  const canComment = canCommentProp != null ? Boolean(canCommentProp) : !readOnly
   const assignments = Array.isArray(task?.assignments) ? task.assignments : []
   const labels = Array.isArray(task?.labels) ? task.labels : []
 
@@ -142,13 +149,15 @@ export default function TaskDetailPanel({
                     <DetailRow icon={Flag} label="Status">
                       <div className="flex flex-wrap items-center gap-2">
                         <span>{statusLabel(task.status)}</span>
-                        <div className="flex flex-wrap gap-1">
-                          {TASK_STATUSES.map((s) => (
-                            <Button key={s.id} type="button" variant={s.id === task.status ? 'default' : 'outline'} size="sm" className="h-7 px-2 text-[11.5px]" disabled={statusBusy || s.id === task.status} onClick={() => handleStatusChange(s.id)}>
-                              {s.label}
-                            </Button>
-                          ))}
-                        </div>
+                        {canChangeStatus ? (
+                          <div className="flex flex-wrap gap-1">
+                            {TASK_STATUSES.map((s) => (
+                              <Button key={s.id} type="button" variant={s.id === task.status ? 'default' : 'outline'} size="sm" className="h-7 px-2 text-[11.5px]" disabled={statusBusy || s.id === task.status} onClick={() => handleStatusChange(s.id)}>
+                                {s.label}
+                              </Button>
+                            ))}
+                          </div>
+                        ) : null}
                       </div>
                       <p className="mt-1 text-[11.5px] text-muted-foreground">Status changes use the supported status endpoint (backend validates transitions/permissions).</p>
                     </DetailRow>
@@ -168,7 +177,7 @@ export default function TaskDetailPanel({
                                 {currentUserId != null && a.assigned_user_id === currentUserId ? 'You' : `User #${a.assigned_user_id}`}
                                 <span className="text-muted-foreground"> · {a.assignment_status}</span>
                               </span>
-                              {isOwner && a.assignment_status === 'active' && (
+                              {canMutate && a.assignment_status === 'active' && (
                                 <Button type="button" variant="ghost" size="sm" className="h-7 px-2 text-[11.5px] text-destructive hover:text-destructive" disabled={details.assignmentsBusy} onClick={() => details.removeAssignee(a.assigned_user_id)}>
                                   Remove
                                 </Button>
@@ -187,7 +196,7 @@ export default function TaskDetailPanel({
                           {labels.map((l) => <Badge key={l.id} variant="secondary">{l.name}</Badge>)}
                         </div>
                       )}
-                      {isOwner && details.availableLabels.length > 0 && (
+                      {canMutate && details.availableLabels.length > 0 && (
                         <div className="mt-2 flex flex-wrap gap-2">
                           {details.availableLabels.map((label) => {
                             const attached = labels.some((l) => l.id === label.id)
@@ -232,7 +241,7 @@ export default function TaskDetailPanel({
                     busy={details.subtasksBusy}
                     onCreate={details.addSubtask}
                     onOpenTask={onOpenTask}
-                    canCreate={isOwner}
+                    canCreate={canMutate}
                   />
 
                   <Separator />
@@ -244,6 +253,7 @@ export default function TaskDetailPanel({
                     currentUserId={currentUserId}
                     onAdd={details.addComment}
                     onDelete={details.removeComment}
+                    canComment={canComment}
                   />
 
                   <Separator />
@@ -255,12 +265,18 @@ export default function TaskDetailPanel({
           </ScrollArea>
 
           <div className="flex items-center gap-2 border-t border-border px-5 py-3 pb-[calc(0.75rem+env(safe-area-inset-bottom,0px))]">
-            <Button type="button" variant="outline" className="h-9 flex-1 gap-1.5" onClick={() => onEdit?.(task)} disabled={!task || details.loading}>
-              <Pencil size={14} aria-hidden="true" /> Edit
-            </Button>
-            <Button type="button" variant="ghost" className="h-9 flex-1 gap-1.5 text-destructive hover:bg-destructive/10 hover:text-destructive" onClick={() => setDeleteOpen(true)} disabled={!task || details.loading || !isOwner}>
-              <Trash2 size={14} aria-hidden="true" /> Delete
-            </Button>
+            {canMutate ? (
+              <>
+                <Button type="button" variant="outline" className="h-9 flex-1 gap-1.5" onClick={() => onEdit?.(task)} disabled={!task || details.loading}>
+                  <Pencil size={14} aria-hidden="true" /> Edit
+                </Button>
+                <Button type="button" variant="ghost" className="h-9 flex-1 gap-1.5 text-destructive hover:bg-destructive/10 hover:text-destructive" onClick={() => setDeleteOpen(true)} disabled={!task || details.loading}>
+                  <Trash2 size={14} aria-hidden="true" /> Delete
+                </Button>
+              </>
+            ) : (
+              <p className="w-full text-center text-[12.5px] text-muted-foreground">View-only access. Task management actions are not available for your role.</p>
+            )}
           </div>
         </SheetContent>
       </Sheet>

@@ -42,6 +42,32 @@ export function listOccurrences(
   })
 }
 
+export function listProjectEvents(
+  projectId,
+  { start, end, timezone, signal } = {},
+) {
+  const params = new URLSearchParams()
+  if (start) params.set('start', start)
+  if (end) params.set('end', end)
+  if (timezone) params.set('timezone', timezone)
+  const qs = params.toString()
+  return apiRequest(`/calendars/project/${projectId}/events${qs ? `?${qs}` : ''}`, {
+    fallbackMessage: 'Could not load project events.',
+    signal,
+  })
+}
+
+export function listProjectOccurrences(
+  projectId,
+  { start, end, timezone, signal } = {},
+) {
+  const params = new URLSearchParams({ start, end, timezone })
+  return apiRequest(`/calendars/project/${projectId}/occurrences?${params}`, {
+    fallbackMessage: 'Could not load project events.',
+    signal,
+  })
+}
+
 export function createEvent(calendarId, payload) {
   return apiRequest(`/calendars/${calendarId}/events`, {
     method: 'POST',

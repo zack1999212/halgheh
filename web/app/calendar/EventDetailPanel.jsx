@@ -95,13 +95,15 @@ export default function EventDetailPanel({
   occurrence,
   calendar,
   refreshKey = 0,
+  readOnly = false,
   onClose,
   onEdit,
   onDelete,
   onUnauthorized,
 }) {
+  const resolvedCalendarId = calendar?.id ?? occurrence?.calendarId ?? occurrence?.calendar_id ?? null
   const details = useEventDetails({
-    calendarId: calendar?.id,
+    calendarId: resolvedCalendarId,
     occurrence,
     refreshKey,
     onUnauthorized,
@@ -129,7 +131,7 @@ export default function EventDetailPanel({
   const timezone = event?.timezone || occurrence.timezone
   const recurrence = describeRecurrence(event?.recurrence_rule)
   const when = whenFor(occurrence, timezone)
-  const canEdit = Boolean(event)
+  const canEdit = Boolean(event) && !readOnly
   const category = categoryOf(occurrence.category)
 
   const reminderOptions = Array.from(
@@ -237,17 +239,17 @@ export default function EventDetailPanel({
                   </DetailRow>
                 )}
 
-                {calendar?.name && (
+                {(calendar?.name || resolvedCalendarId) && (
                   <DetailRow icon={Calendar} label="Calendar">
                     <span className="flex items-center gap-1.5">
-                      {calendar.color && (
+                      {calendar?.color && (
                         <span
                           className="size-2.5 shrink-0 rounded-full border border-black/10"
                           style={{ background: calendar.color }}
                           aria-hidden="true"
                         />
                       )}
-                      {calendar.name}
+                      {calendar?.name || `Calendar #${resolvedCalendarId}`}
                     </span>
                   </DetailRow>
                 )}
@@ -273,75 +275,83 @@ export default function EventDetailPanel({
                     <ul className="grid gap-2">
                       {details.reminders.map((reminder) => (
                         <li className="flex items-center gap-2" key={reminder.id}>
-                          <Select
-                            value={String(reminder.minutes_before)}
-                            disabled={details.busy}
-                            onValueChange={(next) =>
-                              details.changeReminder(
-                                reminder.id,
-                                Number(next),
-                              )
-                            }
-                          >
-                            <SelectTrigger
-                              className="h-8 flex-1 text-[12.5px]"
-                              aria-label={`Reminder timing: ${reminderLabel(reminder.minutes_before)}`}
-                            >
-                              <SelectValue />
-                            </SelectTrigger>
-                            <SelectContent>
-                              {reminderOptions.map((minutes) => (
-                                <SelectItem key={minutes} value={String(minutes)}>
-                                  {reminderLabel(minutes)}
-                                </SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
-                          <IconButton
-                            label={`Delete reminder ${reminderLabel(reminder.minutes_before)}`}
-                            className="hover:text-destructive"
-                            onClick={() => details.removeReminder(reminder.id)}
-                            disabled={details.busy}
-                          >
-                            <Trash2 size={13} aria-hidden="true" />
-                          </IconButton>
+                          {readOnly ? (
+                            <span className="text-[13px] text-foreground">{reminderLabel(reminder.minutes_before)}</span>
+                          ) : (
+                            <>
+                              <Select
+                                value={String(reminder.minutes_before)}
+                                disabled={details.busy}
+                                onValueChange={(next) =>
+                                  details.changeReminder(
+                                    reminder.id,
+                                    Number(next),
+                                  )
+                                }
+                              >
+                                <SelectTrigger
+                                  className="h-8 flex-1 text-[12.5px]"
+                                  aria-label={`Reminder timing: ${reminderLabel(reminder.minutes_before)}`}
+                                >
+                                  <SelectValue />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  {reminderOptions.map((minutes) => (
+                                    <SelectItem key={minutes} value={String(minutes)}>
+                                      {reminderLabel(minutes)}
+                                    </SelectItem>
+                                  ))}
+                                </SelectContent>
+                              </Select>
+                              <IconButton
+                                label={`Delete reminder ${reminderLabel(reminder.minutes_before)}`}
+                                className="hover:text-destructive"
+                                onClick={() => details.removeReminder(reminder.id)}
+                                disabled={details.busy}
+                              >
+                                <Trash2 size={13} aria-hidden="true" />
+                              </IconButton>
+                            </>
+                          )}
                         </li>
                       ))}
                     </ul>
                   )}
 
-                  <div className="mt-2 flex items-center gap-2">
-                    <Select
-                      value={String(newReminder)}
-                      disabled={details.busy}
-                      onValueChange={(next) => setNewReminder(Number(next))}
-                    >
-                      <SelectTrigger
-                        className="h-8 flex-1 text-[12.5px]"
-                        aria-label="New reminder timing"
+                  {!readOnly && (
+                    <div className="mt-2 flex items-center gap-2">
+                      <Select
+                        value={String(newReminder)}
+                        disabled={details.busy}
+                        onValueChange={(next) => setNewReminder(Number(next))}
                       >
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {REMINDER_PRESETS.map((minutes) => (
-                          <SelectItem key={minutes} value={String(minutes)}>
-                            {reminderLabel(minutes)}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="sm"
-                      className="h-8 gap-1"
-                      onClick={() => details.addReminder(newReminder)}
-                      disabled={details.busy}
-                    >
-                      <Plus size={13} aria-hidden="true" />
-                      Add
-                    </Button>
-                  </div>
+                        <SelectTrigger
+                          className="h-8 flex-1 text-[12.5px]"
+                          aria-label="New reminder timing"
+                        >
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {REMINDER_PRESETS.map((minutes) => (
+                            <SelectItem key={minutes} value={String(minutes)}>
+                              {reminderLabel(minutes)}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        className="h-8 gap-1"
+                        onClick={() => details.addReminder(newReminder)}
+                        disabled={details.busy}
+                      >
+                        <Plus size={13} aria-hidden="true" />
+                        Add
+                      </Button>
+                    </div>
+                  )}
 
                   <FieldMessage error={details.remindersError} />
                 </DetailRow>
@@ -382,14 +392,16 @@ export default function EventDetailPanel({
                         >
                           {formatDateTime(comment.created_at)}
                         </time>
-                        <IconButton
-                          label="Delete comment"
-                          className="size-6 hover:text-destructive"
-                          onClick={() => details.removeComment(comment.id)}
-                          disabled={details.commentsBusy}
-                        >
-                          <Trash2 size={12} aria-hidden="true" />
-                        </IconButton>
+                        {!readOnly && (
+                          <IconButton
+                            label="Delete comment"
+                            className="size-6 hover:text-destructive"
+                            onClick={() => details.removeComment(comment.id)}
+                            disabled={details.commentsBusy}
+                          >
+                            <Trash2 size={12} aria-hidden="true" />
+                          </IconButton>
+                        )}
                       </div>
                     </li>
                   ))}
@@ -398,51 +410,61 @@ export default function EventDetailPanel({
 
               <FieldMessage error={details.commentsError} />
 
-              <form className="grid gap-2" onSubmit={handleAddComment}>
-                <Textarea
-                  className="min-h-[60px] rounded-[var(--radius-md)] px-3 py-2 text-base md:text-[15px]"
-                  rows={2}
-                  value={commentDraft}
-                  maxLength={5000}
-                  placeholder="Add a comment…"
-                  disabled={details.commentsBusy}
-                  onChange={(changeEvent) => setCommentDraft(changeEvent.target.value)}
-                />
-                <Button
-                  type="submit"
-                  variant="outline"
-                  size="sm"
-                  className="h-8 w-fit"
-                  disabled={details.commentsBusy || !commentDraft.trim()}
-                >
-                  {details.commentsBusy ? 'Saving…' : 'Comment'}
-                </Button>
-              </form>
+              {!readOnly ? (
+                <form className="grid gap-2" onSubmit={handleAddComment}>
+                  <Textarea
+                    className="min-h-[60px] rounded-[var(--radius-md)] px-3 py-2 text-base md:text-[15px]"
+                    rows={2}
+                    value={commentDraft}
+                    maxLength={5000}
+                    placeholder="Add a comment…"
+                    disabled={details.commentsBusy}
+                    onChange={(changeEvent) => setCommentDraft(changeEvent.target.value)}
+                  />
+                  <Button
+                    type="submit"
+                    variant="outline"
+                    size="sm"
+                    className="h-8 w-fit"
+                    disabled={details.commentsBusy || !commentDraft.trim()}
+                  >
+                    {details.commentsBusy ? 'Saving…' : 'Comment'}
+                  </Button>
+                </form>
+              ) : (
+                <p className="text-[12px] text-muted-foreground">View-only access. Comment actions are not available for your role.</p>
+              )}
             </section>
           </div>
         </ScrollArea>
 
         <div className="flex items-center gap-2 border-t border-border px-5 py-3 pb-[calc(0.75rem+env(safe-area-inset-bottom,0px))]">
-          <Button
-            type="button"
-            variant="outline"
-            className="h-9 flex-1 gap-1.5"
-            onClick={() => onEdit?.(event, occurrence)}
-            disabled={!canEdit}
-          >
-            <Pencil size={14} aria-hidden="true" />
-            Edit
-          </Button>
-          <Button
-            type="button"
-            variant="ghost"
-            className="h-9 flex-1 gap-1.5 text-destructive hover:bg-destructive/10 hover:text-destructive"
-            onClick={() => onDelete?.(event, occurrence)}
-            disabled={!canEdit}
-          >
-            <Trash2 size={14} aria-hidden="true" />
-            Delete
-          </Button>
+          {!readOnly ? (
+            <>
+              <Button
+                type="button"
+                variant="outline"
+                className="h-9 flex-1 gap-1.5"
+                onClick={() => onEdit?.(event, occurrence)}
+                disabled={!canEdit}
+              >
+                <Pencil size={14} aria-hidden="true" />
+                Edit
+              </Button>
+              <Button
+                type="button"
+                variant="ghost"
+                className="h-9 flex-1 gap-1.5 text-destructive hover:bg-destructive/10 hover:text-destructive"
+                onClick={() => onDelete?.(event, occurrence)}
+                disabled={!canEdit}
+              >
+                <Trash2 size={14} aria-hidden="true" />
+                Delete
+              </Button>
+            </>
+          ) : (
+            <p className="w-full text-center text-[12.5px] text-muted-foreground">View-only access. Event management actions are not available for your role.</p>
+          )}
         </div>
       </SheetContent>
     </Sheet>

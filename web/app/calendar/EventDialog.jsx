@@ -124,6 +124,7 @@ export default function EventDialog({
   occurrence = null,
   calendarId,
   calendars = [],
+  projectId = null,
   initialAllDay,
   initialStartAt,
   initialEndAt,
@@ -398,6 +399,7 @@ export default function EventDialog({
             recurrence_rule: rule,
             category,
           }
+      if (projectId != null) payload.project_id = Number(projectId)
       await submit(() => createEvent(targetId, payload))
       return
     }
@@ -633,7 +635,7 @@ export default function EventDialog({
           )}
         </div>
 
-        {!isEdit && calendars.length > 1 && (
+        {!isEdit && (projectId != null || calendars.length > 1) && calendars.length > 0 && (
           <div className="grid gap-2">
             <Label htmlFor="event-calendar" className="text-[13px] font-medium">
               Calendar
@@ -654,6 +656,9 @@ export default function EventDialog({
                 ))}
               </SelectContent>
             </Select>
+            {projectId != null && (
+              <p className="text-[12px] text-muted-foreground">The event will be associated with this project.</p>
+            )}
           </div>
         )}
 

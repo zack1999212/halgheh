@@ -5,7 +5,7 @@ import { Badge } from '@/components/ui/badge'
 import TaskCard from './TaskCard.jsx'
 import { KANBAN_COLUMNS } from './utils/taskConstants.js'
 
-export default function TaskBoardView({ items, loading, error, onRetry, onStatusChange, onOpen, isStatusPending }) {
+export default function TaskBoardView({ items, loading, error, onRetry, onStatusChange, onOpen, isStatusPending, readOnly = false, emptyTitle = 'No tasks found', emptyDescription = 'Try adjusting filters or create a new task.' }) {
   if (loading) {
     return <div className="p-2"><LoadingState label="Loading tasks…" /></div>
   }
@@ -15,8 +15,8 @@ export default function TaskBoardView({ items, loading, error, onRetry, onStatus
   if (!items.length) {
     return (
       <EmptyState
-        title="No tasks found"
-        description="Try adjusting filters or create a new task."
+        title={emptyTitle}
+        description={emptyDescription}
         className="py-10"
       />
     )
@@ -39,9 +39,10 @@ export default function TaskBoardView({ items, loading, error, onRetry, onStatus
                     key={task.id}
                     task={task}
                     compact
-                    onStatusChange={onStatusChange}
+                    onStatusChange={readOnly ? undefined : onStatusChange}
                     onOpen={onOpen}
                     busy={typeof isStatusPending === 'function' ? isStatusPending(task.id) : false}
+                    readOnly={readOnly}
                   />
                 ))
               ) : (

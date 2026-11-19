@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { getTaskStatistics, listTasks } from '../api.js'
 
-export default function useTasks({ query, onUnauthorized }) {
+export default function useTasks({ query, onUnauthorized, loadStatistics = true }) {
   const unauthorizedRef = useRef(onUnauthorized)
   useEffect(() => {
     unauthorizedRef.current = onUnauthorized
@@ -11,7 +11,7 @@ export default function useTasks({ query, onUnauthorized }) {
   const [total, setTotal] = useState(0)
   const [statistics, setStatistics] = useState(null)
   const [loading, setLoading] = useState(true)
-  const [statsLoading, setStatsLoading] = useState(true)
+  const [statsLoading, setStatsLoading] = useState(Boolean(loadStatistics))
   const [error, setError] = useState('')
   const [statsError, setStatsError] = useState('')
   const requestRef = useRef(0)
@@ -24,6 +24,12 @@ export default function useTasks({ query, onUnauthorized }) {
   }, [])
 
   const loadStats = useCallback(async () => {
+    if (!loadStatistics) {
+      setStatistics(null)
+      setStatsLoading(false)
+      setStatsError('')
+      return
+    }
     const requestId = ++statsRequestRef.current
     statsAbortRef.current?.abort()
     const controller = new AbortController()
@@ -44,7 +50,7 @@ export default function useTasks({ query, onUnauthorized }) {
     } finally {
       if (requestId === statsRequestRef.current) setStatsLoading(false)
     }
-  }, [handleUnauthorized])
+  }, [handleUnauthorized, loadStatistics])
 
   const load = useCallback(async (nextQuery) => {
     const requestId = ++requestRef.current

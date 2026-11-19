@@ -21,11 +21,12 @@ function MetaRow({ label, value }) {
   )
 }
 
-export default function TaskCard({ task, onStatusChange, onOpen, busy = false, compact = false }) {
+export default function TaskCard({ task, onStatusChange, onOpen, busy = false, compact = false, readOnly = false }) {
   const overdue = isOverdue(task)
   const description = task.description
   const labels = Array.isArray(task.labels) ? task.labels : null
   const assignments = Array.isArray(task.assignments) ? task.assignments : null
+  const canChangeStatus = !readOnly && typeof onStatusChange === 'function'
 
   return (
     <article className={cn('tasks-card flex flex-col gap-3 p-3', compact && 'p-2.5')}>
@@ -67,21 +68,25 @@ export default function TaskCard({ task, onStatusChange, onOpen, busy = false, c
 
       <div className="flex items-center justify-between gap-2 border-t border-border pt-2">
         <span className="text-[11px] text-muted-foreground">ID #{task.id}</span>
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <Button type="button" variant="outline" size="sm" className="h-8 gap-1 text-[12.5px]" disabled={busy} aria-label={`Change status for ${task.title}`}>
-              Status <ChevronDown size={14} aria-hidden="true" />
-            </Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end" className="w-44">
-            <DropdownMenuLabel className="text-[11px] uppercase tracking-[0.06em] text-muted-foreground">Set status</DropdownMenuLabel>
-            {TASK_STATUSES.map((s) => (
-              <DropdownMenuItem key={s.id} disabled={s.id === task.status} onSelect={() => onStatusChange?.(task, s.id)}>
-                {s.label}{s.id === task.status ? ' (current)' : ''}
-              </DropdownMenuItem>
-            ))}
-          </DropdownMenuContent>
-        </DropdownMenu>
+        {canChangeStatus ? (
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button type="button" variant="outline" size="sm" className="h-8 gap-1 text-[12.5px]" disabled={busy} aria-label={`Change status for ${task.title}`}>
+                Status <ChevronDown size={14} aria-hidden="true" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-44">
+              <DropdownMenuLabel className="text-[11px] uppercase tracking-[0.06em] text-muted-foreground">Set status</DropdownMenuLabel>
+              {TASK_STATUSES.map((s) => (
+                <DropdownMenuItem key={s.id} disabled={s.id === task.status} onSelect={() => onStatusChange?.(task, s.id)}>
+                  {s.label}{s.id === task.status ? ' (current)' : ''}
+                </DropdownMenuItem>
+              ))}
+            </DropdownMenuContent>
+          </DropdownMenu>
+        ) : (
+          <span className="text-[11.5px] text-muted-foreground">View only</span>
+        )}
       </div>
     </article>
   )

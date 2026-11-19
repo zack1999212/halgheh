@@ -84,6 +84,9 @@ def list_for_user(
         conditions.append(Document.workspace_id == workspace_id)
     if project_id is not None:
         conditions.append(Document.project_id == project_id)
+    else:
+        # Personal document views/lists must not include project-associated documents.
+        conditions.append(Document.project_id.is_(None))
     if folder_id is not None:
         conditions.append(Document.folder_id == folder_id)
     if q:
@@ -139,6 +142,8 @@ def list_favorited_for_user(
         DocumentFavorite.user_id == user_id,
         DocumentFavorite.document_id == Document.id,
         Document.is_deleted.is_(False),
+        # Personal favorites must not include project-associated documents.
+        Document.project_id.is_(None),
     )
     total = int(
         db.scalar(

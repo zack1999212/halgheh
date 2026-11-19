@@ -1,12 +1,12 @@
 import { TASK_NAV_ITEMS } from './utils/taskConstants.js'
 import { cn } from '@/lib/utils'
 
-export default function TasksSidebar({ activeId, onSelect }) {
+export default function TasksSidebar({ activeId, onSelect, items = TASK_NAV_ITEMS, note }) {
   return (
     <aside className="tasks-nav" aria-label="Task views">
       <div className="tasks-nav-title">Views</div>
       <nav className="grid gap-1">
-        {TASK_NAV_ITEMS.map((item) => {
+        {items.map((item) => {
           const active = item.id === activeId
           return (
             <button
@@ -26,9 +26,15 @@ export default function TasksSidebar({ activeId, onSelect }) {
           )
         })}
       </nav>
-      <p className="mt-3 px-2 text-[11px] leading-relaxed text-muted-foreground">
-        Navigation uses views and filters supported by the current task API. Team-based views are not shown because no team endpoint is available.
-      </p>
+      {note ? (
+        <p className="mt-3 px-2 text-[11px] leading-relaxed text-muted-foreground">
+          {note}
+        </p>
+      ) : (
+        <p className="mt-3 px-2 text-[11px] leading-relaxed text-muted-foreground">
+          Navigation uses views and filters supported by the current task API. Team-based views are not shown because no team endpoint is available.
+        </p>
+      )}
     </aside>
   )
 }

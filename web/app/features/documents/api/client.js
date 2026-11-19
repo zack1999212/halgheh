@@ -88,6 +88,7 @@ export function listDocuments(filters = {}) {
     `${BASE}/documents${queryString({
       workspace_id: filters.workspaceId,
       folder_id: filters.folderId,
+      project_id: filters.projectId,
       q: filters.query,
       tag_id: filters.tagId,
       is_favorite: filters.isFavorite,
@@ -107,15 +108,17 @@ export function getDocument(documentId) {
   })
 }
 
-export function createDocument({ workspaceId, folderId, title, content } = {}) {
+export function createDocument({ workspaceId, folderId, projectId, title, content } = {}) {
+  const body = {
+    folder_id: folderId ?? null,
+    title,
+    content: content ?? '',
+  }
+  if (workspaceId !== undefined && workspaceId !== null) body.workspace_id = workspaceId
+  if (projectId !== undefined) body.project_id = projectId
   return apiRequest(`${BASE}/documents`, {
     method: 'POST',
-    body: {
-      workspace_id: workspaceId,
-      folder_id: folderId ?? null,
-      title,
-      content: content ?? '',
-    },
+    body,
     fallbackMessage: 'Could not create the document.',
   })
 }
@@ -125,6 +128,7 @@ export function updateDocument(documentId, patch) {
   if (patch.title !== undefined) body.title = patch.title
   if (patch.content !== undefined) body.content = patch.content
   if (patch.folderId !== undefined) body.folder_id = patch.folderId
+  if (patch.projectId !== undefined) body.project_id = patch.projectId
   if (patch.isArchived !== undefined) body.is_archived = patch.isArchived
   return apiRequest(`${BASE}/documents/${documentId}`, {
     method: 'PATCH',

@@ -476,13 +476,13 @@ def get_parent_task(db: Session, actor_id: int, task_id: int) -> Task | None:
     return parent
 
 
-def task_statistics(db: Session, actor_id: int) -> dict:
+def task_statistics(db: Session, actor_id: int, project_id: int | None = None) -> dict:
     """Aggregated counters for the actor's visible tasks.
 
     Computed at the SQL level (repository) and completed here with the
     derived metrics the API contract exposes.
     """
-    stats = repository.task_statistics(db, actor_id)
+    stats = repository.task_statistics(db, actor_id, project_id=project_id)
     by_status = stats["by_status"]
     total = sum(by_status.values())
     completed = by_status.get(DONE_STATUS, 0)

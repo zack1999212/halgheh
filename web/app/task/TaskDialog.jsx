@@ -25,6 +25,7 @@ export default function TaskDialog({
   task = null,
   allTasks = [],
   availableLabels = [],
+  projectId = null,
   onClose,
   onSaved,
 }) {
@@ -67,8 +68,12 @@ export default function TaskDialog({
 
   const parentOptions = useMemo(() => {
     const selfId = task?.id
-    return (allTasks || []).filter((t) => t.id !== selfId)
-  }, [allTasks, task?.id])
+    return (allTasks || []).filter((t) => {
+      if (t.id === selfId) return false
+      if (projectId != null) return String(t.project_id) === String(projectId)
+      return true
+    })
+  }, [allTasks, task?.id, projectId])
 
   const attachedLabels = Array.isArray(task?.labels) ? task.labels : []
   const assignments = Array.isArray(task?.assignments) ? task.assignments : []
@@ -100,6 +105,7 @@ export default function TaskDialog({
           start_date: startDate || null,
           due_date: dueDate || null,
         }
+        if (projectId != null) payload.project_id = Number(projectId)
         // Status, assignees, labels, and parent-on-create are not part of TaskCreate schema.
         // Subtask creation/label attachment/assignment are separate supported endpoints and are surfaced in task details.
         await createTask(payload)

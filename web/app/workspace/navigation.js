@@ -1,8 +1,9 @@
-import { Calendar, FileText, LayoutGrid, ListChecks, Settings } from 'lucide-react'
+import { Calendar, FileText, FolderKanban, LayoutGrid, ListChecks, Settings } from 'lucide-react'
 
 /** Primary application sections rendered in the sidebar. */
 export const NAV_ITEMS = [
   { to: '/workspace', label: 'Workspace', icon: LayoutGrid },
+  { to: '/projects', label: 'Projects', icon: FolderKanban },
   { to: '/calendar', label: 'Calendar', icon: Calendar },
   { to: '/tasks', label: 'Tasks', icon: ListChecks },
   { to: '/documents', label: 'Documents', icon: FileText },

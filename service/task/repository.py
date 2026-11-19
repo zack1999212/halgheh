@@ -136,6 +136,10 @@ def _apply_filters(stmt: Select, flt: TaskFilter) -> Select:
         stmt = stmt.where(Task.parent_task_id == flt.parent_task_id)
     if getattr(flt, "project_id", None) is not None:
         stmt = stmt.where(Task.project_id == flt.project_id)
+    elif flt.parent_task_id is None:
+        # Personal views/lists must not include project-associated tasks.
+        # Subtask listings are scoped by an already-authorized parent task.
+        stmt = stmt.where(Task.project_id.is_(None))
     if flt.label_id is not None:
         stmt = stmt.where(
             Task.label_assignments.any(TaskLabelAssignment.label_id == flt.label_id)
@@ -246,10 +250,15 @@ def list_subtasks(db: Session, user_id: int, parent_task_id: int, flt: TaskFilte
     )
 
 
-def task_statistics(db: Session, user_id: int) -> dict:
+def task_statistics(db: Session, user_id: int, project_id: int | None = None) -> dict:
     """Grouped counters over the user's visible tasks (SQL-side aggregation,
     no per-task Python loop)."""
     cond = _visible_clause(user_id)
+    if project_id is not None:
+        cond = and_(cond, Task.project_id == project_id)
+    else:
+        # Personal statistics must not include project-associated tasks.
+        cond = and_(cond, Task.project_id.is_(None))
     by_status = dict(
         db.execute(
             select(Task.status, func.count()).where(cond).group_by(Task.status)

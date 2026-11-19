@@ -294,6 +294,8 @@ def list_events(
 
     if project_id is not None:
         project_service.require_project_view(db, user_id, project_id)
+    elif calendar.user_id != user_id:
+        raise _calendar_not_found()
 
     if start is None and end is None and timezone is None:
         events = repository.list_events_for_calendar(db, calendar_id)
@@ -335,18 +337,19 @@ def list_events(
         )
 
     def _accessible(event: Event) -> bool:
+        if project_id is None:
+            # Personal calendar views must not include project-associated events.
+            return event.project_id is None and calendar.user_id == user_id
         if event.project_id is None:
-            return calendar.user_id == user_id
+            return False
         if not project_permissions.can_view(
             project_service.get_project_role(db, user_id, event.project_id)
         ):
             return False
-        if project_id is not None and event.project_id != project_id:
-            return False
-        return True
+        return event.project_id == project_id
 
     result = [e for e in events if _accessible(e)]
-    if not result and calendar.user_id != user_id:
+    if not result and calendar.user_id != user_id and project_id is not None:
         # Hide the existence of a personal calendar that exposes no accessible
         # project events to this caller.
         raise _calendar_not_found()
@@ -600,11 +603,20 @@ def _validate_occurrence_window(
     return tz, local_start_date, local_end_date
 
 
-def _accessible_event(db: Session, calendar: Calendar, event: Event, user_id: int) -> bool:
+def _accessible_event(
+    db: Session,
+    calendar: Calendar,
+    event: Event,
+    user_id: int,
+    project_id: int | None = None,
+) -> bool:
     """Personal events require calendar ownership; project events require
     accepted membership in the event's project."""
-    if event.project_id is None:
-        return calendar.user_id == user_id
+    if project_id is None:
+        # Personal calendar occurrence views must not include project events.
+        return event.project_id is None and calendar.user_id == user_id
+    if event.project_id is None or event.project_id != project_id:
+        return False
     return project_permissions.can_view(
         project_service.get_project_role(db, user_id, event.project_id)
     )
@@ -645,9 +657,11 @@ def list_occurrences(
         start, end, timezone_name
     )
 
-    if not _has_accessible_event(db, calendar, user_id, project_id):
+    if project_id is not None and not _has_accessible_event(db, calendar, user_id, project_id):
         # Hide another user's personal calendar from callers who receive no
         # project events from it.
+        raise _calendar_not_found()
+    if project_id is None and calendar.user_id != user_id:
         raise _calendar_not_found()
 
     results = _expand_calendar_occurrences(
@@ -723,27 +737,27 @@ def _expand_calendar_occurrences(
 ) -> list[OccurrenceResponse]:
     calendar_id = calendar.id
 
+    def _event_in_scope(e: Event) -> bool:
+        return _accessible_event(db, calendar, e, user_id, project_id)
+
     nonrec_timed = [
         e
         for e in repository.list_nonrecurring_timed_overlapping(
             db, calendar_id, start=start, end=end
         )
-        if _accessible_event(db, calendar, e, user_id)
-        and (project_id is None or e.project_id == project_id)
+        if _event_in_scope(e)
     ]
     nonrec_allday = [
         e
         for e in repository.list_nonrecurring_allday_overlapping(
             db, calendar_id, local_start_date=local_start_date, local_end_date=local_end_date
         )
-        if _accessible_event(db, calendar, e, user_id)
-        and (project_id is None or e.project_id == project_id)
+        if _event_in_scope(e)
     ]
     recurring_events = [
         e
         for e in repository.list_recurring_events_for_calendar(db, calendar_id)
-        if _accessible_event(db, calendar, e, user_id)
-        and (project_id is None or e.project_id == project_id)
+        if _event_in_scope(e)
     ]
 
     recurring_ids = [e.id for e in recurring_events]

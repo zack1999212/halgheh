@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { listOccurrences } from './api.js'
+import { listOccurrences, listProjectOccurrences } from './api.js'
 
 /**
  * Maps a backend occurrence onto the camelCase descriptor used by the detail
@@ -12,6 +12,7 @@ export function occurrenceToSelection(occurrence) {
   }
   return {
     eventId: occurrence.event_id,
+    calendarId: occurrence.calendar_id ?? null,
     title: occurrence.title,
     description: occurrence.description,
     isAllDay: Boolean(occurrence.is_all_day),
@@ -55,6 +56,7 @@ export function occurrenceToCalendarEvent(occurrence, calendar) {
     ? `${occurrence.event_id}:${occurrenceKey || occurrence.event_id}`
     : String(occurrence.event_id)
 
+  const resolvedCalendarId = occurrence.calendar_id ?? calendar?.id ?? null
   const extendedProps = {
     raw: occurrence,
     eventId: occurrence.event_id,
@@ -64,7 +66,7 @@ export function occurrenceToCalendarEvent(occurrence, calendar) {
     originalStartDate: occurrence.original_start_date,
     description: occurrence.description || '',
     timezone: occurrence.timezone || '',
-    calendarId: calendar?.id ?? null,
+    calendarId: resolvedCalendarId,
     calendarName: calendar?.name || '',
     calendarColor: calendar?.color || '',
     category: occurrence.category || 'other',
@@ -100,6 +102,7 @@ export function occurrenceToCalendarEvent(occurrence, calendar) {
  */
 export default function useCalendarEvents({
   calendarId,
+  projectId,
   calendar,
   onUnauthorized,
 }) {
@@ -117,7 +120,8 @@ export default function useCalendarEvents({
 
   const load = useCallback(
     async (range) => {
-      if (!calendarId) {
+      const sourceId = projectId ?? calendarId
+      if (!sourceId) {
         requestRef.current += 1
         abortRef.current?.abort()
         setOccurrences([])
@@ -134,10 +138,15 @@ export default function useCalendarEvents({
       setLoading(true)
       setError('')
       try {
-        const data = await listOccurrences(calendarId, {
-          ...range,
-          signal: controller.signal,
-        })
+        const data = projectId
+          ? await listProjectOccurrences(projectId, {
+              ...range,
+              signal: controller.signal,
+            })
+          : await listOccurrences(calendarId, {
+              ...range,
+              signal: controller.signal,
+            })
         if (requestId !== requestRef.current) {
           return
         }
@@ -157,7 +166,7 @@ export default function useCalendarEvents({
         }
       }
     },
-    [calendarId],
+    [calendarId, projectId],
   )
 
   /** Called from FullCalendar's datesSet; skips identical ranges. */
@@ -191,11 +200,11 @@ export default function useCalendarEvents({
     }
   }, [load])
 
-  // Switching calendars must not leave another calendar's events on screen.
+  // Switching calendars/projects must not leave another scope's events on screen.
   useEffect(() => {
     setOccurrences([])
     setError('')
-  }, [calendarId])
+  }, [calendarId, projectId])
 
   useEffect(() => () => abortRef.current?.abort(), [])
 

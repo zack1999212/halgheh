@@ -12,15 +12,17 @@ const DEFAULT_FILTERS = {
 
 const DEFAULT_LIMIT = 20
 
-export default function useTaskFilters() {
-  const [activeNavId, setActiveNavId] = useState(TASK_NAV_ITEMS[0].id)
+export default function useTaskFilters({ projectId = null, projectMode = false } = {}) {
+  const navItems = projectMode ? TASK_NAV_ITEMS.filter((i) => i.scope === 'visible') : TASK_NAV_ITEMS
+  const defaultNavId = navItems[0]?.id || TASK_NAV_ITEMS[0].id
+  const [activeNavId, setActiveNavId] = useState(defaultNavId)
   const [filters, setFilters] = useState(DEFAULT_FILTERS)
   const [offset, setOffset] = useState(0)
   const [limit, setLimit] = useState(DEFAULT_LIMIT)
 
   const activeNav = useMemo(
-    () => TASK_NAV_ITEMS.find((item) => item.id === activeNavId) || TASK_NAV_ITEMS[0],
-    [activeNavId],
+    () => navItems.find((item) => item.id === activeNavId) || navItems[0] || TASK_NAV_ITEMS[0],
+    [activeNavId, navItems],
   )
 
   function updateFilters(next) {
@@ -66,12 +68,14 @@ export default function useTaskFilters() {
     else if (filters.status) q.status = filters.status
     if (activeNav.due) q.due = activeNav.due
     else if (filters.due) q.due = filters.due
+    if (projectId != null) q.project_id = projectId
     return q
-  }, [activeNav, filters, limit, offset])
+  }, [activeNav, filters, limit, offset, projectId])
 
   return {
     activeNavId,
     activeNav,
+    navItems,
     filters,
     limit,
     offset,

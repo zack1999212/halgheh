@@ -13,6 +13,7 @@ export default function TaskCommentsSection({
   currentUserId,
   onAdd,
   onDelete,
+  canComment = true,
 }) {
   const [draft, setDraft] = useState('')
 
@@ -56,23 +57,27 @@ export default function TaskCommentsSection({
 
       <FieldMessage error={error} />
 
-      <form className="grid gap-2" onSubmit={handleSubmit}>
-        <label htmlFor="task-comment-draft" className="sr-only">Add a comment</label>
-        <Textarea
-          id="task-comment-draft"
-          className="min-h-[72px] rounded-[var(--radius-md)] px-3 py-2 text-base md:text-[15px]"
-          value={draft}
-          onChange={(e) => setDraft(e.target.value)}
-          maxLength={4000}
-          placeholder="Add a comment…"
-          disabled={busy}
-        />
-        <div>
-          <Button type="submit" variant="outline" size="sm" className="h-8" disabled={busy || !draft.trim()}>
-            {busy ? 'Saving…' : 'Comment'}
-          </Button>
-        </div>
-      </form>
+      {canComment ? (
+        <form className="grid gap-2" onSubmit={handleSubmit}>
+          <label htmlFor="task-comment-draft" className="sr-only">Add a comment</label>
+          <Textarea
+            id="task-comment-draft"
+            className="min-h-[72px] rounded-[var(--radius-md)] px-3 py-2 text-base md:text-[15px]"
+            value={draft}
+            onChange={(e) => setDraft(e.target.value)}
+            maxLength={4000}
+            placeholder="Add a comment…"
+            disabled={busy}
+          />
+          <div>
+            <Button type="submit" variant="outline" size="sm" className="h-8" disabled={busy || !draft.trim()}>
+              {busy ? 'Saving…' : 'Comment'}
+            </Button>
+          </div>
+        </form>
+      ) : (
+        <p className="text-[12px] text-muted-foreground">View-only access. Comment actions are not available for your role.</p>
+      )}
     </section>
   )
 }

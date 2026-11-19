@@ -21,12 +21,14 @@ const PAGE_SIZE = 50
 export function useDocumentList({
   workspaceId,
   folderId,
+  projectId,
   query,
   tagId,
   mode = 'documents',
+  enabled = true,
 } = {}) {
   const [state, setState] = useState({
-    status: 'loading',
+    status: enabled ? 'loading' : 'idle',
     items: null,
     total: 0,
     error: null,
@@ -43,6 +45,7 @@ export function useDocumentList({
       return listDocuments({
         workspaceId,
         folderId,
+        projectId,
         query: query || undefined,
         tagId,
         isDeleted: mode === 'trash' ? true : false,
@@ -52,10 +55,17 @@ export function useDocumentList({
         offset: nextOffset,
       })
     },
-    [workspaceId, folderId, query, tagId, mode],
+    [workspaceId, folderId, projectId, query, tagId, mode],
   )
 
   const loadInitial = useCallback(() => {
+    if (!enabled) {
+      requestIdRef.current += 1
+      setState({ status: 'idle', items: null, total: 0, error: null })
+      setOffset(0)
+      setLoadingMore(false)
+      return
+    }
     const requestId = ++requestIdRef.current
     setState({ status: 'loading', items: null, total: 0, error: null })
     setOffset(0)
@@ -75,7 +85,7 @@ export function useDocumentList({
         if (requestId !== requestIdRef.current) return
         setState({ status: 'error', items: null, total: 0, error })
       })
-  }, [fetchPage])
+  }, [fetchPage, enabled])
 
   useEffect(() => {
     loadInitial()
@@ -116,18 +126,20 @@ export function useDocumentList({
   const hasMore = Boolean(documents && documents.length < total)
 
   const create = useCallback(
-    async ({ title, content, folderId: targetFolderId }) => {
-      if (!workspaceId) throw new Error('No workspace selected')
+    async ({ title, content, folderId: targetFolderId, workspaceId: targetWorkspaceId } = {}) => {
+      const resolvedWorkspaceId = targetWorkspaceId ?? workspaceId
+      if (!resolvedWorkspaceId) throw new Error('No workspace selected')
       const document = await createDocumentRequest({
-        workspaceId,
+        workspaceId: resolvedWorkspaceId,
         folderId: targetFolderId ?? folderId ?? null,
+        projectId,
         title,
         content,
       })
       reload()
       return document
     },
-    [workspaceId, folderId, reload],
+    [workspaceId, folderId, projectId, reload],
   )
 
   const trash = useCallback(
