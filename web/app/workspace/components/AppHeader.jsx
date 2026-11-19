@@ -24,7 +24,7 @@ function BrandMark() {
  * Brand is on the left. Actions are on the right: module switcher, then
  * notifications, then profile (switcher immediately left of notifications).
  */
-export default function AppHeader({ user, onLogout, onUnauthorized }) {
+export default function AppHeader({ user, onLogout, onUnauthorized, onUserUpdated }) {
   return (
     <header className="sticky top-0 z-30 flex h-[var(--header-height)] shrink-0 items-center justify-between gap-4 border-b border-border bg-card px-6 max-lg:px-4">
       <Link
@@ -42,7 +42,7 @@ export default function AppHeader({ user, onLogout, onUnauthorized }) {
         <ModuleSwitcher />
         <NotificationMenu onUnauthorized={onUnauthorized} />
         <Separator orientation="vertical" className="mx-0.5 h-5" />
-        <ProfileMenu user={user} onLogout={onLogout} />
+        <ProfileMenu user={user} onLogout={onLogout} onUserUpdated={onUserUpdated} />
       </div>
     </header>
   )
