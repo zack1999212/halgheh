@@ -417,34 +417,94 @@ export default function ProjectOverviewPage() {
           <section className="project-overview-surface p-5 sm:p-6" aria-label="Upcoming milestones">
             <div className="mb-4 flex items-center justify-between gap-3">
               <div>
-                <h3 className="text-[15px] font-semibold tracking-[-0.01em] text-foreground">Upcoming milestones</h3>
-                <p className="mt-0.5 text-[13px] text-muted-foreground">Next milestones for this project.</p>
+                <h3 className="text-[15px] font-semibold tracking-[-0.01em] text-foreground">Milestone progression</h3>
+                <p className="mt-0.5 text-[13px] text-muted-foreground">Current roadmap progress and the next step to complete (from backend).</p>
               </div>
               <Button asChild variant="outline" size="sm" className="h-8">
-                <Link to={`/projects/${projectId}/milestones`}>Milestones</Link>
+                <Link to={`/projects/${projectId}/milestones`}>View roadmap</Link>
               </Button>
             </div>
-            {upcomingMilestones.length === 0 ? (
-              <div className="rounded-xl border border-dashed border-[#E5E1D9] bg-[#F7F5F1] p-5">
-                <EmptyState
-                  icon={Flag}
-                  title="No upcoming milestones"
-                  description="There are no upcoming milestones due for this project."
-                />
-              </div>
-            ) : (
-              <ul className="grid gap-3">
-                {upcomingMilestones.map((m) => (
-                  <li key={m.id} className="flex items-start justify-between gap-3 rounded-xl border border-[#E5E1D9] bg-[#F7F5F1] p-3">
-                    <div className="min-w-0">
-                      <p className="truncate text-[13.5px] font-medium text-foreground">{m.title}</p>
-                      <p className="mt-0.5 text-[12.5px] text-muted-foreground">Due {formatProjectDate(m.due_date) || '—'}</p>
+            {(() => {
+              const currentMilestone = upcomingMilestones.find((m) => m.status === 'in_progress')
+                || upcomingMilestones.find((m) => (m.completed_steps || 0) > 0 && (m.completed_steps || 0) < (m.total_steps || 0))
+                || upcomingMilestones[0]
+                || null
+              if (!currentMilestone) {
+                return (
+                  <div className="rounded-xl border border-dashed border-[#E5E1D9] bg-[#F7F5F1] p-5">
+                    <EmptyState
+                      icon={Flag}
+                      title="No upcoming milestones"
+                      description="There are no upcoming milestones with target dates right now. Open the roadmap to review all milestones and step progression."
+                    />
+                    <div className="mt-3 flex justify-center">
+                      <Button asChild variant="outline" size="sm" className="h-8">
+                        <Link to={`/projects/${projectId}/milestones`}>Open milestones</Link>
+                      </Button>
                     </div>
-                    <Badge variant="outline" className="shrink-0 font-medium">{PROJECT_STATUS_LABELS[m.status] || m.status}</Badge>
-                  </li>
-                ))}
-              </ul>
-            )}
+                  </div>
+                )
+              }
+              const progressValue = Number(currentMilestone.progress || 0)
+              const totalSteps = currentMilestone.total_steps || 0
+              const completedSteps = currentMilestone.completed_steps || 0
+              const currentStepLabel = currentMilestone.next_incomplete_step
+                || (totalSteps > 0 && completedSteps === totalSteps ? 'All steps completed' : 'No steps defined yet')
+              return (
+                <div className="grid gap-3">
+                  <Link
+                    to={`/projects/${projectId}/milestones`}
+                    className="block rounded-xl border border-[#E5D28A] bg-[#FFF9E8] p-4 transition-colors hover:border-[#DCC45F] hover:bg-[#FFF6D8]"
+                  >
+                    <div className="flex flex-wrap items-start justify-between gap-3">
+                      <div className="min-w-0">
+                        <p className="text-[11px] font-semibold uppercase tracking-[0.08em] text-[#8A6A00]">Current milestone</p>
+                        <p className="mt-1 truncate text-[15px] font-semibold text-[#242321]">{currentMilestone.title}</p>
+                        <p className="mt-1 text-[12.5px] text-[#5F5A51]">
+                          {currentMilestone.due_date ? `Target ${formatProjectDate(currentMilestone.due_date)} · ` : ''}{completedSteps}/{totalSteps} steps completed
+                        </p>
+                      </div>
+                      <Badge variant="outline" className="border-[#E5D28A] bg-white/70 font-semibold text-[#6F5600]">{progressValue}%</Badge>
+                    </div>
+                    <div className="mt-3 h-2 overflow-hidden rounded-full bg-[#EADFAF]">
+                      <div className="h-full rounded-full bg-[#FFC400]" style={{ width: `${Math.max(0, Math.min(100, progressValue))}%` }} />
+                    </div>
+                    <p className="mt-3 text-[13px] text-[#3E3A33]">
+                      <span className="font-semibold text-[#8A6A00]">Current step:</span> {currentStepLabel}
+                    </p>
+                  </Link>
+
+                  {upcomingMilestones.length > 1 ? (
+                    <div className="grid gap-2">
+                      <p className="px-1 text-[12px] font-semibold uppercase tracking-[0.08em] text-[#8A857C]">Upcoming milestones</p>
+                      <ul className="grid gap-2">
+                        {upcomingMilestones.filter((m) => m.id !== currentMilestone.id).slice(0, 4).map((m) => {
+                          const p = Number(m.progress || 0)
+                          const total = m.total_steps || 0
+                          const done = m.completed_steps || 0
+                          return (
+                            <li key={m.id}>
+                              <Link to={`/projects/${projectId}/milestones`} className="block rounded-xl border border-[#E5E1D9] bg-[#F7F5F1] px-3 py-2.5 transition-colors hover:border-[#D8D2C6] hover:bg-[#F2F0EB]">
+                                <div className="flex items-start justify-between gap-3">
+                                  <div className="min-w-0">
+                                    <p className="truncate text-[13.5px] font-medium text-foreground">{m.title}</p>
+                                    <p className="mt-0.5 text-[12px] text-muted-foreground">
+                                      {m.due_date ? `Target ${formatProjectDate(m.due_date)} · ` : ''}{done}/{total} steps · {p}%
+                                    </p>
+                                    {m.next_incomplete_step ? <p className="mt-1 text-[12px] text-foreground/80"><span className="font-medium text-[#8A6A00]">Next:</span> {m.next_incomplete_step}</p> : null}
+                                  </div>
+                                  <Badge variant="outline" className="shrink-0 font-medium">{p}%</Badge>
+                                </div>
+                              </Link>
+                            </li>
+                          )
+                        })}
+                      </ul>
+                    </div>
+                  ) : null}
+                </div>
+              )
+            })()}
           </section>
 
           <section className="project-overview-surface p-5 sm:p-6" aria-label="Upcoming project events">

@@ -135,6 +135,59 @@ export function deleteProjectMilestone(projectId, milestoneId) {
   })
 }
 
+export function reorderProjectMilestones(projectId, payload) {
+  return apiRequest(`/api/projects/${projectId}/milestones/reorder`, {
+    method: 'PUT',
+    body: payload,
+    fallbackMessage: 'Could not reorder milestones.',
+  })
+}
+
+export function createProjectMilestoneStep(projectId, milestoneId, payload) {
+  return apiRequest(`/api/projects/${projectId}/milestones/${milestoneId}/steps`, {
+    method: 'POST',
+    body: payload,
+    fallbackMessage: 'Could not add the step.',
+  })
+}
+
+export function updateProjectMilestoneStep(projectId, milestoneId, stepId, payload) {
+  return apiRequest(`/api/projects/${projectId}/milestones/${milestoneId}/steps/${stepId}`, {
+    method: 'PATCH',
+    body: payload,
+    fallbackMessage: 'Could not update the step.',
+  })
+}
+
+export function deleteProjectMilestoneStep(projectId, milestoneId, stepId) {
+  return apiRequest(`/api/projects/${projectId}/milestones/${milestoneId}/steps/${stepId}`, {
+    method: 'DELETE',
+    fallbackMessage: 'Could not delete the step.',
+  })
+}
+
+export function completeProjectMilestoneStep(projectId, milestoneId, stepId) {
+  return apiRequest(`/api/projects/${projectId}/milestones/${milestoneId}/steps/${stepId}/complete`, {
+    method: 'POST',
+    fallbackMessage: 'Could not complete the step.',
+  })
+}
+
+export function reopenProjectMilestoneStep(projectId, milestoneId, stepId) {
+  return apiRequest(`/api/projects/${projectId}/milestones/${milestoneId}/steps/${stepId}/reopen`, {
+    method: 'POST',
+    fallbackMessage: 'Could not reopen the step.',
+  })
+}
+
+export function reorderProjectMilestoneSteps(projectId, milestoneId, payload) {
+  return apiRequest(`/api/projects/${projectId}/milestones/${milestoneId}/steps/reorder`, {
+    method: 'PUT',
+    body: payload,
+    fallbackMessage: 'Could not reorder steps.',
+  })
+}
+
 export function createProject(payload) {
   return apiRequest('/api/projects', {
     method: 'POST',

@@ -208,6 +208,83 @@ class ProjectMemberResponse(BaseModel):
     name: str | None = None
 
 
+# --- Milestone steps ---
+
+
+class MilestoneStepCreate(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    title: str = Field(..., min_length=1, max_length=200)
+    description: str | None = Field(default=None, max_length=5000)
+    position: int | None = Field(default=None, ge=0)
+
+    @field_validator("title")
+    @classmethod
+    def validate_title(cls, value: str) -> str:
+        trimmed = value.strip()
+        if not trimmed:
+            raise ValueError("Step title must not be empty")
+        return trimmed
+
+
+class MilestoneStepUpdate(BaseModel):
+    """Partial step update. Position reordering uses dedicated endpoint."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    title: str | None = Field(default=None, min_length=1, max_length=200)
+    description: str | None = Field(default=None, max_length=5000)
+
+    @field_validator("title")
+    @classmethod
+    def validate_title(cls, value: str | None) -> str | None:
+        if value is None:
+            return None
+        trimmed = value.strip()
+        if not trimmed:
+            raise ValueError("Step title must not be empty")
+        return trimmed
+
+    @model_validator(mode="after")
+    def validate_not_empty(self):
+        if not self.model_fields_set:
+            raise ValueError("Update body must not be empty")
+        return self
+
+    @model_validator(mode="after")
+    def validate_non_nullable_fields(self):
+        if "title" in self.model_fields_set and self.title is None:
+            raise ValueError("Step title must not be null")
+        return self
+
+
+class MilestoneStepReorderItem(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    id: int = Field(..., ge=1)
+    position: int = Field(..., ge=0)
+
+
+class MilestoneStepReorderRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    items: list[MilestoneStepReorderItem] = Field(..., min_length=1)
+
+
+class MilestoneStepResponse(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    milestone_id: int
+    title: str
+    description: str | None
+    position: int
+    is_completed: bool
+    completed_at: datetime | None
+    created_at: datetime
+    updated_at: datetime
+
+
 # --- Milestones ---
 
 
@@ -216,8 +293,9 @@ class MilestoneCreate(BaseModel):
 
     title: str = Field(..., min_length=1, max_length=200)
     description: str | None = Field(default=None, max_length=5000)
-    status: str = "pending"
     due_date: date | None = None
+    position: int | None = Field(default=None, ge=0)
+    steps: list[MilestoneStepCreate] | None = None
 
     @field_validator("title")
     @classmethod
@@ -227,27 +305,20 @@ class MilestoneCreate(BaseModel):
             raise ValueError("Milestone title must not be empty")
         return trimmed
 
-    @field_validator("status")
-    @classmethod
-    def validate_status(cls, value: str) -> str:
-        if value not in MILESTONE_STATUSES:
-            raise ValueError(f"Unknown milestone status: {value}")
-        return value
-
 
 class MilestoneUpdate(BaseModel):
     """Partial milestone update.
 
     Omitted fields are untouched; explicitly supplied ``null`` clears
-    ``description``/``due_date``. Completion metadata is not accepted.
+    ``description``/``due_date``. Progress/completion are derived from steps.
     """
 
     model_config = ConfigDict(extra="forbid")
 
     title: str | None = Field(default=None, min_length=1, max_length=200)
     description: str | None = Field(default=None, max_length=5000)
-    status: str | None = None
     due_date: date | None = None
+    position: int | None = Field(default=None, ge=0)
 
     @field_validator("title")
     @classmethod
@@ -259,15 +330,6 @@ class MilestoneUpdate(BaseModel):
             raise ValueError("Milestone title must not be empty")
         return trimmed
 
-    @field_validator("status")
-    @classmethod
-    def validate_status(cls, value: str | None) -> str | None:
-        if value is None:
-            return None
-        if value not in MILESTONE_STATUSES:
-            raise ValueError(f"Unknown milestone status: {value}")
-        return value
-
     @model_validator(mode="after")
     def validate_not_empty(self):
         if not self.model_fields_set:
@@ -278,9 +340,22 @@ class MilestoneUpdate(BaseModel):
     def validate_non_nullable_fields(self):
         if "title" in self.model_fields_set and self.title is None:
             raise ValueError("Milestone title must not be null")
-        if "status" in self.model_fields_set and self.status is None:
-            raise ValueError("Milestone status must not be null")
+        if "position" in self.model_fields_set and self.position is None:
+            raise ValueError("Milestone position must not be null")
         return self
+
+
+class MilestoneReorderItem(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    id: int = Field(..., ge=1)
+    position: int = Field(..., ge=0)
+
+
+class MilestoneReorderRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    items: list[MilestoneReorderItem] = Field(..., min_length=1)
 
 
 class MilestoneResponse(BaseModel):
@@ -291,11 +366,16 @@ class MilestoneResponse(BaseModel):
     title: str
     description: str | None
     status: str
+    position: int = 0
     due_date: date | None
     completed_at: datetime | None
     created_by: int
     created_at: datetime
     updated_at: datetime
+    progress: float = 0.0
+    completed_steps: int = 0
+    total_steps: int = 0
+    steps: list[MilestoneStepResponse] = Field(default_factory=list)
 
 
 class MilestoneListResponse(BaseModel):
@@ -345,6 +425,10 @@ class UpcomingMilestone(BaseModel):
     title: str
     status: str
     due_date: date | None
+    progress: float = 0.0
+    completed_steps: int = 0
+    total_steps: int = 0
+    next_incomplete_step: str | None = None
 
 
 class MilestoneMetrics(BaseModel):

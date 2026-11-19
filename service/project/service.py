@@ -20,9 +20,14 @@ from .models import (
     PROJECT_STATUSES,
     Project,
     ProjectMilestone,
+    ProjectMilestoneStep,
 )
 from .schemas import (
     MilestoneCreate,
+    MilestoneReorderRequest,
+    MilestoneStepCreate,
+    MilestoneStepReorderRequest,
+    MilestoneStepUpdate,
     MilestoneUpdate,
     ProjectCreate,
     ProjectInvitationCreate,
@@ -484,6 +489,12 @@ def _milestone_not_found() -> HTTPException:
     )
 
 
+def _step_not_found() -> HTTPException:
+    return HTTPException(
+        status_code=status.HTTP_404_NOT_FOUND, detail="Milestone step not found"
+    )
+
+
 def _get_project_milestone(
     db: Session, project_id: int, milestone_id: int
 ) -> ProjectMilestone:
@@ -493,40 +504,126 @@ def _get_project_milestone(
     return milestone
 
 
-def _apply_completion_state(milestone: ProjectMilestone, new_status: str) -> None:
-    """Keep ``completed_at`` consistent with ``status``.
-
-    A transition into ``completed`` stamps the completion time; a transition
-    out of it clears it. Re-applying ``completed`` to an already completed
-    milestone preserves the original timestamp.
-    """
-    if new_status == COMPLETED_STATUS:
-        if milestone.status != COMPLETED_STATUS or milestone.completed_at is None:
-            milestone.completed_at = datetime.now(timezone.utc)
+def _milestone_progress_state(milestone: ProjectMilestone) -> tuple[int, int, float, str]:
+    steps = list(getattr(milestone, "steps", []) or [])
+    total = len(steps)
+    completed = sum(1 for s in steps if s.is_completed)
+    progress = 0.0 if total == 0 else round((completed / total) * 100, 2)
+    if total == 0:
+        derived_status = "pending"
+    elif completed == total:
+        derived_status = "completed"
+    elif completed == 0:
+        derived_status = "pending"
     else:
+        derived_status = "in_progress"
+    return completed, total, progress, derived_status
+
+
+def _sync_milestone_progress(milestone: ProjectMilestone) -> None:
+    """Derive and persist milestone progress/status from its steps."""
+    _completed, total, _progress, derived_status = _milestone_progress_state(milestone)
+    if derived_status == "completed" and total > 0:
+        if milestone.status != "completed" or milestone.completed_at is None:
+            milestone.completed_at = datetime.now(timezone.utc)
+        milestone.status = "completed"
+    else:
+        milestone.status = derived_status
         milestone.completed_at = None
-    milestone.status = new_status
+
+
+def _serialize_step(step: ProjectMilestoneStep) -> dict:
+    return {
+        "id": step.id,
+        "milestone_id": step.milestone_id,
+        "title": step.title,
+        "description": step.description,
+        "position": step.position,
+        "is_completed": step.is_completed,
+        "completed_at": step.completed_at,
+        "created_at": step.created_at,
+        "updated_at": step.updated_at,
+    }
+
+
+def _serialize_milestone(milestone: ProjectMilestone) -> dict:
+    steps = sorted(list(getattr(milestone, "steps", []) or []), key=lambda s: (s.position, s.id))
+    completed_steps, total_steps, progress, _derived = _milestone_progress_state(milestone)
+    return {
+        "id": milestone.id,
+        "project_id": milestone.project_id,
+        "title": milestone.title,
+        "description": milestone.description,
+        "status": milestone.status,
+        "position": milestone.position,
+        "due_date": milestone.due_date,
+        "completed_at": milestone.completed_at,
+        "created_by": milestone.created_by,
+        "created_at": milestone.created_at,
+        "updated_at": milestone.updated_at,
+        "progress": progress,
+        "completed_steps": completed_steps,
+        "total_steps": total_steps,
+        "steps": [_serialize_step(s) for s in steps],
+    }
+
+
+def _apply_step_positions(steps: list[ProjectMilestoneStep]) -> None:
+    for idx, step in enumerate(sorted(steps, key=lambda s: (s.position, s.id))):
+        step.position = idx
+
+
+def _apply_milestone_positions(milestones: list[ProjectMilestone]) -> None:
+    for idx, milestone in enumerate(
+        sorted(milestones, key=lambda m: (m.position, m.due_date or date.max, m.created_at, m.id))
+    ):
+        milestone.position = idx
 
 
 def create_milestone(
     db: Session, actor_id: int, project_id: int, data: MilestoneCreate
-) -> ProjectMilestone:
+) -> dict:
     project, _role = require_project_manage(db, actor_id, project_id)
+    position = (
+        data.position
+        if data.position is not None
+        else repository.get_next_milestone_position(db, project.id)
+    )
     milestone = repository.create_milestone(
         db,
         project_id=project.id,
         title=data.title,
         description=data.description,
-        status=data.status,
+        status="pending",
+        position=position,
         due_date=data.due_date,
         completed_at=None,
         created_by=actor_id,
     )
-    if data.status == COMPLETED_STATUS:
-        milestone.completed_at = datetime.now(timezone.utc)
+    db.flush()
+
+    initial_steps = data.steps or []
+    for idx, step_data in enumerate(initial_steps):
+        step_position = step_data.position if step_data.position is not None else idx
+        repository.create_step(
+            db,
+            milestone_id=milestone.id,
+            title=step_data.title,
+            description=step_data.description,
+            position=step_position,
+            is_completed=False,
+            completed_at=None,
+        )
+    db.flush()
+    # Normalize positions and derive status/progress.
+    db.expire(milestone, ["steps"])
+    if initial_steps:
+        _apply_step_positions(list(milestone.steps))
+    _sync_milestone_progress(milestone)
     _commit(db, conflict_detail="Could not create milestone")
     db.refresh(milestone)
-    return milestone
+    db.expire(milestone, ["steps"])
+    return _serialize_milestone(milestone)
 
 
 def list_milestones(
@@ -536,18 +633,41 @@ def list_milestones(
     *,
     limit: int = 50,
     offset: int = 0,
-) -> tuple[list[ProjectMilestone], int]:
+) -> tuple[list[dict], int]:
     project, _role = require_project_view(db, actor_id, project_id)
     limit = min(max(limit, 1), 100)
     offset = max(offset, 0)
-    return repository.list_milestones(db, project.id, limit=limit, offset=offset)
+    items, total = repository.list_milestones(db, project.id, limit=limit, offset=offset)
+    # Keep stored status/progress consistent with steps (defensive sync).
+    changed = False
+    for m in items:
+        before_status = m.status
+        before_completed = m.completed_at
+        _sync_milestone_progress(m)
+        if m.status != before_status or m.completed_at != before_completed:
+            changed = True
+    if changed:
+        db.commit()
+        for m in items:
+            db.refresh(m)
+            _ = list(m.steps)
+    return [_serialize_milestone(m) for m in items], total
 
 
 def get_milestone(
     db: Session, actor_id: int, project_id: int, milestone_id: int
-) -> ProjectMilestone:
+) -> dict:
     project, _role = require_project_view(db, actor_id, project_id)
-    return _get_project_milestone(db, project.id, milestone_id)
+    milestone = _get_project_milestone(db, project.id, milestone_id)
+    _ = list(milestone.steps)
+    before_status = milestone.status
+    before_completed = milestone.completed_at
+    _sync_milestone_progress(milestone)
+    if milestone.status != before_status or milestone.completed_at != before_completed:
+        db.commit()
+        db.refresh(milestone)
+        _ = list(milestone.steps)
+    return _serialize_milestone(milestone)
 
 
 def update_milestone(
@@ -556,19 +676,22 @@ def update_milestone(
     project_id: int,
     milestone_id: int,
     data: MilestoneUpdate,
-) -> ProjectMilestone:
+) -> dict:
     project, _role = require_project_manage(db, actor_id, project_id)
     milestone = _get_project_milestone(db, project.id, milestone_id)
 
     updates = data.model_dump(exclude_unset=True)
-    if "status" in updates:
-        _apply_completion_state(milestone, updates.pop("status"))
-    for field, value in updates.items():
-        setattr(milestone, field, value)
+    # Status/progress are derived from steps; only editable fields are applied.
+    for field in ("title", "description", "due_date", "position"):
+        if field in updates:
+            setattr(milestone, field, updates[field])
 
+    _ = list(milestone.steps)
+    _sync_milestone_progress(milestone)
     _commit(db, conflict_detail="Could not update milestone")
     db.refresh(milestone)
-    return milestone
+    _ = list(milestone.steps)
+    return _serialize_milestone(milestone)
 
 
 def delete_milestone(
@@ -578,6 +701,178 @@ def delete_milestone(
     milestone = _get_project_milestone(db, project.id, milestone_id)
     repository.delete_milestone(db, milestone)
     _commit(db, conflict_detail="Could not delete milestone")
+
+
+def reorder_milestones(
+    db: Session, actor_id: int, project_id: int, data: MilestoneReorderRequest
+) -> list[dict]:
+    project, _role = require_project_manage(db, actor_id, project_id)
+    milestones = repository.list_all_milestones_for_project(db, project.id)
+    by_id = {m.id: m for m in milestones}
+    requested_ids = [item.id for item in data.items]
+    if len(set(requested_ids)) != len(requested_ids):
+        raise _bad_request("Duplicate milestone IDs in reorder request")
+    if set(requested_ids) != set(by_id.keys()):
+        raise _bad_request("Reorder request must include all project milestones")
+
+    for item in data.items:
+        milestone = by_id.get(item.id)
+        if milestone is None or milestone.project_id != project.id:
+            raise _milestone_not_found()
+        milestone.position = item.position
+    # Normalize to stable contiguous ordering while respecting requested positions.
+    _apply_milestone_positions(milestones)
+    for m in milestones:
+        _sync_milestone_progress(m)
+    _commit(db, conflict_detail="Could not reorder milestones")
+    milestones = repository.list_all_milestones_for_project(db, project.id)
+    return [_serialize_milestone(m) for m in milestones]
+
+
+# --- Milestone steps ---
+
+
+def _get_project_milestone_step(
+    db: Session, project_id: int, milestone_id: int, step_id: int
+) -> tuple[ProjectMilestone, ProjectMilestoneStep]:
+    milestone = _get_project_milestone(db, project_id, milestone_id)
+    step = repository.get_step_for_milestone(db, milestone.id, step_id)
+    if step is None:
+        raise _step_not_found()
+    if step.milestone_id != milestone.id or milestone.project_id != project_id:
+        raise _step_not_found()
+    return milestone, step
+
+
+def create_milestone_step(
+    db: Session, actor_id: int, project_id: int, milestone_id: int, data: MilestoneStepCreate
+) -> dict:
+    project, _role = require_project_manage(db, actor_id, project_id)
+    milestone = _get_project_milestone(db, project.id, milestone_id)
+    position = (
+        data.position
+        if data.position is not None
+        else repository.get_next_step_position(db, milestone.id)
+    )
+    repository.create_step(
+        db,
+        milestone_id=milestone.id,
+        title=data.title,
+        description=data.description,
+        position=position,
+        is_completed=False,
+        completed_at=None,
+    )
+    db.flush()
+    # Reload steps (including newly created) to normalize and sync milestone.
+    db.expire(milestone, ["steps"])
+    _apply_step_positions(list(milestone.steps))
+    _sync_milestone_progress(milestone)
+    _commit(db, conflict_detail="Could not create milestone step")
+    db.refresh(milestone)
+    db.expire(milestone, ["steps"])
+    return _serialize_milestone(milestone)
+
+
+def update_milestone_step(
+    db: Session,
+    actor_id: int,
+    project_id: int,
+    milestone_id: int,
+    step_id: int,
+    data: MilestoneStepUpdate,
+) -> dict:
+    project, _role = require_project_manage(db, actor_id, project_id)
+    milestone, step = _get_project_milestone_step(db, project.id, milestone_id, step_id)
+    updates = data.model_dump(exclude_unset=True)
+    for field, value in updates.items():
+        setattr(step, field, value)
+    db.expire(milestone, ["steps"])
+    _sync_milestone_progress(milestone)
+    _commit(db, conflict_detail="Could not update milestone step")
+    db.refresh(milestone)
+    db.expire(milestone, ["steps"])
+    return _serialize_milestone(milestone)
+
+
+def delete_milestone_step(
+    db: Session, actor_id: int, project_id: int, milestone_id: int, step_id: int
+) -> dict:
+    project, _role = require_project_manage(db, actor_id, project_id)
+    milestone, step = _get_project_milestone_step(db, project.id, milestone_id, step_id)
+    repository.delete_step(db, step)
+    db.flush()
+    db.expire(milestone, ["steps"])
+    _apply_step_positions(list(milestone.steps))
+    _sync_milestone_progress(milestone)
+    _commit(db, conflict_detail="Could not delete milestone step")
+    db.refresh(milestone)
+    db.expire(milestone, ["steps"])
+    return _serialize_milestone(milestone)
+
+
+def complete_milestone_step(
+    db: Session, actor_id: int, project_id: int, milestone_id: int, step_id: int
+) -> dict:
+    project, _role = require_project_manage(db, actor_id, project_id)
+    milestone, step = _get_project_milestone_step(db, project.id, milestone_id, step_id)
+    if not step.is_completed:
+        step.is_completed = True
+        step.completed_at = datetime.now(timezone.utc)
+    elif step.completed_at is None:
+        step.completed_at = datetime.now(timezone.utc)
+    db.expire(milestone, ["steps"])
+    _sync_milestone_progress(milestone)
+    _commit(db, conflict_detail="Could not complete milestone step")
+    db.refresh(milestone)
+    db.expire(milestone, ["steps"])
+    return _serialize_milestone(milestone)
+
+
+def reopen_milestone_step(
+    db: Session, actor_id: int, project_id: int, milestone_id: int, step_id: int
+) -> dict:
+    project, _role = require_project_manage(db, actor_id, project_id)
+    milestone, step = _get_project_milestone_step(db, project.id, milestone_id, step_id)
+    step.is_completed = False
+    step.completed_at = None
+    db.expire(milestone, ["steps"])
+    _sync_milestone_progress(milestone)
+    _commit(db, conflict_detail="Could not reopen milestone step")
+    db.refresh(milestone)
+    db.expire(milestone, ["steps"])
+    return _serialize_milestone(milestone)
+
+
+def reorder_milestone_steps(
+    db: Session,
+    actor_id: int,
+    project_id: int,
+    milestone_id: int,
+    data: MilestoneStepReorderRequest,
+) -> dict:
+    project, _role = require_project_manage(db, actor_id, project_id)
+    milestone = _get_project_milestone(db, project.id, milestone_id)
+    db.expire(milestone, ["steps"])
+    steps = list(milestone.steps)
+    by_id = {s.id: s for s in steps}
+    requested_ids = [item.id for item in data.items]
+    if len(set(requested_ids)) != len(requested_ids):
+        raise _bad_request("Duplicate step IDs in reorder request")
+    if set(requested_ids) != set(by_id.keys()):
+        raise _bad_request("Reorder request must include all milestone steps")
+
+    for item in data.items:
+        step = by_id.get(item.id)
+        if step is None or step.milestone_id != milestone.id:
+            raise _step_not_found()
+        step.position = item.position
+    _apply_step_positions(steps)
+    _sync_milestone_progress(milestone)
+    _commit(db, conflict_detail="Could not reorder milestone steps")
+    db.refresh(milestone)
+    db.expire(milestone, ["steps"])
+    return _serialize_milestone(milestone)
 
 
 # --- Project access helpers for other modules ---
@@ -635,15 +930,28 @@ def _task_progress_metrics(counts_by_status: dict[str, int]) -> dict:
     }
 
 
+def _serialize_upcoming_milestone(milestone: ProjectMilestone) -> dict:
+    steps = sorted(list(getattr(milestone, "steps", []) or []), key=lambda s: (s.position, s.id))
+    completed_steps, total_steps, progress, _ = _milestone_progress_state(milestone)
+    next_step = next((s.title for s in steps if not s.is_completed), None)
+    return {
+        "id": milestone.id,
+        "title": milestone.title,
+        "status": milestone.status,
+        "due_date": milestone.due_date,
+        "progress": progress,
+        "completed_steps": completed_steps,
+        "total_steps": total_steps,
+        "next_incomplete_step": next_step,
+    }
+
+
 def _milestone_metrics(counts_by_status: dict[str, int], upcoming) -> dict:
     pending = counts_by_status.get("pending", 0)
     in_progress = counts_by_status.get("in_progress", 0)
     completed = counts_by_status.get("completed", 0)
     cancelled = counts_by_status.get("cancelled", 0)
     total = pending + in_progress + completed + cancelled
-    # Include any unexpected status defensively into the reported total context
-    # is not needed because milestone statuses are constrained, but keep total
-    # consistent with actual grouped counts.
     grouped_total = sum(counts_by_status.values())
     if grouped_total != total:
         total = grouped_total
@@ -653,7 +961,7 @@ def _milestone_metrics(counts_by_status: dict[str, int], upcoming) -> dict:
         "in_progress": in_progress,
         "completed": completed,
         "cancelled": cancelled,
-        "upcoming": upcoming,
+        "upcoming": [_serialize_upcoming_milestone(m) for m in upcoming],
     }
 
 
@@ -702,6 +1010,19 @@ def get_project_overview(db: Session, actor_id: int, project_id: int) -> dict:
     upcoming_milestones = repository.list_upcoming_milestones(
         db, project.id, as_of=today, limit=5
     )
+    # Keep upcoming milestone derived state consistent before serializing.
+    changed = False
+    for m in upcoming_milestones:
+        before_status = m.status
+        before_completed = m.completed_at
+        _sync_milestone_progress(m)
+        if m.status != before_status or m.completed_at != before_completed:
+            changed = True
+    if changed:
+        db.commit()
+        for m in upcoming_milestones:
+            db.refresh(m)
+            _ = list(m.steps)
 
     upcoming_events = _upcoming_project_events(db, actor_id, project.id)
 

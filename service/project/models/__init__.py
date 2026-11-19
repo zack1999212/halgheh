@@ -1,6 +1,6 @@
 from .invitation import INVITABLE_ROLES, INVITATION_STATUSES, ProjectInvitation
 from .member import PROJECT_MEMBER_ROLES, ProjectMember
-from .milestone import COMPLETED_STATUS, MILESTONE_STATUSES, ProjectMilestone
+from .milestone import COMPLETED_STATUS, MILESTONE_STATUSES, ProjectMilestone, ProjectMilestoneStep
 from .project import PROJECT_STATUSES, Project
 
 __all__ = [
@@ -14,4 +14,5 @@ __all__ = [
     "ProjectInvitation",
     "ProjectMember",
     "ProjectMilestone",
+    "ProjectMilestoneStep",
 ]

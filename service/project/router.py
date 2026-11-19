@@ -12,7 +12,11 @@ from . import service
 from .schemas import (
     MilestoneCreate,
     MilestoneListResponse,
+    MilestoneReorderRequest,
     MilestoneResponse,
+    MilestoneStepCreate,
+    MilestoneStepReorderRequest,
+    MilestoneStepUpdate,
     MilestoneUpdate,
     ProjectCreate,
     ProjectInvitationCreate,
@@ -147,6 +151,19 @@ def list_milestones(
     return {"items": items, "total": total, "limit": limit, "offset": offset}
 
 
+@router.put(
+    "/{project_id}/milestones/reorder",
+    response_model=list[MilestoneResponse],
+)
+def reorder_milestones(
+    project_id: int,
+    data: MilestoneReorderRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    return service.reorder_milestones(db, current_user.id, project_id, data)
+
+
 @router.get(
     "/{project_id}/milestones/{milestone_id}", response_model=MilestoneResponse
 )
@@ -186,6 +203,107 @@ def delete_milestone(
 ):
     service.delete_milestone(db, current_user.id, project_id, milestone_id)
     return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+
+# --- Milestone steps ---
+
+
+@router.post(
+    "/{project_id}/milestones/{milestone_id}/steps",
+    response_model=MilestoneResponse,
+    status_code=status.HTTP_201_CREATED,
+)
+def create_milestone_step(
+    project_id: int,
+    milestone_id: int,
+    data: MilestoneStepCreate,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    return service.create_milestone_step(
+        db, current_user.id, project_id, milestone_id, data
+    )
+
+
+@router.put(
+    "/{project_id}/milestones/{milestone_id}/steps/reorder",
+    response_model=MilestoneResponse,
+)
+def reorder_milestone_steps(
+    project_id: int,
+    milestone_id: int,
+    data: MilestoneStepReorderRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    return service.reorder_milestone_steps(
+        db, current_user.id, project_id, milestone_id, data
+    )
+
+
+@router.patch(
+    "/{project_id}/milestones/{milestone_id}/steps/{step_id}",
+    response_model=MilestoneResponse,
+)
+def update_milestone_step(
+    project_id: int,
+    milestone_id: int,
+    step_id: int,
+    data: MilestoneStepUpdate,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    return service.update_milestone_step(
+        db, current_user.id, project_id, milestone_id, step_id, data
+    )
+
+
+@router.delete(
+    "/{project_id}/milestones/{milestone_id}/steps/{step_id}",
+    response_model=MilestoneResponse,
+)
+def delete_milestone_step(
+    project_id: int,
+    milestone_id: int,
+    step_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    return service.delete_milestone_step(
+        db, current_user.id, project_id, milestone_id, step_id
+    )
+
+
+@router.post(
+    "/{project_id}/milestones/{milestone_id}/steps/{step_id}/complete",
+    response_model=MilestoneResponse,
+)
+def complete_milestone_step(
+    project_id: int,
+    milestone_id: int,
+    step_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    return service.complete_milestone_step(
+        db, current_user.id, project_id, milestone_id, step_id
+    )
+
+
+@router.post(
+    "/{project_id}/milestones/{milestone_id}/steps/{step_id}/reopen",
+    response_model=MilestoneResponse,
+)
+def reopen_milestone_step(
+    project_id: int,
+    milestone_id: int,
+    step_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    return service.reopen_milestone_step(
+        db, current_user.id, project_id, milestone_id, step_id
+    )
 
 
 # --- Project invitations (owner-managed) ---
