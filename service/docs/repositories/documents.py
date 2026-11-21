@@ -55,6 +55,7 @@ def list_for_user(
     folder_id: int | None = None,
     q: str | None = None,
     tag_id: int | None = None,
+    tag_ids: list[int] | None = None,
     is_favorite: bool | None = None,
     is_archived: bool | None = None,
     is_deleted: bool | None = False,
@@ -90,12 +91,20 @@ def list_for_user(
     if folder_id is not None:
         conditions.append(Document.folder_id == folder_id)
     if q:
-        conditions.append(Document.title.ilike(f"%{q}%"))
-    if tag_id is not None:
+        pattern = f"%{q}%"
+        conditions.append(
+            Document.title.ilike(pattern) | Document.content.ilike(pattern)
+        )
+    wanted_tag_ids = {
+        int(value)
+        for value in [*(tag_ids or []), *([] if tag_id is None else [tag_id])]
+        if value is not None
+    }
+    if wanted_tag_ids:
         conditions.append(
             exists().where(
                 DocumentTag.document_id == Document.id,
-                DocumentTag.tag_id == tag_id,
+                DocumentTag.tag_id.in_(wanted_tag_ids),
             )
         )
     if is_favorite is not None:
@@ -134,30 +143,54 @@ def list_for_user(
 
 
 def list_favorited_for_user(
-    db: Session, user_id: int, *, limit: int, offset: int
+    db: Session,
+    user_id: int,
+    *,
+    q: str | None = None,
+    limit: int,
+    offset: int,
 ) -> tuple[list[tuple[Document, bool]], int]:
     from ..models import DocumentFavorite
 
-    condition = (
+    accessible_projects = (
+        select(Project.id).where(Project.owner_id == user_id)
+    ).union(select(ProjectMember.project_id).where(ProjectMember.user_id == user_id))
+    conditions = [
         DocumentFavorite.user_id == user_id,
         DocumentFavorite.document_id == Document.id,
         Document.is_deleted.is_(False),
         # Personal favorites must not include project-associated documents.
         Document.project_id.is_(None),
-    )
+        (
+            exists().where(
+                DocumentPermission.document_id == Document.id,
+                DocumentPermission.user_id == user_id,
+                DocumentPermission.permission_level.in_(
+                    [PERMISSION_VIEWER, PERMISSION_EDITOR]
+                ),
+            )
+            | (Document.owner_id == user_id)
+            | (Document.project_id.in_(accessible_projects))
+        ),
+    ]
+    if q:
+        pattern = f"%{q}%"
+        conditions.append(
+            Document.title.ilike(pattern) | Document.content.ilike(pattern)
+        )
     total = int(
         db.scalar(
             select(func.count())
             .select_from(Document)
             .join(DocumentFavorite, DocumentFavorite.document_id == Document.id)
-            .where(*condition)
+            .where(*conditions)
         )
         or 0
     )
     stmt = (
         select(Document, True)
         .join(DocumentFavorite, DocumentFavorite.document_id == Document.id)
-        .where(*condition)
+        .where(*conditions)
         .order_by(DocumentFavorite.created_at.desc(), Document.id.desc())
         .limit(limit)
         .offset(offset)

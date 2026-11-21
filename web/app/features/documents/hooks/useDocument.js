@@ -6,6 +6,7 @@ import {
   getDocument,
   removeFavorite as removeFavoriteRequest,
   restoreDocument as restoreDocumentRequest,
+  restoreDocumentVersion as restoreDocumentVersionRequest,
   trashDocument as trashDocumentRequest,
   updateDocument as updateDocumentRequest,
 } from '../api/client.js'
@@ -82,5 +83,30 @@ export function useDocument(documentId) {
     [documentId, resource],
   )
 
-  return { ...resource, update, toggleFavorite, attachTag, detachTag, trash, restore }
+  const restoreVersion = useCallback(
+    async (versionNumber) => {
+      if (!documentId) throw new Error('No document selected')
+      const current = resource.data
+      if (!current?.updated_at) throw new Error('Document state is not loaded')
+      const restored = await restoreDocumentVersionRequest(
+        documentId,
+        versionNumber,
+        { expectedUpdatedAt: current.updated_at },
+      )
+      resource.reload()
+      return restored
+    },
+    [documentId, resource],
+  )
+
+  return {
+    ...resource,
+    update,
+    toggleFavorite,
+    attachTag,
+    detachTag,
+    trash,
+    restore,
+    restoreVersion,
+  }
 }

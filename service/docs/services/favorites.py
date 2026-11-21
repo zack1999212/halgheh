@@ -62,9 +62,9 @@ def remove_favorite(db: Session, user: User, document: Document) -> None:
 
 
 def list_favorites(
-    db: Session, user: User, *, limit: int, offset: int
+    db: Session, user: User, *, q: str | None = None, limit: int, offset: int
 ) -> tuple[list[tuple[Document, bool]], int]:
     """Documents favorited by ``user`` (trash excluded), newest first."""
     return document_repository.list_favorited_for_user(
-        db, user.id, limit=limit, offset=offset
+        db, user.id, q=q, limit=limit, offset=offset
     )

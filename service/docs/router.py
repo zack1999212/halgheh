@@ -36,6 +36,7 @@ from .schemas import (
     DocumentUpdate,
     DocumentVersionListResponse,
     DocumentVersionResponse,
+    DocumentVersionRestoreRequest,
     FolderCreate,
     FolderListResponse,
     FolderNode,
@@ -244,11 +245,12 @@ def create_document(
 def list_favorites(
     limit: Limit = 50,
     offset: Offset = 0,
+    q: str | None = Query(default=None, max_length=256),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
     items, total = favorite_service.list_favorites(
-        db, current_user, limit=limit, offset=offset
+        db, current_user, q=q, limit=limit, offset=offset
     )
     return DocumentListResponse(
         items=[_document_response(d, f) for d, f in items],
@@ -267,6 +269,7 @@ def list_documents(
     folder_id: int | None = Query(default=None),
     q: str | None = Query(default=None, max_length=256),
     tag_id: int | None = Query(default=None),
+    tag_ids: list[int] | None = Query(default=None),
     is_favorite: bool | None = Query(default=None),
     is_archived: bool | None = Query(default=None),
     is_deleted: bool | None = Query(default=False),
@@ -284,6 +287,7 @@ def list_documents(
         folder_id=folder_id,
         q=q,
         tag_id=tag_id,
+        tag_ids=tag_ids,
         is_favorite=is_favorite,
         is_archived=is_archived,
         is_deleted=is_deleted,
@@ -387,6 +391,29 @@ def get_document_version(
     document: Document = Depends(deps.readable_document),
 ):
     return document_service.get_version(db, document, version_number)
+
+
+@router.post(
+    "/documents/{document_id}/versions/{version_number}/restore",
+    response_model=DocumentResponse,
+)
+def restore_document_version(
+    data: DocumentVersionRestoreRequest,
+    version_number: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+    document: Document = Depends(deps.writable_document),
+):
+    restored = document_service.restore_document_version(
+        db,
+        current_user,
+        document,
+        version_number,
+        expected_updated_at=data.expected_updated_at,
+    )
+    return _document_response(
+        restored, _is_favorited(db, current_user, document.id)
+    )
 
 
 # ----------------------------------------------------------------------- tags

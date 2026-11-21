@@ -112,7 +112,7 @@ export default function DocumentsPage() {
   const [mode, setMode] = useState('documents')
   const [activeFolderId, setActiveFolderId] = useState(null)
   const [query, setQuery] = useState(null)
-  const [activeTagId, setActiveTagId] = useState(null)
+  const [activeTagIds, setActiveTagIds] = useState([])
 
   const folderTree = useFolderTree(activeWorkspaceId)
   const tags = useTags(activeWorkspaceId)
@@ -124,12 +124,31 @@ export default function DocumentsPage() {
     workspaceId: activeWorkspaceId,
     folderId: activeFolderId,
     query,
-    tagId: activeTagId,
+    tagIds: activeTagIds,
     mode,
   })
 
   const document = useDocument(activeDocumentId)
   const links = useDocumentLinks(activeDocumentId)
+
+  const handleUpdateTag = useCallback(
+    async (tagId, patch) => {
+      await tags.update(tagId, patch)
+      document.reload()
+      documentList.reload()
+    },
+    [tags, document, documentList],
+  )
+
+  const handleDeleteTag = useCallback(
+    async (tagId) => {
+      await tags.remove(tagId)
+      setActiveTagIds((current) => current.filter((id) => id !== tagId))
+      document.reload()
+      documentList.reload()
+    },
+    [tags, document, documentList],
+  )
 
   // ------------------------------------------------------------ UI state
   const [libraryOpen, setLibraryOpen] = useState(false)
@@ -163,7 +182,7 @@ export default function DocumentsPage() {
   function resetViewFilters() {
     setMode('documents')
     setActiveFolderId(null)
-    setActiveTagId(null)
+    setActiveTagIds([])
     setQuery(null)
   }
 
@@ -178,7 +197,7 @@ export default function DocumentsPage() {
 
   function handleFolderSelect(folderId) {
     setMode('documents')
-    setActiveTagId(null)
+    setActiveTagIds([])
     // Clicking the active folder again returns to the whole workspace.
     setActiveFolderId((current) => (current === folderId ? null : folderId))
     setLibraryOpen(false)
@@ -190,15 +209,16 @@ export default function DocumentsPage() {
   function handleModeChange(next) {
     setMode(next)
     setActiveFolderId(null)
-    setActiveTagId(null)
+    setActiveTagIds([])
     setLibraryOpen(false)
     if (activeDocumentId) {
       closeDocument()
     }
   }
 
-  function handleTagChange(tagId) {
-    setActiveTagId(tagId)
+  function handleTagFilterChange(tagIds) {
+    const next = Array.isArray(tagIds) ? tagIds : tagIds ? [tagIds] : []
+    setActiveTagIds(next)
     setActiveFolderId(null)
     setMode('documents')
     setLibraryOpen(false)
@@ -220,16 +240,20 @@ export default function DocumentsPage() {
     if (mode === 'favorites') return 'Favorites'
     if (mode === 'trash') return 'Trash'
     if (query) return `Search: "${query}"`
-    if (activeTagId) {
-      const tag = (tags.data || []).find((item) => item.id === activeTagId)
-      return tag ? `Tag: ${tag.name}` : 'Documents'
+    if (activeTagIds.length > 0) {
+      const names = activeTagIds
+        .map((id) => (tags.data || []).find((item) => item.id === id)?.name)
+        .filter(Boolean)
+      if (names.length === 1) return `Tag: ${names[0]}`
+      if (names.length > 1) return `Tags: ${names.join(', ')}`
+      return 'Filtered documents'
     }
     if (activeFolderId) {
       const name = findFolderName(folderTree.data?.items, activeFolderId)
       return name ? `Folder: ${name}` : 'Documents'
     }
     return 'All documents'
-  }, [mode, query, activeTagId, tags.data, activeFolderId, folderTree.data])
+  }, [mode, query, activeTagIds, tags.data, activeFolderId, folderTree.data])
 
   // ------------------------------------------------- document CRUD dialogs
   const [createOpen, setCreateOpen] = useState(false)
@@ -400,8 +424,8 @@ export default function DocumentsPage() {
     mode,
     onModeChange: handleModeChange,
     tags,
-    activeTagId,
-    onTagChange: handleTagChange,
+    activeTagIds,
+    onTagFilterChange: handleTagFilterChange,
     folderTree,
     activeFolderId,
     onFolderSelect: handleFolderSelect,
@@ -433,9 +457,15 @@ export default function DocumentsPage() {
         onAttachTag={document.attachTag}
         onDetachTag={document.detachTag}
         onCreateTag={tags.create}
+        onUpdateTag={handleUpdateTag}
+        onDeleteTag={handleDeleteTag}
         onCreateLink={links.createLink}
         onRemoveLink={links.removeLink}
         onOpenDocument={openDocument}
+        onRestoreVersion={async (versionNumber) => {
+          await document.restoreVersion(versionNumber)
+          documentList.reload()
+        }}
       />
     ) : (
       <div
@@ -556,6 +586,7 @@ export default function DocumentsPage() {
               mode={mode}
               heading={listHeading}
               documentList={documentList}
+              searchActive={Boolean(query?.trim()) || activeTagIds.length > 0}
               onCreate={() => setCreateOpen(true)}
               onOpen={openDocument}
               onToggleFavorite={handleToggleFavorite}

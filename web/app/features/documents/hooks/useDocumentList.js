@@ -24,6 +24,7 @@ export function useDocumentList({
   projectId,
   query,
   tagId,
+  tagIds,
   mode = 'documents',
   enabled = true,
 } = {}) {
@@ -40,7 +41,11 @@ export function useDocumentList({
   const fetchPage = useCallback(
     (nextOffset) => {
       if (mode === 'favorites') {
-        return listFavorites({ limit: PAGE_SIZE, offset: nextOffset })
+        return listFavorites({
+          limit: PAGE_SIZE,
+          offset: nextOffset,
+          query: query || undefined,
+        })
       }
       return listDocuments({
         workspaceId,
@@ -48,6 +53,7 @@ export function useDocumentList({
         projectId,
         query: query || undefined,
         tagId,
+        tagIds: Array.isArray(tagIds) && tagIds.length > 0 ? tagIds : undefined,
         isDeleted: mode === 'trash' ? true : false,
         isArchived: mode === 'archived' ? true : undefined,
         sort: 'updated_desc',
@@ -55,7 +61,7 @@ export function useDocumentList({
         offset: nextOffset,
       })
     },
-    [workspaceId, folderId, projectId, query, tagId, mode],
+    [workspaceId, folderId, projectId, query, tagId, tagIds, mode],
   )
 
   const loadInitial = useCallback(() => {

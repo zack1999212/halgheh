@@ -56,8 +56,8 @@ export default function LeftSidebar({
   mode,
   onModeChange,
   tags,
-  activeTagId,
-  onTagChange,
+  activeTagIds = [],
+  onTagFilterChange,
   folderTree,
   activeFolderId,
   onFolderSelect,
@@ -206,7 +206,7 @@ export default function LeftSidebar({
           ) : tags.data?.length ? (
             <ul className="grid gap-0.5">
               {tags.data.map((tag) => {
-                const active = activeTagId === tag.id
+                const active = activeTagIds.includes(tag.id)
                 return (
                   <li key={tag.id}>
                     <button
@@ -218,7 +218,13 @@ export default function LeftSidebar({
                           : 'text-muted-foreground hover:text-foreground',
                       )}
                       aria-pressed={active}
-                      onClick={() => onTagChange(active ? null : tag.id)}
+                      onClick={() =>
+                        onTagFilterChange(
+                          active
+                            ? activeTagIds.filter((id) => id !== tag.id)
+                            : [...activeTagIds, tag.id],
+                        )
+                      }
                     >
                       <TagDot color={tag.color} />
                       <span className="truncate">{tag.name}</span>

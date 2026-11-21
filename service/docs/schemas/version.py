@@ -19,3 +19,7 @@ class DocumentVersionResponse(BaseModel):
 
 class DocumentVersionListResponse(Page):
     items: list[DocumentVersionResponse]
+
+
+class DocumentVersionRestoreRequest(BaseModel):
+    expected_updated_at: datetime

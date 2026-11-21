@@ -1,7 +1,9 @@
 import { useCallback, useState } from 'react'
 import {
   createTag as createTagRequest,
+  deleteTag as deleteTagRequest,
   listTags,
+  updateTag as updateTagRequest,
 } from '../api/client.js'
 import { useResource } from './useResource.js'
 
@@ -20,6 +22,7 @@ export function useTags(workspaceId) {
   )
 
   const [creating, setCreating] = useState(false)
+  const [mutating, setMutating] = useState(false)
 
   const create = useCallback(
     async ({ name, color }) => {
@@ -36,5 +39,32 @@ export function useTags(workspaceId) {
     [workspaceId, resource],
   )
 
-  return { ...resource, create, creating }
+  const update = useCallback(
+    async (tagId, patch) => {
+      setMutating(true)
+      try {
+        const tag = await updateTagRequest(tagId, patch)
+        resource.reload()
+        return tag
+      } finally {
+        setMutating(false)
+      }
+    },
+    [resource],
+  )
+
+  const remove = useCallback(
+    async (tagId) => {
+      setMutating(true)
+      try {
+        await deleteTagRequest(tagId)
+        resource.reload()
+      } finally {
+        setMutating(false)
+      }
+    },
+    [resource],
+  )
+
+  return { ...resource, create, update, remove, creating, mutating }
 }

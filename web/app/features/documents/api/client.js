@@ -16,6 +16,13 @@ function queryString(params) {
     // Booleans must be sent even when false ("is_deleted=false"), but
     // undefined/null/'' filters are omitted entirely.
     if (value === undefined || value === null || value === '') continue
+    if (Array.isArray(value)) {
+      for (const item of value) {
+        if (item === undefined || item === null || item === '') continue
+        search.append(key, String(item))
+      }
+      continue
+    }
     search.set(key, String(value))
   }
   const encoded = search.toString()
@@ -91,6 +98,10 @@ export function listDocuments(filters = {}) {
       project_id: filters.projectId,
       q: filters.query,
       tag_id: filters.tagId,
+      tag_ids:
+        Array.isArray(filters.tagIds) && filters.tagIds.length > 0
+          ? filters.tagIds
+          : undefined,
       is_favorite: filters.isFavorite,
       is_archived: filters.isArchived,
       is_deleted: filters.isDeleted,
@@ -200,10 +211,11 @@ export function detachTag(documentId, tagId) {
 
 // -------------------------------------------------------------- favorites
 
-export function listFavorites({ limit = 200, offset = 0 } = {}) {
-  return apiRequest(`${BASE}/favorites${queryString({ limit, offset })}`, {
-    fallbackMessage: 'Could not load favorites.',
-  })
+export function listFavorites({ limit = 200, offset = 0, query } = {}) {
+  return apiRequest(
+    `${BASE}/favorites${queryString({ limit, offset, q: query })}`,
+    { fallbackMessage: 'Could not load favorites.' },
+  )
 }
 
 export function addFavorite(documentId) {
@@ -262,5 +274,20 @@ export function getDocumentVersion(documentId, versionNumber) {
   return apiRequest(
     `${BASE}/documents/${documentId}/versions/${versionNumber}`,
     { fallbackMessage: 'Could not load the document version.' },
+  )
+}
+
+export function restoreDocumentVersion(
+  documentId,
+  versionNumber,
+  { expectedUpdatedAt } = {},
+) {
+  return apiRequest(
+    `${BASE}/documents/${documentId}/versions/${versionNumber}/restore`,
+    {
+      method: 'POST',
+      body: { expected_updated_at: expectedUpdatedAt },
+      fallbackMessage: 'Could not restore the document version.',
+    },
   )
 }

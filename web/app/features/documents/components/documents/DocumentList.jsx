@@ -153,6 +153,7 @@ export default function DocumentList({
   onTrash,
   onRestore,
   readOnly = false,
+  searchActive = false,
 }) {
   const documents = documentList.documents
 
@@ -246,10 +247,22 @@ export default function DocumentList({
           <EmptyState
             className="h-full justify-center"
             icon={mode === 'trash' ? Trash2 : mode === 'favorites' ? Star : FileText}
-            title={readOnly && mode === 'documents' ? 'No documents yet' : EMPTY_COPY[mode].title}
-            description={readOnly && mode === 'documents' ? 'No documents have been created for this project yet.' : EMPTY_COPY[mode].description}
+            title={
+              searchActive
+                ? 'No matching documents'
+                : readOnly && mode === 'documents'
+                  ? 'No documents yet'
+                  : EMPTY_COPY[mode].title
+            }
+            description={
+              searchActive
+                ? 'Try a different title, content, or filter.'
+                : readOnly && mode === 'documents'
+                  ? 'No documents have been created for this project yet.'
+                  : EMPTY_COPY[mode].description
+            }
           >
-            {!readOnly && mode === 'documents' && (
+            {!readOnly && !searchActive && mode === 'documents' && (
               <Button type="button" size="sm" className="mx-auto" onClick={onCreate}>
                 <FilePlus2 size={14} aria-hidden="true" />
                 New document

@@ -32,6 +32,7 @@ from .document import (
 from .version import (
     DocumentVersionListResponse,
     DocumentVersionResponse,
+    DocumentVersionRestoreRequest,
 )
 from .tag import (
     TagCreate,
@@ -76,6 +77,7 @@ __all__ = [
     "WikiResolutionInfo",
     "DocumentVersionListResponse",
     "DocumentVersionResponse",
+    "DocumentVersionRestoreRequest",
     "TagCreate",
     "TagListResponse",
     "TagResponse",

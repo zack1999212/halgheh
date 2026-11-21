@@ -3,6 +3,7 @@ import EmptyState from '@/components/shared/EmptyState.jsx'
 import ErrorState from '@/components/shared/ErrorState.jsx'
 import TagsSection from './TagsSection.jsx'
 import LinksSection from './LinksSection.jsx'
+import VersionHistorySection from './VersionHistorySection.jsx'
 import { formatFullTime } from '../../utils/formatTime.js'
 
 function Section({ title, children }) {
@@ -38,9 +39,12 @@ export default function PropertiesPanel({
   onAttachTag,
   onDetachTag,
   onCreateTag,
+  onUpdateTag,
+  onDeleteTag,
   onCreateLink,
   onRemoveLink,
   onOpenDocument,
+  onRestoreVersion,
 }) {
   if (!document) {
     return (
@@ -82,6 +86,8 @@ export default function PropertiesPanel({
             onAttach={onAttachTag}
             onDetach={onDetachTag}
             onCreateTag={onCreateTag}
+            onUpdateTag={onUpdateTag}
+            onDeleteTag={onDeleteTag}
           />
         </Section>
       )}
@@ -110,6 +116,15 @@ export default function PropertiesPanel({
             onOpenDocument={onOpenDocument}
           />
         )}
+      </Section>
+
+      <Separator />
+
+      <Section title="Version history">
+        <VersionHistorySection
+          document={document}
+          onRestoreVersion={onRestoreVersion}
+        />
       </Section>
     </div>
   )

@@ -1,4 +1,5 @@
 import re
+from datetime import timezone
 
 from fastapi import HTTPException, status
 from sqlalchemy.exc import IntegrityError
@@ -184,6 +185,7 @@ def list_documents(
     folder_id: int | None = None,
     q: str | None = None,
     tag_id: int | None = None,
+    tag_ids: list[int] | None = None,
     is_favorite: bool | None = None,
     is_archived: bool | None = None,
     is_deleted: bool | None = False,
@@ -200,6 +202,7 @@ def list_documents(
         folder_id=folder_id,
         q=q,
         tag_id=tag_id,
+        tag_ids=tag_ids,
         is_favorite=is_favorite,
         is_archived=is_archived,
         is_deleted=is_deleted,
@@ -249,3 +252,79 @@ def get_version(
             detail="Document version not found",
         )
     return version
+
+
+def restore_document_version(
+    db: Session,
+    user: User,
+    document: Document,
+    version_number: int,
+    *,
+    expected_updated_at,
+) -> Document:
+    """Restore title/content from an older version as a new latest version.
+
+    Safety: rejects stale requests (409), preserves the current state in
+    version history, and only restores title/content (metadata unchanged).
+    """
+    current_updated_at = document.updated_at
+    if current_updated_at.tzinfo is None:
+        current_updated_at = current_updated_at.replace(tzinfo=timezone.utc)
+    expected = expected_updated_at
+    if expected.tzinfo is None:
+        expected = expected.replace(tzinfo=timezone.utc)
+    if current_updated_at.astimezone(timezone.utc) != expected.astimezone(
+        timezone.utc
+    ):
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Document has changed since it was loaded. Reload before restoring.",
+        )
+
+    target = document_repository.get_version(db, document.id, version_number)
+    if target is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Document version not found",
+        )
+
+    if document.title == target.title and document.content == target.content:
+        return document
+
+    latest_number = document_repository.max_version_number(db, document.id)
+    latest = (
+        document_repository.get_version(db, document.id, latest_number)
+        if latest_number > 0
+        else None
+    )
+    # Defensive safety: ensure current DB state is preserved in history before
+    # applying restore, even if a prior write path missed snapshotting.
+    if latest is None or latest.title != document.title or latest.content != document.content:
+        latest_number += 1
+        document_repository.add_version(
+            db,
+            document_id=document.id,
+            version_number=latest_number,
+            title=document.title,
+            content=document.content,
+            created_by=document.owner_id,
+        )
+
+    document.title = target.title
+    document.content = target.content
+    document_repository.add_version(
+        db,
+        document_id=document.id,
+        version_number=latest_number + 1,
+        title=document.title,
+        content=document.content,
+        created_by=user.id,
+    )
+    wiki_service.sync_wiki_reference_links(db, user, document)
+    try:
+        db.commit()
+    except Exception:
+        db.rollback()
+        raise
+    db.refresh(document)
+    return document
