@@ -455,3 +455,32 @@ class ProjectOverviewResponse(BaseModel):
     milestones: MilestoneMetrics
     members: MembershipMetrics
     upcoming_events: list[OccurrenceResponse]
+
+
+# --- Activity ---
+
+
+class ProjectActivityActor(BaseModel):
+    id: int
+    username: str | None = None
+    name: str | None = None
+
+
+class ProjectActivityResponse(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    event_type: str
+    entity_type: str
+    entity_id: int | None = None
+    project_id: int
+    actor: ProjectActivityActor | None = None
+    metadata: dict | None = None
+    created_at: datetime
+
+
+class ProjectActivityListResponse(BaseModel):
+    items: list[ProjectActivityResponse]
+    total: int
+    limit: int
+    offset: int

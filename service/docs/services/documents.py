@@ -14,6 +14,7 @@ from ..repositories import tags as tag_repository
 from ..schemas import DocumentCreate, DocumentUpdate
 from . import access
 from . import wiki as wiki_service
+from ...project import activity as project_activity
 from ...project import service as project_service
 
 # Keep room for the "-2", "-3"... disambiguation suffixes.
@@ -82,6 +83,16 @@ def create_document(db: Session, user: User, data: DocumentCreate) -> Document:
         content=document.content,
         created_by=user.id,
     )
+    if document.project_id is not None:
+        project_activity.record(
+            db,
+            project_id=document.project_id,
+            actor_id=user.id,
+            event_type=project_activity.DOCUMENT_CREATED,
+            entity_type="document",
+            entity_id=document.id,
+            metadata={"document_id": document.id, "document_title": document.title},
+        )
     wiki_service.sync_wiki_reference_links(db, user, document)
     try:
         db.commit()
@@ -108,6 +119,8 @@ def update_document(
     a new immutable version created by ``user``. Slugs stay stable across
     renames so links to a document never break."""
     updates = data.model_dump(exclude_unset=True)
+    old_project_id = document.project_id
+    project_changed = False
     if "project_id" in updates:
         new_project_id = updates.pop("project_id")
         if document.project_id is not None:
@@ -119,7 +132,9 @@ def update_document(
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail="Only the document owner can perform this action",
             )
-        document.project_id = new_project_id
+        if new_project_id != old_project_id:
+            document.project_id = new_project_id
+            project_changed = True
     if "folder_id" in updates and updates["folder_id"] is not None:
         folder = folder_repository.get_in_workspace(
             db, updates["folder_id"], document.workspace_id
@@ -131,8 +146,12 @@ def update_document(
             )
     content_changed = "content" in updates and updates["content"] != document.content
     title_changed = "title" in updates and updates["title"] != document.title
+    changed_fields: list[str] = []
     for field, value in updates.items():
-        setattr(document, field, value)
+        if getattr(document, field) != value:
+            setattr(document, field, value)
+            changed_fields.append(field)
+    meaningful_change = bool(changed_fields) or project_changed
     if content_changed or title_changed:
         document_repository.add_version(
             db,
@@ -142,6 +161,22 @@ def update_document(
             content=document.content,
             created_by=user.id,
         )
+    if meaningful_change:
+        affected_project_ids: list[int] = []
+        if old_project_id is not None:
+            affected_project_ids.append(old_project_id)
+        if document.project_id is not None and document.project_id not in affected_project_ids:
+            affected_project_ids.append(document.project_id)
+        for pid in affected_project_ids:
+            project_activity.record(
+                db,
+                project_id=pid,
+                actor_id=user.id,
+                event_type=project_activity.DOCUMENT_UPDATED,
+                entity_type="document",
+                entity_id=document.id,
+                metadata={"document_id": document.id, "document_title": document.title},
+            )
     if content_changed:
         wiki_service.sync_wiki_reference_links(db, user, document)
     try:

@@ -12,6 +12,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from ..notifications.service import add_notification
+from . import activity as project_activity
 from . import permissions, repository
 from .models import (
     COMPLETED_STATUS,
@@ -388,7 +389,7 @@ def accept_invitation(db: Session, actor_id: int, invitation_id: int):
         raise _bad_request("User is already a project member")
 
     now = datetime.now(timezone.utc)
-    repository.create_member(
+    member = repository.create_member(
         db,
         project_id=invitation.project_id,
         user_id=actor_id,
@@ -397,6 +398,24 @@ def accept_invitation(db: Session, actor_id: int, invitation_id: int):
     )
     invitation.status = "accepted"
     invitation.responded_at = now
+
+    actor_user = repository.get_user(db, actor_id)
+    project_activity.record(
+        db,
+        project_id=invitation.project_id,
+        actor_id=actor_id,
+        event_type=project_activity.MEMBER_JOINED,
+        entity_type="member",
+        entity_id=member.id,
+        metadata={
+            "member_id": member.id,
+            "user_id": actor_id,
+            "username": getattr(actor_user, "username", None) if actor_user else invitation.invitee_username,
+            "name": getattr(actor_user, "name", None) if actor_user else None,
+            "role": invitation.role,
+        },
+    )
+
     _commit(db, conflict_detail="Could not accept invitation")
     db.refresh(invitation)
     return invitation
@@ -816,11 +835,27 @@ def complete_milestone_step(
 ) -> dict:
     project, _role = require_project_manage(db, actor_id, project_id)
     milestone, step = _get_project_milestone_step(db, project.id, milestone_id, step_id)
+    transitioned_to_completed = not step.is_completed
     if not step.is_completed:
         step.is_completed = True
         step.completed_at = datetime.now(timezone.utc)
     elif step.completed_at is None:
         step.completed_at = datetime.now(timezone.utc)
+    if transitioned_to_completed:
+        project_activity.record(
+            db,
+            project_id=project.id,
+            actor_id=actor_id,
+            event_type=project_activity.MILESTONE_STEP_COMPLETED,
+            entity_type="milestone_step",
+            entity_id=step.id,
+            metadata={
+                "milestone_id": milestone.id,
+                "milestone_title": milestone.title,
+                "step_id": step.id,
+                "step_title": step.title,
+            },
+        )
     db.expire(milestone, ["steps"])
     _sync_milestone_progress(milestone)
     _commit(db, conflict_detail="Could not complete milestone step")
@@ -1049,3 +1084,64 @@ def get_project_overview(db: Session, actor_id: int, project_id: int) -> dict:
         "members": _membership_metrics(member_counts),
         "upcoming_events": upcoming_events,
     }
+
+
+# --- Activity ---
+
+
+def _serialize_activity(activity) -> dict:
+    actor = getattr(activity, "actor", None)
+    actor_data = None
+    if actor is not None:
+        actor_data = {
+            "id": actor.id,
+            "username": getattr(actor, "username", None),
+            "name": getattr(actor, "name", None),
+        }
+    elif activity.actor_id is not None:
+        actor_data = {"id": activity.actor_id, "username": None, "name": None}
+
+    metadata = activity.metadata_ if activity.metadata_ is not None else {}
+    return {
+        "id": activity.id,
+        "event_type": activity.event_type,
+        "entity_type": activity.entity_type,
+        "entity_id": activity.entity_id,
+        "project_id": activity.project_id,
+        "actor": actor_data,
+        "metadata": metadata,
+        "created_at": activity.created_at,
+    }
+
+
+def list_project_activity(
+    db: Session,
+    actor_id: int,
+    project_id: int,
+    *,
+    event_types: list[str] | None = None,
+    limit: int = 50,
+    offset: int = 0,
+) -> tuple[list[dict], int]:
+    project, _role = _get_accessible_project(db, project_id, actor_id)
+
+    limit = min(max(limit, 1), 100)
+    offset = max(offset, 0)
+
+    normalized_types: list[str] | None = None
+    if event_types:
+        normalized_types = []
+        for et in event_types:
+            if et not in project_activity.SUPPORTED_EVENT_TYPES:
+                raise _bad_request(f"Unknown activity event type: {et}")
+            if et not in normalized_types:
+                normalized_types.append(et)
+
+    items, total = repository.list_project_activities(
+        db,
+        project.id,
+        event_types=normalized_types,
+        limit=limit,
+        offset=offset,
+    )
+    return [_serialize_activity(a) for a in items], total

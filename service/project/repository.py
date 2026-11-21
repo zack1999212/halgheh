@@ -10,10 +10,10 @@ from __future__ import annotations
 from datetime import date
 
 from sqlalchemy import Select, func, literal, nullslast, select, union_all
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, joinedload
 
 from ..auth.models import User
-from .models import Project, ProjectInvitation, ProjectMember, ProjectMilestone, ProjectMilestoneStep
+from .models import Project, ProjectActivity, ProjectInvitation, ProjectMember, ProjectMilestone, ProjectMilestoneStep
 
 
 def create_project(db: Session, **fields) -> Project:
@@ -361,3 +361,29 @@ def count_tasks_by_status(db: Session, project_id: int) -> dict[str, int]:
         .group_by(Task.status)
     )
     return {str(status): int(count) for status, count in db.execute(stmt).all()}
+
+
+# --- Activity ---
+
+
+def list_project_activities(
+    db: Session,
+    project_id: int,
+    *,
+    event_types: list[str] | None = None,
+    limit: int = 50,
+    offset: int = 0,
+) -> tuple[list[ProjectActivity], int]:
+    stmt = select(ProjectActivity).where(ProjectActivity.project_id == project_id)
+    if event_types:
+        stmt = stmt.where(ProjectActivity.event_type.in_(event_types))
+
+    total = db.scalar(select(func.count()).select_from(stmt.subquery()))
+    stmt = (
+        stmt.options(joinedload(ProjectActivity.actor))
+        .order_by(ProjectActivity.created_at.desc(), ProjectActivity.id.desc())
+        .limit(limit)
+        .offset(offset)
+    )
+    items = list(db.scalars(stmt).all())
+    return items, int(total or 0)

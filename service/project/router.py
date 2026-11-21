@@ -18,6 +18,7 @@ from .schemas import (
     MilestoneStepReorderRequest,
     MilestoneStepUpdate,
     MilestoneUpdate,
+    ProjectActivityListResponse,
     ProjectCreate,
     ProjectInvitationCreate,
     ProjectInvitationResponse,
@@ -80,6 +81,26 @@ def get_project_overview(
     current_user: User = Depends(get_current_user),
 ):
     return service.get_project_overview(db, current_user.id, project_id)
+
+
+@router.get("/{project_id}/activity", response_model=ProjectActivityListResponse)
+def list_project_activity(
+    project_id: int,
+    event_type: list[str] = Query(default=[]),
+    limit: int = Query(default=50, ge=1, le=100),
+    offset: int = Query(default=0, ge=0),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    items, total = service.list_project_activity(
+        db,
+        current_user.id,
+        project_id,
+        event_types=event_type or None,
+        limit=limit,
+        offset=offset,
+    )
+    return {"items": items, "total": total, "limit": limit, "offset": offset}
 
 
 @router.patch("/{project_id}", response_model=ProjectResponse)

@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react'
-import { useOutletContext, useParams } from 'react-router-dom'
+import { useOutletContext, useParams, useSearchParams } from 'react-router-dom'
 import { ChevronLeft, ChevronRight } from 'lucide-react'
 import FormError from '@/components/shared/FormError'
 import { Button } from '@/components/ui/button'
@@ -32,6 +32,19 @@ export default function ProjectTasksPage() {
   const [dialog, setDialog] = useState({ open: false, mode: 'create', task: null })
   const [selectedTaskId, setSelectedTaskId] = useState(null)
   const [detailsRefreshKey, setDetailsRefreshKey] = useState(0)
+  const [searchParams, setSearchParams] = useSearchParams()
+
+  useEffect(() => {
+    const raw = searchParams.get('taskId')
+    if (!raw) return
+    const taskId = Number(raw)
+    if (Number.isFinite(taskId) && taskId > 0) {
+      setSelectedTaskId(taskId)
+    }
+    const next = new URLSearchParams(searchParams)
+    next.delete('taskId')
+    setSearchParams(next, { replace: true })
+  }, [searchParams, setSearchParams])
   const [currentUserId, setCurrentUserId] = useState(null)
   const [actionError, setActionError] = useState('')
   const [labels, setLabels] = useState([])

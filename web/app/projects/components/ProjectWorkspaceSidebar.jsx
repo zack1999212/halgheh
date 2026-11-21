@@ -1,10 +1,12 @@
 import { NavLink, useParams } from 'react-router-dom'
 import {
+  Activity,
   CalendarDays,
   Flag,
   FolderOpen,
   LayoutDashboard,
   ListChecks,
+  MessageSquare,
   Users,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
@@ -16,6 +18,8 @@ const ITEMS = [
   { key: 'calendar', label: 'Calendar', icon: CalendarDays },
   { key: 'milestones', label: 'Milestones', icon: Flag },
   { key: 'members', label: 'Members', icon: Users },
+  { key: 'discussions', label: 'Discussions', icon: MessageSquare },
+  { key: 'activity', label: 'Activity', icon: Activity },
 ]
 
 export default function ProjectWorkspaceSidebar({ onNavigate, className }) {

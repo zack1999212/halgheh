@@ -17,6 +17,8 @@ import { Avatar, AvatarFallback } from '@/components/ui/avatar'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Skeleton } from '@/components/ui/skeleton'
+import ProjectActivityFeed from '../components/ProjectActivityFeed.jsx'
+import useProjectActivity from '../hooks/useProjectActivity.js'
 import { getProjectOverview, listProjectMembers } from '../api.js'
 import { formatDateTime, formatProjectDate, formatRole } from '../utils/projectFormat.js'
 import { PROJECT_STATUS_LABELS } from '../utils/projectConstants.js'
@@ -205,6 +207,12 @@ export default function ProjectOverviewPage() {
   const [membersLoading, setMembersLoading] = useState(true)
   const [membersError, setMembersError] = useState('')
   const [membersExpanded, setMembersExpanded] = useState(false)
+  const recentActivity = useProjectActivity({
+    projectId,
+    limit: 5,
+    enabled: Boolean(projectId),
+    onUnauthorized: outlet.onUnauthorized,
+  })
 
   const load = useCallback(async () => {
     if (!projectId) return
@@ -546,6 +554,28 @@ export default function ProjectOverviewPage() {
             )}
           </section>
         </div>
+
+        <section className="project-overview-surface p-5 sm:p-6" aria-label="Recent project activity">
+          <div className="mb-4 flex items-center justify-between gap-3">
+            <div>
+              <h3 className="text-[15px] font-semibold tracking-[-0.01em] text-foreground">Recent activity</h3>
+              <p className="mt-0.5 text-[13px] text-muted-foreground">Latest meaningful changes in this project.</p>
+            </div>
+            <Button asChild variant="outline" size="sm" className="h-8">
+              <Link to={`/projects/${projectId}/activity`}>View all</Link>
+            </Button>
+          </div>
+          <ProjectActivityFeed
+            projectId={projectId}
+            items={recentActivity.items}
+            loading={recentActivity.loading}
+            error={recentActivity.error}
+            onRetry={recentActivity.reload}
+            compact
+            emptyTitle="No recent activity"
+            emptyDescription="Project changes will appear here as work happens."
+          />
+        </section>
 
         <section className="project-overview-surface p-5 sm:p-6 xl:hidden" aria-label="Project information">
           <h3 className="text-[15px] font-semibold tracking-[-0.01em] text-foreground">Project information</h3>
