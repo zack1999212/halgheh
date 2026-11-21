@@ -11,6 +11,12 @@ from sqlalchemy.orm import configure_mappers
 
 import service.auth.models  # noqa: F401  (must stay importable/unchanged)
 import service.docs.models  # noqa: F401
+# User relationships added by origin/dev (ai, agent, calendar, notifications)
+# require these models to be registered for configure_mappers().
+import service.agent.models  # noqa: F401
+import service.ai.models  # noqa: F401
+import service.calendar.models  # noqa: F401
+import service.notifications.models  # noqa: F401
 from service.core.database import Base
 from service.docs.models import (
     Document,
@@ -66,6 +72,7 @@ def test_auth_users_table_untouched():
         "username",
         "name",
         "hashed_password",
+        "avatar_url",
         "created_at",
     }
     # No user-side foreign keys into document tables were added.

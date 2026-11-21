@@ -23,6 +23,7 @@ from .schemas import (
     DocumentCreate,
     DocumentDetailResponse,
     DocumentFavoriteResponse,
+    DocumentGraphResponse,
     DocumentLinkCreate,
     DocumentLinkResponse,
     DocumentLinksResponse,
@@ -56,6 +57,7 @@ from .services import folders as folder_service
 from .services import links as link_service
 from .services import permissions as permission_service
 from .services import tags as tag_service
+from .services import wiki as wiki_service
 from .services import workspaces as workspace_service
 
 router = APIRouter(prefix="/documents/v1", tags=["documents"])
@@ -310,6 +312,11 @@ def get_document(
     response.is_favorite = favorited
     response.folder = folder
     response.tags = tags
+    # Authoritative wiki token resolutions for the preview (same rules as
+    # synchronization), so the editor never infers state from list data.
+    response.wiki_resolutions = wiki_service.content_resolutions(
+        db, current_user, document
+    )
     return response
 
 
@@ -467,9 +474,10 @@ def create_document_link(
 )
 def list_document_links(
     db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
     source: Document = Depends(deps.readable_document),
 ):
-    outgoing, incoming = link_service.list_links(db, source)
+    outgoing, incoming = link_service.list_links(db, current_user, source)
     return DocumentLinksResponse(outgoing=outgoing, incoming=incoming)
 
 
@@ -483,6 +491,22 @@ def delete_document_link(
 ):
     link_service.delete_link(db, document, link_id)
     return _no_content
+
+
+@router.get("/graph", response_model=DocumentGraphResponse)
+def get_document_graph(
+    workspace_id: int = Query(...),
+    # Explicit workspace authorization, matching folders/tags/workspaces:
+    # a missing or foreign workspace yields 404 "Workspace not found"
+    # instead of a silent 200-empty payload (audit finding L1).
+    workspace: Workspace = Depends(deps.owned_workspace),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    nodes, edges, truncated = link_service.get_document_graph(
+        db, current_user, workspace.id
+    )
+    return DocumentGraphResponse(nodes=nodes, edges=edges, truncated=truncated)
 
 
 # ---------------------------------------------------------------- permissions

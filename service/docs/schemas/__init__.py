@@ -27,6 +27,7 @@ from .document import (
     DocumentResponse,
     DocumentSort,
     DocumentUpdate,
+    WikiResolutionInfo,
 )
 from .version import (
     DocumentVersionListResponse,
@@ -39,9 +40,13 @@ from .tag import (
     TagUpdate,
 )
 from .link import (
+    DocumentGraphResponse,
     DocumentLinkCreate,
     DocumentLinkResponse,
     DocumentLinksResponse,
+    GraphEdge,
+    GraphNode,
+    LinkedDocumentInfo,
 )
 from .permission import (
     DocumentPermissionCreate,
@@ -68,15 +73,20 @@ __all__ = [
     "DocumentResponse",
     "DocumentSort",
     "DocumentUpdate",
+    "WikiResolutionInfo",
     "DocumentVersionListResponse",
     "DocumentVersionResponse",
     "TagCreate",
     "TagListResponse",
     "TagResponse",
     "TagUpdate",
+    "DocumentGraphResponse",
     "DocumentLinkCreate",
     "DocumentLinkResponse",
     "DocumentLinksResponse",
+    "GraphEdge",
+    "GraphNode",
+    "LinkedDocumentInfo",
     "DocumentPermissionCreate",
     "DocumentPermissionResponse",
     "DocumentPermissionUpdate",

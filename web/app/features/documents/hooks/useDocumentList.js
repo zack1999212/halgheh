@@ -96,6 +96,7 @@ export function useDocumentList({
     if (!state.items || state.items.length >= state.total) return
     setLoadingMore(true)
     const requestId = requestIdRef.current
+    setState((current) => ({ ...current, error: null }))
     try {
       const data = await fetchPage(offset)
       if (requestId !== requestIdRef.current) return

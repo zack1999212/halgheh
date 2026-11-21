@@ -12,8 +12,8 @@ from ..repositories import folders as folder_repository
 from ..repositories import tags as tag_repository
 from ..schemas import DocumentCreate, DocumentUpdate
 from . import access
+from . import wiki as wiki_service
 from ...project import activity as project_activity
-from ...project import permissions as project_permissions
 from ...project import service as project_service
 
 # Keep room for the "-2", "-3"... disambiguation suffixes.
@@ -92,7 +92,21 @@ def create_document(db: Session, user: User, data: DocumentCreate) -> Document:
             entity_id=document.id,
             metadata={"document_id": document.id, "document_title": document.title},
         )
-    db.commit()
+    wiki_service.sync_wiki_reference_links(db, user, document)
+    try:
+        db.commit()
+    except IntegrityError:
+        # Unique-constraint races (slug or wiki link) that slipped past the
+        # earlier flush: report a conflict instead of a generic 500, matching
+        # the update/link paths' error conventions.
+        db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Document already exists, please retry",
+        )
+    except Exception:
+        db.rollback()
+        raise
     db.refresh(document)
     return document
 
@@ -162,6 +176,8 @@ def update_document(
                 entity_id=document.id,
                 metadata={"document_id": document.id, "document_title": document.title},
             )
+    if content_changed:
+        wiki_service.sync_wiki_reference_links(db, user, document)
     try:
         db.commit()
     except Exception:

@@ -217,6 +217,17 @@ export default function DocumentList({
                 />
               ))}
             </ul>
+            {documentList.error && (
+              <div className="px-2">
+                <ErrorState
+                  title="Could not load more documents"
+                  message={documentList.error?.message}
+                  onRetry={documentList.loadMore}
+                  retryLabel="Try again"
+                  className="text-[12px]"
+                />
+              </div>
+            )}
             {documentList.hasMore && (
               <div className="flex justify-center pt-1">
                 <Button
@@ -230,7 +241,6 @@ export default function DocumentList({
                 </Button>
               </div>
             )}
-            {documentList.loadingMore && !documentList.hasMore && null}
           </div>
         ) : (
           <EmptyState

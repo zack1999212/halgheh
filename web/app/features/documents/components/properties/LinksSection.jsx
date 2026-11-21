@@ -11,7 +11,21 @@ const TYPE_LABELS = {
   depends_on: 'Depends on',
 }
 
-function LinkRow({ link, label, busy, onOpen, onRemove }) {
+function displayFor(documentId, info, documents) {
+  if (info?.title) {
+    return {
+      title: info.title,
+      context: info.folder_name || null,
+    }
+  }
+  const found = (documents || []).find((item) => item.id === documentId)
+  if (found) {
+    return { title: found.title, context: null }
+  }
+  return { title: `Document #${documentId}`, context: null }
+}
+
+function LinkRow({ link, label, context, busy, onOpen, onRemove, removeLabel }) {
   return (
     <li className="flex items-center gap-2 rounded-md px-1 py-1 transition-colors hover:bg-accent">
       <button
@@ -20,13 +34,20 @@ function LinkRow({ link, label, busy, onOpen, onRemove }) {
         onClick={() => onOpen(link)}
       >
         <Link2 size={13} aria-hidden="true" className="shrink-0 text-muted-foreground" />
-        <span className="min-w-0 flex-1 truncate">{label}</span>
+        <span className="min-w-0 flex-1">
+          <span className="block truncate">{label}</span>
+          {context ? (
+            <span className="block truncate text-[11px] text-muted-foreground">
+              {context}
+            </span>
+          ) : null}
+        </span>
         <Badge variant="secondary" className="shrink-0 text-[10.5px]">
           {TYPE_LABELS[link.link_type] || link.link_type}
         </Badge>
       </button>
       <IconButton
-        label={`Remove link to ${label}`}
+        label={removeLabel}
         className="size-6"
         disabled={busy}
         onClick={() => onRemove(link)}
@@ -38,11 +59,11 @@ function LinkRow({ link, label, busy, onOpen, onRemove }) {
 }
 
 /**
- * Explicit document links: outgoing ("Related") and incoming ("Backlinks").
+ * Explicit document links: outgoing and incoming (backlinks).
  *
- * Link rows only carry document ids, so titles are resolved from the
- * workspace document list the page already loaded; anything outside it is
- * shown as its plain id — no fabricated titles.
+ * Uses enriched link metadata from the API when available (title/folder
+ * context), falling back to the loaded workspace document list. Inaccessible
+ * or deleted linked documents are filtered out by the backend.
  */
 export default function LinksSection({
   document,
@@ -57,11 +78,6 @@ export default function LinksSection({
   const [error, setError] = useState('')
   const [removingId, setRemovingId] = useState(null)
   const [removeError, setRemoveError] = useState('')
-
-  const titleFor = (documentId) => {
-    const found = (documents || []).find((item) => item.id === documentId)
-    return found ? found.title : `Document #${documentId}`
-  }
 
   async function handleCreate({ targetDocumentId, linkType }) {
     setBusy(true)
@@ -88,23 +104,46 @@ export default function LinksSection({
     }
   }
 
+  const outgoing = links.data?.outgoing || []
+  const incoming = links.data?.incoming || []
+  const outgoingWiki = outgoing.filter((l) => l.link_type === 'reference').length
+  const outgoingManual = outgoing.length - outgoingWiki
+
   return (
-    <div className="grid gap-2">
+    <div className="grid gap-3">
       {/* Outgoing */}
       <div className="grid gap-1">
-        <h4 className="text-[12px] font-medium text-muted-foreground">Related documents</h4>
-        {links.data?.outgoing?.length ? (
+        <div className="flex items-center justify-between gap-2">
+          <h4 className="text-[12px] font-medium text-muted-foreground">
+            Outgoing links
+          </h4>
+          {outgoing.length ? (
+            <span className="text-[11px] text-muted-foreground">
+              {outgoingManual} manual · {outgoingWiki} wiki/reference
+            </span>
+          ) : null}
+        </div>
+        {outgoing.length ? (
           <ul>
-            {links.data.outgoing.map((link) => (
-              <LinkRow
-                key={link.id}
-                link={link}
-                label={titleFor(link.target_document_id)}
-                busy={removingId === link.id}
-                onOpen={(item) => onOpenDocument(item.target_document_id)}
-                onRemove={(item) => handleRemove(item.id)}
-              />
-            ))}
+            {outgoing.map((link) => {
+              const info = displayFor(
+                link.target_document_id,
+                link.target_document,
+                documents,
+              )
+              return (
+                <LinkRow
+                  key={link.id}
+                  link={link}
+                  label={info.title}
+                  context={info.context}
+                  busy={removingId === link.id}
+                  onOpen={() => onOpenDocument(link.target_document_id)}
+                  onRemove={() => handleRemove(link.id)}
+                  removeLabel={`Remove link to ${info.title}`}
+                />
+              )
+            })}
           </ul>
         ) : (
           <p className="text-[12px] text-muted-foreground">No outgoing links.</p>
@@ -114,55 +153,73 @@ export default function LinksSection({
       {/* Incoming */}
       <div className="grid gap-1">
         <h4 className="text-[12px] font-medium text-muted-foreground">Backlinks</h4>
-        {links.data?.incoming?.length ? (
+        {incoming.length ? (
           <ul>
-            {links.data.incoming.map((link) => (
-              <li key={link.id} className="flex items-center gap-2 rounded-md px-1 py-1 hover:bg-accent">
-                <button
-                  type="button"
-                  className="flex min-w-0 flex-1 items-center gap-2 rounded-sm text-left text-[13px] focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
-                  onClick={() => onOpenDocument(link.source_document_id)}
+            {incoming.map((link) => {
+              const info = displayFor(
+                link.source_document_id,
+                link.source_document,
+                documents,
+              )
+              return (
+                <li
+                  key={link.id}
+                  className="flex items-center gap-2 rounded-md px-1 py-1 hover:bg-accent"
                 >
-                  <Link2
-                    size={13}
-                    aria-hidden="true"
-                    className="shrink-0 -scale-x-100 text-muted-foreground"
-                  />
-                  <span className="min-w-0 flex-1 truncate">
-                    {titleFor(link.source_document_id)}
-                  </span>
-                  <Badge variant="secondary" className="shrink-0 text-[10.5px]">
-                    {TYPE_LABELS[link.link_type] || link.link_type}
-                  </Badge>
-                </button>
-                {/* Removing a backlink requires write access on this document
-                    too — the endpoint deletes by this document's id. */}
-                <IconButton
-                  label={`Remove backlink from ${titleFor(link.source_document_id)}`}
-                  className="size-6"
-                  disabled={removingId === link.id}
-                  onClick={() => handleRemove(link.id)}
-                >
-                  <X size={13} aria-hidden="true" />
-                </IconButton>
-              </li>
-            ))}
+                  <button
+                    type="button"
+                    className="flex min-w-0 flex-1 items-center gap-2 rounded-sm text-left text-[13px] focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                    onClick={() => onOpenDocument(link.source_document_id)}
+                  >
+                    <Link2
+                      size={13}
+                      aria-hidden="true"
+                      className="shrink-0 -scale-x-100 text-muted-foreground"
+                    />
+                    <span className="min-w-0 flex-1">
+                      <span className="block truncate">{info.title}</span>
+                      {info.context ? (
+                        <span className="block truncate text-[11px] text-muted-foreground">
+                          {info.context}
+                        </span>
+                      ) : null}
+                    </span>
+                    <Badge variant="secondary" className="shrink-0 text-[10.5px]">
+                      {TYPE_LABELS[link.link_type] || link.link_type}
+                    </Badge>
+                  </button>
+                  <IconButton
+                    label={`Remove backlink from ${info.title}`}
+                    className="size-6"
+                    disabled={removingId === link.id}
+                    onClick={() => handleRemove(link.id)}
+                  >
+                    <X size={13} aria-hidden="true" />
+                  </IconButton>
+                </li>
+              )
+            })}
           </ul>
         ) : (
           <p className="text-[12px] text-muted-foreground">No backlinks yet.</p>
         )}
       </div>
 
-      <Button
-        type="button"
-        variant="ghost"
-        size="sm"
-        className="h-7 w-fit gap-1.5 px-2 text-[12.5px] text-muted-foreground hover:text-foreground"
-        onClick={() => setShowAdd(true)}
-      >
-        <Plus size={13} aria-hidden="true" />
-        Add link
-      </Button>
+      <div className="grid gap-1">
+        <Button
+          type="button"
+          variant="ghost"
+          size="sm"
+          className="h-7 w-fit gap-1.5 px-2 text-[12.5px] text-muted-foreground hover:text-foreground"
+          onClick={() => setShowAdd(true)}
+        >
+          <Plus size={13} aria-hidden="true" />
+          Add link
+        </Button>
+        <p className="text-[11px] leading-relaxed text-muted-foreground">
+          Wiki references (<code>[[Title]]</code>) are synced as <em>reference</em> links from document content. Titles that match multiple accessible documents are treated as ambiguous and are not connected automatically.
+        </p>
+      </div>
 
       {(error || removeError) && (
         <p role="alert" className="text-[12px] text-destructive">

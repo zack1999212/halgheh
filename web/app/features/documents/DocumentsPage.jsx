@@ -20,6 +20,7 @@ import RenameDocumentDialog from './components/documents/RenameDocumentDialog.js
 import MoveDocumentDialog from './components/documents/MoveDocumentDialog.jsx'
 import DocumentEditor from './components/editor/DocumentEditor.jsx'
 import PropertiesPanel from './components/properties/PropertiesPanel.jsx'
+import DocumentGraph from './components/graph/DocumentGraph.jsx'
 
 /** Depth-first search for a folder name inside the tree. */
 function findFolderName(nodes, folderId) {
@@ -29,6 +30,14 @@ function findFolderName(nodes, folderId) {
     if (found) return found
   }
   return null
+}
+
+function buildFolderNameMap(nodes, map = {}) {
+  for (const node of nodes || []) {
+    map[node.id] = node.name
+    if (node.children?.length) buildFolderNameMap(node.children, map)
+  }
+  return map
 }
 
 /** True when a folder id exists anywhere inside the tree. */
@@ -107,6 +116,10 @@ export default function DocumentsPage() {
 
   const folderTree = useFolderTree(activeWorkspaceId)
   const tags = useTags(activeWorkspaceId)
+  const folderNameById = useMemo(
+    () => buildFolderNameMap(folderTree.data?.items),
+    [folderTree.data],
+  )
   const documentList = useDocumentList({
     workspaceId: activeWorkspaceId,
     folderId: activeFolderId,
@@ -527,8 +540,17 @@ export default function DocumentsPage() {
                 onTrash={handleEditorTrash}
                 onRestore={handleRestoreDocument}
                 onBack={closeDocument}
+                onOpenDocument={openDocument}
+                workspaceId={activeWorkspaceId}
+                folderNameById={folderNameById}
               />
             )
+          ) : mode === 'graph' ? (
+            <DocumentGraph
+              workspaceId={activeWorkspaceId}
+              activeDocumentId={activeDocumentId}
+              onOpenDocument={openDocument}
+            />
           ) : (
             <DocumentList
               mode={mode}
@@ -543,7 +565,13 @@ export default function DocumentsPage() {
                 setActionError('')
                 setTrashing(item)
               }}
-              onRestore={handleRestoreDocument}
+              onRestore={async (item) => {
+                try {
+                  await handleRestoreDocument(item)
+                } catch {
+                  // Error is surfaced via action notice; swallow to avoid unhandled rejection.
+                }
+              }}
             />
           )}
 
