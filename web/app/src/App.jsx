@@ -22,6 +22,8 @@ import ProjectTasksPage from '../projects/pages/ProjectTasksPage.jsx'
 import ProjectDocumentsPage from '../projects/pages/ProjectDocumentsPage.jsx'
 import ProjectCalendarPage from '../projects/pages/ProjectCalendarPage.jsx'
 import ProjectMilestonesPage from '../projects/pages/ProjectMilestonesPage.jsx'
+import ProjectDiscussionsPage from '../projects/pages/ProjectDiscussionsPage.jsx'
+import ProjectActivityPage from '../projects/pages/ProjectActivityPage.jsx'
 import ProjectInvitationsPage from '../projects/pages/ProjectInvitationsPage.jsx'
 import ProjectSectionPlaceholder from '../projects/pages/ProjectSectionPlaceholder.jsx'
 
@@ -54,6 +56,8 @@ export default function App() {
             <Route path="calendar" element={<ProjectCalendarPage />} />
             <Route path="milestones" element={<ProjectMilestonesPage />} />
             <Route path="members" element={<ProjectMembersPage />} />
+            <Route path="discussions" element={<ProjectDiscussionsPage />} />
+            <Route path="activity" element={<ProjectActivityPage />} />
           </Route>
         </Route>
         <Route path="calendar" element={<CalendarLayout />}>

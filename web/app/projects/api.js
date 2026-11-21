@@ -4,6 +4,10 @@ function buildQuery(params = {}) {
   const search = new URLSearchParams()
   Object.entries(params).forEach(([key, value]) => {
     if (value === undefined || value === null || value === '') return
+    if (Array.isArray(value)) {
+      value.filter((v) => v !== undefined && v !== null && v !== '').forEach((v) => search.append(key, String(v)))
+      return
+    }
     search.set(key, String(value))
   })
   const qs = search.toString()
@@ -222,5 +226,123 @@ export function deleteProject(projectId) {
   return apiRequest(`/api/projects/${projectId}`, {
     method: 'DELETE',
     fallbackMessage: 'Could not delete the project.',
+  })
+}
+
+// --- Activity ---
+
+export function listProjectActivity(projectId, params = {}, options = {}) {
+  return apiRequest(`/api/projects/${projectId}/activity${buildQuery(params)}`, {
+    fallbackMessage: 'Could not load project activity.',
+    signal: options.signal,
+  })
+}
+
+// --- Discussions ---
+
+export function listProjectDiscussions(projectId, params = {}, options = {}) {
+  return apiRequest(`/api/projects/${projectId}/discussions${buildQuery(params)}`, {
+    fallbackMessage: 'Could not load discussions.',
+    signal: options.signal,
+  })
+}
+
+export function createProjectDiscussion(projectId, payload) {
+  return apiRequest(`/api/projects/${projectId}/discussions`, {
+    method: 'POST',
+    body: payload,
+    fallbackMessage: 'Could not create the discussion.',
+  })
+}
+
+export function getProjectDiscussion(projectId, discussionId, options = {}) {
+  return apiRequest(`/api/projects/${projectId}/discussions/${discussionId}`, {
+    fallbackMessage: 'Could not load the discussion.',
+    signal: options.signal,
+  })
+}
+
+export function updateProjectDiscussion(projectId, discussionId, payload) {
+  return apiRequest(`/api/projects/${projectId}/discussions/${discussionId}`, {
+    method: 'PATCH',
+    body: payload,
+    fallbackMessage: 'Could not update the discussion.',
+  })
+}
+
+export function deleteProjectDiscussion(projectId, discussionId) {
+  return apiRequest(`/api/projects/${projectId}/discussions/${discussionId}`, {
+    method: 'DELETE',
+    fallbackMessage: 'Could not delete the discussion.',
+  })
+}
+
+export function pinProjectDiscussion(projectId, discussionId, payload) {
+  return apiRequest(`/api/projects/${projectId}/discussions/${discussionId}/pin`, {
+    method: 'PATCH',
+    body: payload,
+    fallbackMessage: 'Could not update the discussion pin state.',
+  })
+}
+
+export function listProjectDiscussionReplies(projectId, discussionId, params = {}, options = {}) {
+  return apiRequest(`/api/projects/${projectId}/discussions/${discussionId}/replies${buildQuery(params)}`, {
+    fallbackMessage: 'Could not load replies.',
+    signal: options.signal,
+  })
+}
+
+export function createProjectDiscussionReply(projectId, discussionId, payload) {
+  return apiRequest(`/api/projects/${projectId}/discussions/${discussionId}/replies`, {
+    method: 'POST',
+    body: payload,
+    fallbackMessage: 'Could not post the reply.',
+  })
+}
+
+export function updateProjectDiscussionReply(projectId, discussionId, replyId, payload) {
+  return apiRequest(`/api/projects/${projectId}/discussions/${discussionId}/replies/${replyId}`, {
+    method: 'PATCH',
+    body: payload,
+    fallbackMessage: 'Could not update the reply.',
+  })
+}
+
+export function deleteProjectDiscussionReply(projectId, discussionId, replyId) {
+  return apiRequest(`/api/projects/${projectId}/discussions/${discussionId}/replies/${replyId}`, {
+    method: 'DELETE',
+    fallbackMessage: 'Could not delete the reply.',
+  })
+}
+
+export function addProjectDiscussionReaction(projectId, discussionId, payload) {
+  return apiRequest(`/api/projects/${projectId}/discussions/${discussionId}/reactions`, {
+    method: 'POST',
+    body: payload,
+    fallbackMessage: 'Could not add the reaction.',
+  })
+}
+
+export function removeProjectDiscussionReaction(projectId, discussionId, payload) {
+  return apiRequest(`/api/projects/${projectId}/discussions/${discussionId}/reactions`, {
+    method: 'DELETE',
+    body: payload,
+    fallbackMessage: 'Could not remove the reaction.',
+  })
+}
+
+export function addProjectDiscussionReplyReaction(projectId, discussionId, replyId, payload) {
+  return apiRequest(`/api/projects/${projectId}/discussions/${discussionId}/replies/${replyId}/reactions`, {
+    method: 'POST',
+    body: payload,
+    fallbackMessage: 'Could not add the reaction.',
+  })
+}
+
+export function removeProjectDiscussionReplyReaction(projectId, discussionId, replyId, payload) {
+  return apiRequest(`/api/projects/${projectId}/discussions/${discussionId}/replies/${replyId}/reactions`, {
+    method: 'DELETE',
+    body: payload,
+    fallbackMessage: 'Could not remove the reaction.',
   })
 }

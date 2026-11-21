@@ -11,6 +11,7 @@ from sqlalchemy.orm import Session
 
 from . import recurrence, repository, scheduling
 from .models import Calendar, Event
+from ..project import activity as project_activity
 from ..project import permissions as project_permissions
 from ..project import service as project_service
 from .schemas import (
@@ -244,6 +245,19 @@ def create_event(db: Session, calendar_id: int, user_id: int, data: EventCreate)
         except ValueError:
             raise HTTPException(status_code=422, detail="Invalid recurrence rule")
     event = repository.create_event(db, calendar_id, **data.model_dump())
+    if event.project_id is not None:
+        project_activity.record(
+            db,
+            project_id=event.project_id,
+            actor_id=user_id,
+            event_type=project_activity.CALENDAR_EVENT_CREATED,
+            entity_type="calendar_event",
+            entity_id=event.id,
+            metadata={
+                "event_id": event.id,
+                "event_title": event.title,
+            },
+        )
     try:
         db.commit()
     except IntegrityError:
@@ -466,21 +480,85 @@ def _apply_event_update(event: Event, data: EventUpdate) -> None:
             setattr(event, field, value)
 
 
+def _event_time_snapshot(event: Event) -> dict:
+    if event.is_all_day:
+        return {
+            "is_all_day": True,
+            "start_date": event.start_date.isoformat() if event.start_date else None,
+            "end_date": event.end_date.isoformat() if event.end_date else None,
+            "timezone": event.timezone,
+        }
+    return {
+        "is_all_day": False,
+        "start_at": event.start_at.isoformat() if event.start_at else None,
+        "end_at": event.end_at.isoformat() if event.end_at else None,
+        "timezone": event.timezone,
+    }
+
+
 def update_event(
     db: Session, calendar_id: int, event_id: int, user_id: int, data: EventUpdate
 ) -> Event:
     event = _managed_event(db, calendar_id, event_id, user_id)
     updates = data.model_dump(exclude_unset=True)
+    old_project_id = event.project_id
+    old_title = event.title
+    old_time = _event_time_snapshot(event)
+
+    project_changed = False
     if "project_id" in updates:
         new_project_id = updates.pop("project_id")
         if event.project_id is not None:
             project_service.require_project_manage(db, user_id, event.project_id)
         if new_project_id is not None:
             project_service.require_project_manage(db, user_id, new_project_id)
-        event.project_id = new_project_id
+        if new_project_id != old_project_id:
+            event.project_id = new_project_id
+            project_changed = True
+
+    meaningful_change = project_changed
     if updates:
+        before = {
+            f: getattr(event, f)
+            for f in updates.keys()
+        }
         eu = EventUpdate(**updates)
         _apply_event_update(event, eu)
+        after = {
+            f: getattr(event, f)
+            for f in updates.keys()
+        }
+        if before != after:
+            meaningful_change = True
+
+    if meaningful_change:
+        new_time = _event_time_snapshot(event)
+        metadata = {
+            "event_id": event.id,
+            "event_title": event.title,
+        }
+        if old_time != new_time:
+            metadata["previous_time"] = old_time
+            metadata["new_time"] = new_time
+        if old_title != event.title:
+            metadata["previous_title"] = old_title
+            metadata["new_title"] = event.title
+
+        affected_project_ids: list[int] = []
+        if old_project_id is not None:
+            affected_project_ids.append(old_project_id)
+        if event.project_id is not None and event.project_id not in affected_project_ids:
+            affected_project_ids.append(event.project_id)
+        for pid in affected_project_ids:
+            project_activity.record(
+                db,
+                project_id=pid,
+                actor_id=user_id,
+                event_type=project_activity.CALENDAR_EVENT_UPDATED,
+                entity_type="calendar_event",
+                entity_id=event.id,
+                metadata=metadata,
+            )
 
     try:
         db.commit()

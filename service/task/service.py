@@ -30,8 +30,10 @@ from fastapi import HTTPException, status
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
+from ..auth.models import User
 from . import permissions, repository
 from .models import DONE_STATUS, TASK_STATUSES, Task
+from ..project import activity as project_activity
 from ..project import permissions as project_permissions
 from ..project import service as project_service
 from .schemas import (
@@ -193,6 +195,16 @@ def create_task(db: Session, actor_id: int, data: TaskCreate) -> Task:
         old_value=None,
         new_value=_snap({"id": task.id, "title": task.title}),
     )
+    if task.project_id is not None:
+        project_activity.record(
+            db,
+            project_id=task.project_id,
+            actor_id=actor_id,
+            event_type=project_activity.TASK_CREATED,
+            entity_type="task",
+            entity_id=task.id,
+            metadata={"task_id": task.id, "task_title": task.title},
+        )
     _commit(
         db,
         conflict_detail="Could not create the task",
@@ -238,6 +250,16 @@ def create_subtask(
         old_value=None,
         new_value=_snap({"id": task.id, "title": task.title, "parent": parent.id}),
     )
+    if task.project_id is not None:
+        project_activity.record(
+            db,
+            project_id=task.project_id,
+            actor_id=actor_id,
+            event_type=project_activity.TASK_CREATED,
+            entity_type="task",
+            entity_id=task.id,
+            metadata={"task_id": task.id, "task_title": task.title},
+        )
     _commit(
         db,
         conflict_detail="Could not create the subtask",
@@ -408,6 +430,16 @@ def set_task_status(
         old_value=old_status,
         new_value=new_status,
     )
+    if new_status == DONE_STATUS and task.project_id is not None:
+        project_activity.record(
+            db,
+            project_id=task.project_id,
+            actor_id=actor_id,
+            event_type=project_activity.TASK_COMPLETED,
+            entity_type="task",
+            entity_id=task.id,
+            metadata={"task_id": task.id, "task_title": task.title},
+        )
     _commit(
         db,
         conflict_detail="Could not update the task status",
@@ -522,6 +554,12 @@ def assign_user(
     task = _owned_task(db, actor_id, task_id)
     _assignment_target_exists(db, target_user_id)
 
+    previous_active_ids = [
+        a.assigned_user_id
+        for a in task.assignments
+        if a.assignment_status == "active"
+    ]
+
     existing = repository.get_assignment(db, task.id, target_user_id)
     if existing is not None and existing.assignment_status == "active":
         return task
@@ -545,6 +583,38 @@ def assign_user(
         old_value=None,
         new_value=_snap({"user_id": target_user_id}),
     )
+
+    if task.project_id is not None:
+        new_active_ids = sorted(set(previous_active_ids) | {target_user_id})
+        user_ids = sorted(set(previous_active_ids) | set(new_active_ids))
+        users = {
+            u.id: u
+            for u in db.query(User).filter(User.id.in_(user_ids)).all()
+        } if user_ids else {}
+
+        def _assignee_info(uid: int) -> dict:
+            u = users.get(uid)
+            return {
+                "user_id": uid,
+                "username": getattr(u, "username", None) if u else None,
+                "name": getattr(u, "name", None) if u else None,
+            }
+
+        project_activity.record(
+            db,
+            project_id=task.project_id,
+            actor_id=actor_id,
+            event_type=project_activity.TASK_REASSIGNED,
+            entity_type="task",
+            entity_id=task.id,
+            metadata={
+                "task_id": task.id,
+                "task_title": task.title,
+                "previous_assignees": [_assignee_info(uid) for uid in previous_active_ids],
+                "new_assignees": [_assignee_info(uid) for uid in new_active_ids],
+            },
+        )
+
     _commit(
         db,
         conflict_detail="User is already assigned to this task",
@@ -565,6 +635,12 @@ def reassign_task(
     """
     task = _owned_task(db, actor_id, task_id)
     _assignment_target_exists(db, target_user_id)
+
+    previous_active_ids = [
+        a.assigned_user_id
+        for a in task.assignments
+        if a.assignment_status == "active"
+    ]
 
     reassigned = False
     for assignment in task.assignments:
@@ -609,6 +685,38 @@ def reassign_task(
 
     if not reassigned:
         return task
+
+    if task.project_id is not None:
+        user_ids = sorted(set(previous_active_ids) | {target_user_id})
+        users = {
+            u.id: u
+            for u in db.query(User).filter(User.id.in_(user_ids)).all()
+        } if user_ids else {}
+
+        def _assignee_info(uid: int) -> dict:
+            u = users.get(uid)
+            return {
+                "user_id": uid,
+                "username": getattr(u, "username", None) if u else None,
+                "name": getattr(u, "name", None) if u else None,
+            }
+
+        project_activity.record(
+            db,
+            project_id=task.project_id,
+            actor_id=actor_id,
+            event_type=project_activity.TASK_REASSIGNED,
+            entity_type="task",
+            entity_id=task.id,
+            metadata={
+                "task_id": task.id,
+                "task_title": task.title,
+                "previous_assignees": [_assignee_info(uid) for uid in previous_active_ids],
+                "new_assignees": [_assignee_info(target_user_id)],
+                "new_assignee": _assignee_info(target_user_id),
+            },
+        )
+
     _commit(
         db,
         conflict_detail="User is already assigned to this task",
@@ -630,6 +738,12 @@ def remove_assignment(
     if assignment is None or assignment.assignment_status != "active":
         return task
 
+    previous_active_ids = [
+        a.assigned_user_id
+        for a in task.assignments
+        if a.assignment_status == "active"
+    ]
+
     assignment.assignment_status = "cancelled"
     repository.add_activity(
         db,
@@ -639,6 +753,38 @@ def remove_assignment(
         old_value=_snap({"user_id": target_user_id}),
         new_value=None,
     )
+
+    if task.project_id is not None:
+        new_active_ids = [uid for uid in previous_active_ids if uid != target_user_id]
+        user_ids = sorted(set(previous_active_ids) | set(new_active_ids))
+        users = {
+            u.id: u
+            for u in db.query(User).filter(User.id.in_(user_ids)).all()
+        } if user_ids else {}
+
+        def _assignee_info(uid: int) -> dict:
+            u = users.get(uid)
+            return {
+                "user_id": uid,
+                "username": getattr(u, "username", None) if u else None,
+                "name": getattr(u, "name", None) if u else None,
+            }
+
+        project_activity.record(
+            db,
+            project_id=task.project_id,
+            actor_id=actor_id,
+            event_type=project_activity.TASK_REASSIGNED,
+            entity_type="task",
+            entity_id=task.id,
+            metadata={
+                "task_id": task.id,
+                "task_title": task.title,
+                "previous_assignees": [_assignee_info(uid) for uid in previous_active_ids],
+                "new_assignees": [_assignee_info(uid) for uid in new_active_ids],
+            },
+        )
+
     _commit(
         db,
         conflict_detail="Could not update the assignment",
