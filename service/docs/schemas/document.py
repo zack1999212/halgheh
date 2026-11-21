@@ -65,6 +65,22 @@ class DocumentListResponse(Page):
     items: list[DocumentResponse]
 
 
+class WikiResolutionInfo(BaseModel):
+    """Backend-authoritative status of one wiki token in a document body.
+
+    Additive companion to ``DocumentDetailResponse.wiki_resolutions``: keys
+    are the exact token titles as written in the content. Only resolved
+    entries carry target metadata (documents the caller can already read);
+    ambiguous/unresolved entries never expose document data.
+    """
+
+    status: Literal["resolved", "ambiguous", "unresolved"]
+    document_id: int | None = None
+    title: str | None = None
+    folder_id: int | None = None
+    folder_name: str | None = None
+
+
 class DocumentDetailResponse(DocumentResponse):
     """Single-document view: adds the folder object and attached tags.
 
@@ -75,3 +91,8 @@ class DocumentDetailResponse(DocumentResponse):
 
     folder: FolderResponse | None = None
     tags: list[TagResponse] = []
+    # Wiki token -> resolution status for this document's content, computed
+    # by the backend with the same rules as wiki link synchronization. The
+    # editor preview treats this map as the single source of truth (empty
+    # map => every token renders as neutral "unknown", never clickable).
+    wiki_resolutions: dict[str, WikiResolutionInfo] = Field(default_factory=dict)

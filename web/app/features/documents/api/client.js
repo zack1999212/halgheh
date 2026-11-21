@@ -239,6 +239,12 @@ export function deleteDocumentLink(documentId, linkId) {
   })
 }
 
+export function getDocumentGraph(workspaceId) {
+  return apiRequest(`${BASE}/graph${queryString({ workspace_id: workspaceId })}`, {
+    fallbackMessage: 'Could not load the document graph.',
+  })
+}
+
 // --------------------------------------------------------------- versions
 
 export function listDocumentVersions(documentId, { limit = 50, offset = 0 } = {}) {

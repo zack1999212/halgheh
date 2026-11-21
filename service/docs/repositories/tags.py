@@ -1,4 +1,4 @@
-from sqlalchemy import delete, func, select
+from sqlalchemy import delete as sql_delete, func, select
 from sqlalchemy.orm import Session
 
 from ..models import DocumentTag, Tag
@@ -67,7 +67,10 @@ def attach(db: Session, *, document_id: int, tag_id: int) -> DocumentTag:
 
 
 def detach(db: Session, *, document_id: int, tag_id: int) -> int:
-    stmt = delete(DocumentTag).where(
+    # ``sql_delete`` is aliased because this module also defines a
+    # ``delete(db, tag)`` helper; the unaliased name would resolve to that
+    # helper instead of SQLAlchemy's statement constructor.
+    stmt = sql_delete(DocumentTag).where(
         DocumentTag.document_id == document_id, DocumentTag.tag_id == tag_id
     )
     return int(db.execute(stmt).rowcount or 0)

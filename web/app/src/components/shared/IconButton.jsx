@@ -1,3 +1,4 @@
+import * as React from 'react'
 import { Button } from '@/components/ui/button'
 import {
   Tooltip,
@@ -13,17 +14,18 @@ import { cn } from '@/lib/utils'
  * becomes the `aria-label`. Pass `tooltip` to add the visual hint; the tooltip
  * content defaults to the label. Sizing and colour follow the ghost icon
  * button used across the shell, dialogs and the assistant.
+ *
+ * The component forwards its ref to the underlying button because Radix
+ * triggers (`DropdownMenuTrigger`, `TooltipTrigger`, …) use `asChild` and need
+ * that ref to measure and anchor their floating content.
  */
-export default function IconButton({
-  label,
-  tooltip,
-  tooltipSide = 'bottom',
-  className,
-  children,
-  ...props
-}) {
+const IconButton = React.forwardRef(function IconButton(
+  { label, tooltip, tooltipSide = 'bottom', className, children, ...props },
+  ref,
+) {
   const button = (
     <Button
+      ref={ref}
       type="button"
       variant="ghost"
       size="icon"
@@ -50,4 +52,8 @@ export default function IconButton({
       </TooltipContent>
     </Tooltip>
   )
-}
+})
+
+IconButton.displayName = 'IconButton'
+
+export default IconButton

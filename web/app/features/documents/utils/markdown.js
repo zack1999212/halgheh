@@ -35,7 +35,7 @@ function safeUrl(url) {
   return '#'
 }
 
-function renderInline(text) {
+function renderInline(text, options = {}) {
   let output = escapeHtml(text)
 
   // Inline code is extracted first so its content is never formatted.
@@ -44,6 +44,40 @@ function renderInline(text) {
     codes.push(`<code>${code}</code>`)
     return `\u0000${codes.length - 1}\u0000`
   })
+
+  // Wiki links: [[target]] or [[target|display]]
+  const wiki = options.wiki
+  output = output.replace(
+    /\[\[([^\]|]+)(?:\|([^\]]+))?\]\]/g,
+    (match, rawTarget, rawDisplay) => {
+      const target = String(rawTarget).trim()
+      const display = String(rawDisplay ?? rawTarget).trim()
+      if (!target) return match
+      if (!wiki || typeof wiki.resolve !== 'function') {
+        return `<span class="rounded-sm bg-muted px-1 py-0.5 text-muted-foreground">${display || escapeHtml(target)}</span>`
+      }
+      const result = wiki.resolve(target)
+      if (result && result.status === 'resolved' && result.id != null) {
+        const href = `/documents/${encodeURIComponent(String(result.id))}`
+        const folder =
+          result.folderName
+            ? ` <span class="text-[11px] text-muted-foreground">· ${escapeHtml(String(result.folderName))}</span>`
+            : ''
+        return `<a href="${href}" data-wiki-doc-id="${escapeHtml(String(result.id))}" class="rounded-sm bg-accent px-1 py-0.5 font-medium underline-offset-2 hover:underline">${display || escapeHtml(target)}${folder}</a>`
+      }
+      if (result && result.status === 'ambiguous') {
+        // Dashed neutral styling via theme tokens only (no arbitrary colors).
+        return `<span class="inline-flex items-center gap-1 rounded-sm border border-dashed border-border bg-muted px-1 py-0.5 text-muted-foreground" title="Ambiguous wiki link: multiple accessible documents share this title">${display || escapeHtml(target)}<span class="text-[10px] font-medium uppercase tracking-wide">ambiguous</span></span>`
+      }
+      if (result && result.status === 'unresolved') {
+        return `<span class="inline-flex items-center gap-1 rounded-sm border border-destructive/30 bg-destructive/10 px-1 py-0.5 text-destructive" title="Unresolved wiki link: no accessible document with this exact title">${display || escapeHtml(target)}<span class="text-[10px] font-medium uppercase tracking-wide">unresolved</span></span>`
+      }
+      // Neutral "unknown": the backend resolutions for this document were not
+      // loaded (or the token was typed since the last save). Never clickable,
+      // never claimed as unresolved.
+      return `<span class="inline-flex items-center gap-1 rounded-sm border border-dashed border-border bg-muted/50 px-1 py-0.5 text-muted-foreground" title="Wiki link status not available yet (save the document to resolve it)">${display || escapeHtml(target)}<span class="text-[10px] font-medium uppercase tracking-wide">unknown</span></span>`
+    },
+  )
 
   output = output
     .replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>')
@@ -65,7 +99,7 @@ function headingLevel(marker) {
   return Math.min(marker.length, 6)
 }
 
-export function renderMarkdown(source = '') {
+export function renderMarkdown(source = '', options = {}) {
   const working = String(source)
 
   // Fenced code blocks are lifted out before line-based block parsing.
@@ -89,7 +123,7 @@ export function renderMarkdown(source = '') {
   function flushParagraph() {
     if (!paragraph.length) return
     html.push(
-      `<p>${paragraph.map(renderInline).join('<br />')}</p>`,
+      `<p>${paragraph.map((line) => renderInline(line, options)).join('<br />')}</p>`,
     )
     paragraph = []
   }
@@ -98,7 +132,7 @@ export function renderMarkdown(source = '') {
     if (!listItems) return
     const tag = listItems.ordered ? 'ol' : 'ul'
     const items = listItems.items
-      .map((item) => `<li>${renderInline(item)}</li>`)
+      .map((item) => `<li>${renderInline(item, options)}</li>`)
       .join('')
     html.push(`<${tag}>${items}</${tag}>`)
     listItems = null
@@ -107,7 +141,7 @@ export function renderMarkdown(source = '') {
   function flushQuote() {
     if (!quoteLines) return
     html.push(
-      `<blockquote>${quoteLines.map(renderInline).join('<br />')}</blockquote>`,
+      `<blockquote>${quoteLines.map((line) => renderInline(line, options)).join('<br />')}</blockquote>`,
     )
     quoteLines = null
   }
@@ -137,7 +171,7 @@ export function renderMarkdown(source = '') {
     if (heading) {
       flushAll()
       const level = headingLevel(heading[1])
-      html.push(`<h${level}>${renderInline(heading[2])}</h${level}>`)
+      html.push(`<h${level}>${renderInline(heading[2], options)}</h${level}>`)
       continue
     }
 

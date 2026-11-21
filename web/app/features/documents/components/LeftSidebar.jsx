@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import {
   FileText,
+  Network,
   Plus,
   Search,
   Star,
@@ -24,6 +25,7 @@ import { cn } from '@/lib/utils'
 const VIEWS = [
   { id: 'documents', label: 'All documents', icon: FileText },
   { id: 'favorites', label: 'Favorites', icon: Star },
+  { id: 'graph', label: 'Graph', icon: Network },
   { id: 'trash', label: 'Trash', icon: Trash2 },
 ]
 
@@ -65,7 +67,7 @@ export default function LeftSidebar({
   onCreateDocument,
   className,
 }) {
-  const [searchValue, setSearchValue] = useState(query)
+  const [searchValue, setSearchValue] = useState(query ?? '')
   const [creatingWorkspace, setCreatingWorkspace] = useState(false)
 
   // Keep the input in sync when the view resets (workspace change etc.).
@@ -95,7 +97,7 @@ export default function LeftSidebar({
       {/* Workspace selector */}
       <div className="flex flex-none items-center gap-1 px-3 py-3">
         <Select
-          value={activeWorkspaceId ? String(activeWorkspaceId) : undefined}
+          value={activeWorkspaceId ? String(activeWorkspaceId) : ''}
           onValueChange={(value) => onWorkspaceChange(Number(value))}
         >
           <SelectTrigger
