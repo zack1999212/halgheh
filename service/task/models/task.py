@@ -20,6 +20,7 @@ from ...core.database import Base
 
 if TYPE_CHECKING:
     from ...auth.models import User
+    from ...project.models import Project
     from .assignment import TaskAssignment
     from .comment import TaskComment
     from .label import TaskLabelAssignment
@@ -70,6 +71,7 @@ class Task(Base):
         Index("ix_tasks_created_by_status", "created_by", "status"),
         Index("ix_tasks_due_date", "due_date"),
         Index("ix_tasks_parent_task_id", "parent_task_id"),
+        Index("ix_tasks_project_id", "project_id"),
     )
 
     id: Mapped[int] = mapped_column(primary_key=True)
@@ -83,6 +85,9 @@ class Task(Base):
     )
     created_by: Mapped[int] = mapped_column(
         ForeignKey("users.id", ondelete="CASCADE"), nullable=False
+    )
+    project_id: Mapped[int | None] = mapped_column(
+        ForeignKey("projects.id", ondelete="SET NULL"), nullable=True
     )
     parent_task_id: Mapped[int | None] = mapped_column(
         ForeignKey("tasks.id", ondelete="SET NULL"), nullable=True

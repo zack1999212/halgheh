@@ -4,12 +4,21 @@ import FormError from '@/components/shared/FormError'
 import FormField, { fieldInputClass } from '@/components/shared/FormField'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
 
 /**
- * Creates a document in the current folder (or the workspace root).
+ * Creates a document in the current folder/workspace context.
  *
- * The backend requires a non-empty title (max 256 chars) and creates the
- * document with empty Markdown content.
+ * The backend requires a non-empty title (max 256 chars). When `workspaces`
+ * are provided (project context), a workspace selection is required because
+ * document creation is workspace-scoped in the backend schema.
  */
 export default function CreateDocumentDialog({
   open,
@@ -18,6 +27,9 @@ export default function CreateDocumentDialog({
   error,
   onClose,
   onCreate,
+  workspaces = null,
+  workspaceId = '',
+  onWorkspaceChange,
 }) {
   const [title, setTitle] = useState('')
 
@@ -28,12 +40,20 @@ export default function CreateDocumentDialog({
   }, [open])
 
   const trimmed = title.trim()
+  const needsWorkspace = Array.isArray(workspaces)
+  const canSubmit = Boolean(trimmed) && (!needsWorkspace || (workspaceId !== '' && workspaceId != null))
 
   return (
     <DialogShell
       open={open}
       title="New document"
-      description={folderName ? `Created in "${folderName}".` : 'Created in the workspace root.'}
+      description={
+        needsWorkspace
+          ? 'Choose a workspace for this project document and enter a title.'
+          : folderName
+            ? `Created in "${folderName}".`
+            : 'Created in the workspace root.'
+      }
       onClose={onClose}
       footer={
         <>
@@ -44,7 +64,7 @@ export default function CreateDocumentDialog({
             type="submit"
             form="create-document-form"
             className="h-9"
-            disabled={busy || !trimmed}
+            disabled={busy || !canSubmit}
           >
             {busy ? 'Creating…' : 'Create'}
           </Button>
@@ -56,12 +76,31 @@ export default function CreateDocumentDialog({
         className="grid gap-4"
         onSubmit={(event) => {
           event.preventDefault()
-          if (trimmed) {
-            onCreate({ title: trimmed })
-          }
+          if (!canSubmit) return
+          const payload = { title: trimmed }
+          if (needsWorkspace) payload.workspaceId = Number(workspaceId)
+          onCreate(payload)
         }}
       >
         <FormError>{error}</FormError>
+        {needsWorkspace && (
+          <div className="grid gap-2">
+            <Label htmlFor="create-document-workspace" className="text-[13px] font-medium">Workspace</Label>
+            <Select value={workspaceId === '' || workspaceId == null ? '' : String(workspaceId)} onValueChange={onWorkspaceChange}>
+              <SelectTrigger id="create-document-workspace" className={fieldInputClass}>
+                <SelectValue placeholder={workspaces.length ? 'Select a workspace' : 'No workspaces available'} />
+              </SelectTrigger>
+              <SelectContent>
+                {workspaces.map((ws) => (
+                  <SelectItem key={ws.id} value={String(ws.id)}>{ws.name}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            {workspaces.length === 0 && (
+              <p className="text-[12px] text-muted-foreground">A workspace is required to create a document. Create a personal workspace first, then try again.</p>
+            )}
+          </div>
+        )}
         <FormField id="create-document-title" label="Title">
           {(props) => (
             <Input
@@ -71,7 +110,7 @@ export default function CreateDocumentDialog({
               onChange={(event) => setTitle(event.target.value)}
               placeholder="Untitled document"
               maxLength={256}
-              autoFocus
+              autoFocus={!needsWorkspace}
             />
           )}
         </FormField>

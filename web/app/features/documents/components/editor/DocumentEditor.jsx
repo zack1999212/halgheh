@@ -78,6 +78,7 @@ export default function DocumentEditor({
   onOpenDocument,
   workspaceId,
   folderNameById = {},
+  readOnly = false,
 }) {
   // Initialise from the already-loaded document. Starting from empty strings
   // would make the first render look "dirty" until the sync effect runs, and
@@ -89,7 +90,7 @@ export default function DocumentEditor({
   }))
   const [saveState, setSaveState] = useState('idle') // idle|dirty|saving|saved|error
   const [saveError, setSaveError] = useState('')
-  const [showPreview, setShowPreview] = useState(false)
+  const [showPreview, setShowPreview] = useState(readOnly)
   const [restoreBusy, setRestoreBusy] = useState(false)
   const [restoreError, setRestoreError] = useState('')
   const textareaRef = useRef(null)
@@ -130,10 +131,10 @@ export default function DocumentEditor({
       setDraft({ title: doc.title, content: doc.content })
       setSaveState('idle')
       setSaveError('')
-      setShowPreview(false)
+      setShowPreview(readOnly)
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [documentId])
+  }, [documentId, readOnly])
 
   // External changes (rename / move dialogs, restore) reload the detail;
   // while no local edits are pending, follow the server values instead of
@@ -244,7 +245,7 @@ export default function DocumentEditor({
 
   const updateWikiSuggestionsFromCaret = useCallback(
     (content, caret) => {
-      if (showPreview || trashed || !workspaceId) {
+      if (readOnly || showPreview || trashed || !workspaceId) {
         closeWikiSuggestions()
         return
       }
@@ -385,6 +386,7 @@ export default function DocumentEditor({
   }
 
   function scheduleSave() {
+    if (readOnly) return
     setSaveState('dirty')
     if (timerRef.current) {
       window.clearTimeout(timerRef.current)
@@ -396,6 +398,7 @@ export default function DocumentEditor({
   }
 
   function updateDraft(patch) {
+    if (readOnly) return
     editSeqRef.current += 1
     pendingEditRef.current = true
     setDraft((current) => ({ ...current, ...patch }))
@@ -410,7 +413,7 @@ export default function DocumentEditor({
         window.clearTimeout(timerRef.current)
         timerRef.current = null
       }
-      if (pendingEditRef.current) {
+      if (!readOnly && pendingEditRef.current) {
         const patch = buildPatch()
         if (
           Object.keys(patch).length &&
@@ -420,11 +423,11 @@ export default function DocumentEditor({
         }
       }
     }
-  }, [documentId, buildPatch])
+  }, [documentId, buildPatch, readOnly])
 
   // Warn before losing unsaved edits by closing the tab.
   useEffect(() => {
-    if (!dirty) {
+    if (readOnly || !dirty) {
       return undefined
     }
     function handleBeforeUnload(event) {
@@ -433,7 +436,7 @@ export default function DocumentEditor({
     }
     window.addEventListener('beforeunload', handleBeforeUnload)
     return () => window.removeEventListener('beforeunload', handleBeforeUnload)
-  }, [dirty])
+  }, [dirty, readOnly])
 
   if (!doc) {
     return (
@@ -449,6 +452,8 @@ export default function DocumentEditor({
       </section>
     )
   }
+
+  const canEdit = !readOnly && !trashed
 
   // Clamp the highlighted index to the options actually rendered, so
   // aria-activedescendant always references a present DOM element even if
@@ -472,27 +477,30 @@ export default function DocumentEditor({
           onChange={(event) => updateDraft({ title: event.target.value })}
           maxLength={256}
           aria-label="Document title"
-          disabled={trashed}
+          disabled={!canEdit}
           className="h-9 min-w-0 flex-1 rounded-md border-0 bg-transparent px-2 text-[17px] font-semibold tracking-[-0.01em] shadow-none focus-visible:ring-1 focus-visible:ring-ring md:text-lg"
           placeholder="Untitled document"
         />
 
-        <SaveStatus state={saveState} />
+        {!readOnly && <SaveStatus state={saveState} />}
+        {readOnly && <span className="text-[12px] text-muted-foreground">View only</span>}
 
-        <IconButton
-          label={doc.is_favorite ? 'Remove from favorites' : 'Add to favorites'}
-          aria-pressed={doc.is_favorite}
-          className={doc.is_favorite ? 'text-foreground' : undefined}
-          onClick={onToggleFavorite}
-        >
-          <Star
-            size={16}
-            aria-hidden="true"
-            className={doc.is_favorite ? 'fill-current' : undefined}
-          />
-        </IconButton>
+        {!readOnly && (
+          <IconButton
+            label={doc.is_favorite ? 'Remove from favorites' : 'Add to favorites'}
+            aria-pressed={doc.is_favorite}
+            className={doc.is_favorite ? 'text-foreground' : undefined}
+            onClick={onToggleFavorite}
+          >
+            <Star
+              size={16}
+              aria-hidden="true"
+              className={doc.is_favorite ? 'fill-current' : undefined}
+            />
+          </IconButton>
+        )}
 
-        {!trashed && (
+        {!readOnly && !trashed && (
           <IconButton
             label="Move to trash"
             className="hover:text-destructive"
@@ -510,39 +518,41 @@ export default function DocumentEditor({
         >
           <span className="flex items-center gap-2">
             <CircleAlert size={14} aria-hidden="true" />
-            This document is in the trash. Restore it to continue editing.
+            {readOnly ? 'This document is in the trash.' : 'This document is in the trash. Restore it to continue editing.'}
           </span>
-          <div className="flex flex-col items-end gap-2">
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              className="h-8"
-              disabled={restoreBusy}
-              onClick={async () => {
-                setRestoreBusy(true)
-                setRestoreError('')
-                try {
-                  await onRestore(doc)
-                } catch (caught) {
-                  setRestoreError(
-                    caught?.message || 'Could not restore the document.',
-                  )
-                } finally {
-                  setRestoreBusy(false)
-                }
-              }}
-            >
-              {restoreBusy ? 'Restoring…' : 'Restore'}
-            </Button>
-            {restoreError && (
-              <p className="text-[12px] text-destructive">{restoreError}</p>
-            )}
-          </div>
+          {!readOnly && (
+            <div className="flex flex-col items-end gap-2">
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                className="h-8"
+                disabled={restoreBusy}
+                onClick={async () => {
+                  setRestoreBusy(true)
+                  setRestoreError('')
+                  try {
+                    await onRestore(doc)
+                  } catch (caught) {
+                    setRestoreError(
+                      caught?.message || 'Could not restore the document.',
+                    )
+                  } finally {
+                    setRestoreBusy(false)
+                  }
+                }}
+              >
+                {restoreBusy ? 'Restoring…' : 'Restore'}
+              </Button>
+              {restoreError && (
+                <p className="text-[12px] text-destructive">{restoreError}</p>
+              )}
+            </div>
+          )}
         </div>
       )}
 
-      {saveState === 'error' && (
+      {!readOnly && saveState === 'error' && (
         <div className="flex-none px-5 pt-3">
           <ErrorState
             title="Your changes could not be saved"
@@ -554,40 +564,44 @@ export default function DocumentEditor({
 
       {/* Toolbar: edit/preview toggle + stats */}
       <div className="flex flex-none items-center justify-between gap-3 px-5 py-2">
-        <div
-          className="flex items-center gap-0.5 rounded-md bg-muted p-0.5"
-          role="group"
-          aria-label="Editor mode"
-        >
-          <Button
-            type="button"
-            size="sm"
-            variant="ghost"
-            className={cn(
-              'h-7 gap-1.5 px-2.5 text-[12.5px]',
-              !showPreview && 'bg-card text-foreground shadow-sm hover:bg-card',
-            )}
-            aria-pressed={!showPreview}
-            onClick={() => setShowPreview(false)}
+        {!readOnly ? (
+          <div
+            className="flex items-center gap-0.5 rounded-md bg-muted p-0.5"
+            role="group"
+            aria-label="Editor mode"
           >
-            <Pencil size={13} aria-hidden="true" />
-            Write
-          </Button>
-          <Button
-            type="button"
-            size="sm"
-            variant="ghost"
-            aria-pressed={showPreview}
-            className={cn(
-              'h-7 gap-1.5 px-2.5 text-[12.5px]',
-              showPreview && 'bg-card text-foreground shadow-sm hover:bg-card',
-            )}
-            onClick={() => setShowPreview(true)}
-          >
-            <Eye size={13} aria-hidden="true" />
-            Preview
-          </Button>
-        </div>
+            <Button
+              type="button"
+              size="sm"
+              variant="ghost"
+              className={cn(
+                'h-7 gap-1.5 px-2.5 text-[12.5px]',
+                !showPreview && 'bg-card text-foreground shadow-sm hover:bg-card',
+              )}
+              aria-pressed={!showPreview}
+              onClick={() => setShowPreview(false)}
+            >
+              <Pencil size={13} aria-hidden="true" />
+              Write
+            </Button>
+            <Button
+              type="button"
+              size="sm"
+              variant="ghost"
+              aria-pressed={showPreview}
+              className={cn(
+                'h-7 gap-1.5 px-2.5 text-[12.5px]',
+                showPreview && 'bg-card text-foreground shadow-sm hover:bg-card',
+              )}
+              onClick={() => setShowPreview(true)}
+            >
+              <Eye size={13} aria-hidden="true" />
+              Preview
+            </Button>
+          </div>
+        ) : (
+          <p className="text-[12.5px] font-medium text-muted-foreground">Preview</p>
+        )}
 
         <p className="text-[12px] text-muted-foreground">
           {countWords(draft.content)} words · {countCharacters(draft.content)}{' '}
@@ -597,7 +611,7 @@ export default function DocumentEditor({
 
       {/* Body */}
       <div className="min-h-0 flex-1 overflow-y-auto px-5 pb-6">
-        {showPreview ? (
+        {(showPreview || readOnly) ? (
           <div className="grid gap-3">
             <div
               className={cn('max-w-[760px]', previewClasses)}
@@ -684,7 +698,7 @@ export default function DocumentEditor({
                 // Delay closing so click/keyboard selection can complete.
                 window.setTimeout(() => closeWikiSuggestions(), 120)
               }}
-              disabled={trashed}
+              disabled={!canEdit}
               aria-label="Document content (Markdown)"
               aria-autocomplete="list"
               aria-expanded={wikiSuggest.open}
@@ -699,7 +713,7 @@ export default function DocumentEditor({
               spellCheck
             />
 
-            {wikiSuggest.open && (
+            {!readOnly && wikiSuggest.open && (
               <div
                 id="wiki-link-suggestions"
                 role="listbox"

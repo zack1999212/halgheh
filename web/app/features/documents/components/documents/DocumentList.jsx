@@ -37,7 +37,7 @@ const EMPTY_COPY = {
   },
 }
 
-function DocumentRow({ document, mode, onOpen, actions }) {
+function DocumentRow({ document, mode, onOpen, actions, readOnly = false }) {
   return (
     <li>
       <div className="group/row flex items-center gap-2 rounded-md px-2 py-2 transition-colors hover:bg-accent">
@@ -59,7 +59,7 @@ function DocumentRow({ document, mode, onOpen, actions }) {
           </span>
         </button>
 
-        {mode !== 'trash' && (
+        {!readOnly && mode !== 'trash' && actions.onToggleFavorite && (
           <IconButton
             label={
               document.is_favorite
@@ -88,26 +88,31 @@ function DocumentRow({ document, mode, onOpen, actions }) {
               <FileText aria-hidden="true" />
               Open
             </DropdownMenuItem>
-            {mode !== 'trash' && (
+            {!readOnly && mode !== 'trash' && (
               <>
-                <DropdownMenuItem onSelect={() => actions.onRename(document)}>
-                  <Pencil aria-hidden="true" />
-                  Rename
-                </DropdownMenuItem>
-                <DropdownMenuItem onSelect={() => actions.onMove(document)}>
-                  <FolderInput aria-hidden="true" />
-                  Move to folder…
-                </DropdownMenuItem>
+                {actions.onRename && (
+                  <DropdownMenuItem onSelect={() => actions.onRename(document)}>
+                    <Pencil aria-hidden="true" />
+                    Rename
+                  </DropdownMenuItem>
+                )}
+                {actions.onMove && (
+                  <DropdownMenuItem onSelect={() => actions.onMove(document)}>
+                    <FolderInput aria-hidden="true" />
+                    Move to folder…
+                  </DropdownMenuItem>
+                )}
               </>
             )}
-            {mode === 'trash' ? (
+            {!readOnly && mode === 'trash' && actions.onRestore ? (
               <DropdownMenuItem onSelect={() => actions.onRestore(document)}>
                 <RotateCcw aria-hidden="true" />
                 Restore
               </DropdownMenuItem>
-            ) : (
+            ) : null}
+            {!readOnly && mode !== 'trash' && actions.onTrash ? (
               <>
-                <DropdownMenuSeparator />
+                {(actions.onRename || actions.onMove) ? <DropdownMenuSeparator /> : null}
                 <DropdownMenuItem
                   className="text-destructive focus:bg-destructive/10 focus:text-destructive"
                   onSelect={() => actions.onTrash(document)}
@@ -116,7 +121,7 @@ function DocumentRow({ document, mode, onOpen, actions }) {
                   Move to trash
                 </DropdownMenuItem>
               </>
-            )}
+            ) : null}
           </DropdownMenuContent>
         </DropdownMenu>
       </div>
@@ -147,6 +152,7 @@ export default function DocumentList({
   onMove,
   onTrash,
   onRestore,
+  readOnly = false,
 }) {
   const documents = documentList.documents
 
@@ -164,7 +170,7 @@ export default function DocumentList({
             </p>
           )}
         </div>
-        {mode !== 'trash' && (
+        {!readOnly && mode !== 'trash' && (
           <Button type="button" size="sm" onClick={onCreate}>
             <FilePlus2 size={14} aria-hidden="true" />
             New document
@@ -199,6 +205,7 @@ export default function DocumentList({
                   key={document.id}
                   document={document}
                   mode={mode}
+                  readOnly={readOnly}
                   onOpen={onOpen}
                   actions={{
                     onToggleFavorite,
@@ -239,10 +246,10 @@ export default function DocumentList({
           <EmptyState
             className="h-full justify-center"
             icon={mode === 'trash' ? Trash2 : mode === 'favorites' ? Star : FileText}
-            title={EMPTY_COPY[mode].title}
-            description={EMPTY_COPY[mode].description}
+            title={readOnly && mode === 'documents' ? 'No documents yet' : EMPTY_COPY[mode].title}
+            description={readOnly && mode === 'documents' ? 'No documents have been created for this project yet.' : EMPTY_COPY[mode].description}
           >
-            {mode === 'documents' && (
+            {!readOnly && mode === 'documents' && (
               <Button type="button" size="sm" className="mx-auto" onClick={onCreate}>
                 <FilePlus2 size={14} aria-hidden="true" />
                 New document

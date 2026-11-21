@@ -106,12 +106,52 @@ def create_event(
     return service.create_event(db, calendar_id, current_user.id, data)
 
 
+# Project events (declared before the /{calendar_id} collection routes so the
+# static segment is never parsed as a calendar id).
+
+
+@router.get("/project/{project_id}/events", response_model=list[EventResponse])
+def list_project_events(
+    project_id: int,
+    start: datetime | None = Query(default=None),
+    end: datetime | None = Query(default=None),
+    timezone: str | None = Query(default=None),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    return service.list_project_events(
+        db,
+        project_id,
+        current_user.id,
+        start=start,
+        end=end,
+        timezone=timezone,
+    )
+
+
+@router.get(
+    "/project/{project_id}/occurrences", response_model=list[OccurrenceResponse]
+)
+def list_project_occurrences(
+    project_id: int,
+    start: datetime = Query(...),
+    end: datetime = Query(...),
+    timezone: str = Query(...),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    return service.list_project_occurrences(
+        db, project_id, current_user.id, start, end, timezone
+    )
+
+
 @router.get("/{calendar_id}/events", response_model=list[EventResponse])
 def list_events(
     calendar_id: int,
     start: datetime | None = Query(default=None),
     end: datetime | None = Query(default=None),
     timezone: str | None = Query(default=None),
+    project_id: int | None = Query(default=None),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
@@ -122,6 +162,7 @@ def list_events(
         start=start,
         end=end,
         timezone=timezone,
+        project_id=project_id,
     )
 
 
@@ -163,11 +204,12 @@ def list_occurrences(
     start: datetime = Query(...),
     end: datetime = Query(...),
     timezone: str = Query(...),
+    project_id: int | None = Query(default=None),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
     return service.list_occurrences(
-        db, calendar_id, current_user.id, start, end, timezone
+        db, calendar_id, current_user.id, start, end, timezone, project_id=project_id
     )
 
 

@@ -9,7 +9,7 @@ export default function QuickActions({ onCreateEvent, canCreateEvent = false }) 
   return (
     <Card className="ws-card min-w-0">
       <CardHeader className="px-4 pb-2 pt-4 sm:px-5 sm:pt-5">
-        <CardTitle className="text-base font-semibold">Quick Actions</CardTitle>
+        <CardTitle className="ws-card-title">Quick Actions</CardTitle>
       </CardHeader>
       <CardContent className="px-4 pb-4 pt-1 sm:px-5 sm:pb-5">
         <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">

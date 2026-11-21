@@ -31,6 +31,7 @@ class Event(Base):
         Index("ix_events_calendar_id", "calendar_id"),
         Index("ix_events_calendar_start_at", "calendar_id", "start_at"),
         Index("ix_events_calendar_start_date", "calendar_id", "start_date"),
+        Index("ix_events_project_id", "project_id"),
         CheckConstraint(
             "(is_all_day = false AND start_at IS NOT NULL AND end_at IS NOT NULL "
             "AND start_date IS NULL AND end_date IS NULL AND end_at > start_at) OR "
@@ -44,6 +45,9 @@ class Event(Base):
     id: Mapped[int] = mapped_column(primary_key=True)
     calendar_id: Mapped[int] = mapped_column(
         ForeignKey("calendars.id", ondelete="CASCADE"), nullable=False
+    )
+    project_id: Mapped[int | None] = mapped_column(
+        ForeignKey("projects.id", ondelete="SET NULL"), nullable=True
     )
     title: Mapped[str] = mapped_column(String, nullable=False)
     description: Mapped[str | None] = mapped_column(Text, nullable=True)

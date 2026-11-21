@@ -1,4 +1,5 @@
-import { Check, MailOpen, Trash2 } from 'lucide-react'
+import { Check, Mail, MailOpen, Trash2 } from 'lucide-react'
+import { Link } from 'react-router-dom'
 import {
   formatDateTime,
   formatEventContext,
@@ -43,6 +44,16 @@ export default function NotificationItem({
       )}
 
       <div className="notification-item-actions">
+        {notification.type === 'project_invitation' && (
+          <Link
+            to="/projects/invitations"
+            className="notification-item-action"
+            aria-label="View project invitations"
+          >
+            <Mail size={13} aria-hidden="true" />
+            <span>View invitations</span>
+          </Link>
+        )}
         <button
           type="button"
           className="notification-item-action"

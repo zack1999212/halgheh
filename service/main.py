@@ -1,8 +1,10 @@
 import logging
+from pathlib import Path
 
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
+from fastapi.staticfiles import StaticFiles
 
 from .agent.router import router as agent_router
 from .auth.router import router as auth_router
@@ -11,12 +13,18 @@ from .calendar.router import router as calendar_router
 from .notifications.router import router as notifications_router
 import service.notifications.models  # noqa: F401
 from .docs.router import router as docs_router
+from .project.router import invitations_router as project_invitations_router
+from .project.router import router as project_router
 from .share.router import router as share_router
 from .task.router import router as task_router
 
 app = FastAPI(title="halgheh API", version="0.1.0")
 
 logger = logging.getLogger("halgheh")
+
+UPLOADS_DIR = Path(__file__).resolve().parent / "uploads"
+UPLOADS_DIR.mkdir(parents=True, exist_ok=True)
+app.mount("/uploads", StaticFiles(directory=str(UPLOADS_DIR)), name="uploads")
 
 
 @app.exception_handler(Exception)
@@ -37,6 +45,8 @@ app.include_router(agent_router)
 app.include_router(docs_router)
 app.include_router(calendar_router)
 app.include_router(notifications_router)
+app.include_router(project_router)
+app.include_router(project_invitations_router)
 app.include_router(task_router)
 app.include_router(share_router)
 

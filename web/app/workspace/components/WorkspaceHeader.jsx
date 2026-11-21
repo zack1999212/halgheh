@@ -1,15 +1,3 @@
-function greetingForTimeZone(timeZone) {
-  const hourStr = new Intl.DateTimeFormat('en-US', {
-    hour: 'numeric',
-    hour12: false,
-    ...(timeZone ? { timeZone } : {}),
-  }).format(new Date())
-  const hour = Number(hourStr)
-  if (hour < 12) return 'Good morning'
-  if (hour < 18) return 'Good afternoon'
-  return 'Good evening'
-}
-
 function formatDateForTimeZone(timeZone) {
   return new Intl.DateTimeFormat(undefined, {
     weekday: 'long',
@@ -20,21 +8,34 @@ function formatDateForTimeZone(timeZone) {
   }).format(new Date())
 }
 
-export default function WorkspaceHeader({ timeZone }) {
-  const greeting = greetingForTimeZone(timeZone)
+function greetingForHour(hour) {
+  if (hour < 5) return 'Good evening'
+  if (hour < 12) return null
+  if (hour < 18) return 'Good afternoon'
+  return 'Good evening'
+}
+
+export default function WorkspaceHeader({ timeZone, theme, onToggleTheme }) {
+  const now = new Date()
+  const greeting = greetingForHour(now.getHours())
   const dateLabel = formatDateForTimeZone(timeZone)
 
   return (
-    <div className="flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
-      <div className="min-w-0">
-        <h1 className="text-2xl font-semibold tracking-[-0.02em] text-foreground">
-          {greeting}
-        </h1>
-        <p className="mt-1 text-sm font-medium text-foreground/80">{dateLabel}</p>
-        <p className="mt-0.5 text-sm text-muted-foreground">
-          Your personal command center
-        </p>
-      </div>
+    <div className="relative z-10 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+      <section className="ws-hero">
+        {greeting && <h1>{greeting}</h1>}
+        <p className="ws-date">{dateLabel}</p>
+      </section>
+      {typeof onToggleTheme === 'function' && (
+        <button
+          type="button"
+          className="ws-theme-btn shrink-0"
+          onClick={onToggleTheme}
+          aria-label="Toggle dark mode"
+        >
+          {theme === 'dark' ? '☀' : '☾'}
+        </button>
+      )}
     </div>
   )
 }

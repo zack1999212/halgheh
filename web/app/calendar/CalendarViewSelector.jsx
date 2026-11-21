@@ -1,27 +1,47 @@
 import { CALENDAR_VIEWS } from './views.js'
-import { Button } from '@/components/ui/button'
 
+/**
+ * 3D Pop segmented view switcher.
+ *
+ * A single pill sits on the white calendar card: the active view is a yellow
+ * gradient tab with a soft glow, the inactive labels are muted. Kept as a
+ * tablist so the current view is announced to assistive tech, with roving
+ * focus and arrow-key support.
+ */
 export default function CalendarViewSelector({ view, onChange }) {
+  function handleKeyDown(event) {
+    if (event.key !== 'ArrowLeft' && event.key !== 'ArrowRight') {
+      return
+    }
+    event.preventDefault()
+    const currentIndex = CALENDAR_VIEWS.findIndex((option) => option.id === view)
+    const direction = event.key === 'ArrowRight' ? 1 : -1
+    const nextIndex =
+      (currentIndex + direction + CALENDAR_VIEWS.length) % CALENDAR_VIEWS.length
+    onChange(CALENDAR_VIEWS[nextIndex].id)
+  }
+
   return (
     <div
-      role="group"
+      role="tablist"
       aria-label="Calendar view"
-      className="cal-control-group inline-flex items-center gap-0.5 p-0.5"
+      className="cal-seg"
+      onKeyDown={handleKeyDown}
     >
       {CALENDAR_VIEWS.map((option) => {
         const active = view === option.id
         return (
-          <Button
+          <button
             key={option.id}
             type="button"
-            size="sm"
-            variant={active ? 'default' : 'ghost'}
-            aria-pressed={active}
+            role="tab"
+            aria-selected={active}
+            tabIndex={active ? 0 : -1}
+            className={active ? 'cal-seg-btn is-active' : 'cal-seg-btn'}
             onClick={() => onChange(option.id)}
-            className="h-7 rounded-[calc(var(--radius-md)-2px)] px-2.5 text-[12.5px] font-medium"
           >
             {option.label}
-          </Button>
+          </button>
         )
       })}
     </div>

@@ -10,4 +10,4 @@ RUN pip install --no-cache-dir -r requirements.txt
 COPY . ./service
 
 # Run as a package so the calendar/ folder doesn't shadow Python's stdlib calendar module
-CMD ["uvicorn", "service.main:app", "--host", "0.0.0.0", "--port", "8000", "--reload"]
+CMD ["uvicorn", "service.main:app", "--host", "0.0.0.0", "--port", "8001", "--reload"]

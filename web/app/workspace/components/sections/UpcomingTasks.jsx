@@ -73,8 +73,8 @@ function LoadingList() {
 export default function UpcomingTasks({ loading, error, items = [], onRetry }) {
   return (
     <Card className="ws-card min-w-0">
-      <CardHeader className="flex flex-row items-center justify-between gap-3 space-y-0 px-4 pb-2 pt-4 sm:px-5 sm:pt-5">
-        <CardTitle className="text-base font-semibold">Upcoming Tasks</CardTitle>
+      <CardHeader className="ws-card-head flex flex-row items-center justify-between gap-3 space-y-0 px-4 pb-2 pt-4 sm:px-5 sm:pt-5">
+        <CardTitle className="ws-card-title">Upcoming Tasks</CardTitle>
       </CardHeader>
       <CardContent className="px-3 pb-4 pt-0 sm:px-4 sm:pb-5">
         {loading ? (

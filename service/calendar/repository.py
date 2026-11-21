@@ -116,6 +116,40 @@ def list_nonrecurring_allday_overlapping(
     return list(db.scalars(stmt).all())
 
 
+def list_calendar_ids_for_project(db: Session, project_id: int) -> list[int]:
+    """Distinct calendars holding at least one event of ``project_id``."""
+    stmt = (
+        select(Event.calendar_id)
+        .where(Event.project_id == project_id)
+        .distinct()
+        .order_by(Event.calendar_id.asc())
+    )
+    return list(db.scalars(stmt).all())
+
+
+def list_project_ids_for_calendar(db: Session, calendar_id: int) -> list[int]:
+    """Distinct projects associated with at least one event of ``calendar_id``."""
+    stmt = (
+        select(Event.project_id)
+        .where(Event.calendar_id == calendar_id, Event.project_id.is_not(None))
+        .distinct()
+    )
+    return [project_id for project_id in db.scalars(stmt).all() if project_id is not None]
+
+
+def list_events_for_project(
+    db: Session, project_id: int
+) -> list[Event]:
+    # Same ordering convention as list_events_for_calendar.
+    start_key = func.coalesce(Event.start_at, text("timezone('UTC', events.start_date::timestamp)"))
+    stmt = (
+        select(Event)
+        .where(Event.project_id == project_id)
+        .order_by(start_key.asc(), Event.id.asc())
+    )
+    return list(db.scalars(stmt).all())
+
+
 def list_recurring_events_for_calendar(db: Session, calendar_id: int) -> list[Event]:
     stmt = (
         select(Event)

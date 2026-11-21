@@ -1,5 +1,6 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
+import { ChevronLeft, ChevronRight } from 'lucide-react'
 import EmptyState from '@/components/shared/EmptyState'
 import ErrorState from '@/components/shared/ErrorState'
 import LoadingState from '@/components/shared/LoadingState'
@@ -13,6 +14,8 @@ import listPlugin from '@fullcalendar/list'
 import interactionPlugin from '@fullcalendar/interaction'
 import CalendarToolbar from './CalendarToolbar.jsx'
 import CalendarEvent from './CalendarEvent.jsx'
+import CalendarAside from './CalendarAside.jsx'
+import CalendarViewSelector from './CalendarViewSelector.jsx'
 import EventDetailPanel from './EventDetailPanel.jsx'
 import EventDialog from './EventDialog.jsx'
 import CalendarDialog from './CalendarDialog.jsx'
@@ -21,7 +24,7 @@ import useCalendarEvents, { occurrenceToSelection } from './useCalendarEvents.js
 import { createException, deleteEvent, editOccurrence, updateEvent } from './api.js'
 import { getBrowserTimeZone } from './time.js'
 import { clearToken } from '../src/api.js'
-import { CALENDAR_VIEWS, DEFAULT_VIEW, fcViewType } from './views.js'
+import { CALENDAR_VIEWS, DEFAULT_VIEW, fcViewType, periodName } from './views.js'
 import { categoryOf } from './categories.js'
 import CalendarAgent from './agent/CalendarAgent.jsx'
 import { createTimeGridGuides } from './timeGridGuides.js'
@@ -46,7 +49,51 @@ function CalendarOverlay({ children, passthrough = false }) {
   )
 }
 
-const SCROLL_TIME = '08:00:00'
+const SCROLL_TIME = '05:30:00'
+
+/* --- Date helpers for the sidebar (mini month + upcoming list) --- */
+function startOfDay(date) {
+  return new Date(date.getFullYear(), date.getMonth(), date.getDate())
+}
+
+function addDays(date, amount) {
+  const next = new Date(date)
+  next.setDate(next.getDate() + amount)
+  return next
+}
+
+function dayKey(date) {
+  const month = String(date.getMonth() + 1).padStart(2, '0')
+  const day = String(date.getDate()).padStart(2, '0')
+  return `${date.getFullYear()}-${month}-${day}`
+}
+
+function upcomingTimeLabel(event) {
+  if (!event?.start) return ''
+  const start = new Date(event.start)
+  if (event.allDay) return 'All day'
+  const weekday = start.toLocaleDateString(undefined, { weekday: 'short' })
+  const time = (date) =>
+    date.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' })
+  if (!event.end) return `${weekday} · ${time(start)}`
+  return `${weekday} · ${time(start)} – ${time(new Date(event.end))}`
+}
+
+/** All keys a (possibly multi-day) event occupies, used for mini-calendar dots. */
+function eventDayKeys(event) {
+  if (!event?.start) return []
+  const first = startOfDay(new Date(event.start))
+  const rawEnd = event.end ? new Date(event.end) : new Date(event.start)
+  // All-day ranges are exclusive at the end; timed ranges are not.
+  const last = event.allDay ? new Date(rawEnd.getTime() - 1) : rawEnd
+  const keys = []
+  let cursor = first
+  for (let guard = 0; cursor <= last && guard < 400; guard += 1) {
+    keys.push(dayKey(cursor))
+    cursor = addDays(cursor, 1)
+  }
+  return keys.length > 0 ? keys : [dayKey(first)]
+}
 
 export default function CalendarPage() {
   const calendarRef = useRef(null)
@@ -61,6 +108,12 @@ export default function CalendarPage() {
     CALENDAR_VIEWS.some((v) => v.id === requestedView) ? requestedView : DEFAULT_VIEW
 
   const [view, setView] = useState(initialView)
+  // Sidebar month cursor and highlighted day, kept in sync with the grid.
+  const [miniMonth, setMiniMonth] = useState(() => {
+    const now = new Date()
+    return new Date(now.getFullYear(), now.getMonth(), 1)
+  })
+  const [selectedDay, setSelectedDay] = useState(() => new Date())
 
   function openDayView(date) {
     setView('timeGridDay')
@@ -138,6 +191,29 @@ export default function CalendarPage() {
     }
   }, [])
 
+  useEffect(() => {
+    const surface = surfaceRef.current
+    if (!surface || typeof ResizeObserver === 'undefined') {
+      return undefined
+    }
+    let frame = 0
+    const schedule = () => {
+      if (frame) return
+      frame = requestAnimationFrame(() => {
+        frame = 0
+        syncMonthRowHeight()
+      })
+    }
+    const observer = new ResizeObserver(schedule)
+    observer.observe(surface)
+    return () => {
+      observer.disconnect()
+      if (frame) cancelAnimationFrame(frame)
+    }
+    // syncMonthRowHeight only reads refs and the rendered table.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
   const {
     calendars,
     selectedCalendarId,
@@ -165,6 +241,36 @@ export default function CalendarPage() {
     calendarsApi.setSelectedCalendarId(calendarId)
   }
 
+  // Sidebar data: category dots for the mini month and the next five events.
+  const events = eventsApi.events
+  const eventDays = useMemo(() => {
+    const map = new Map()
+    for (const event of events) {
+      const accent = categoryOf(event.extendedProps?.category).accent
+      for (const key of eventDayKeys(event)) {
+        if (!map.has(key)) map.set(key, accent)
+      }
+    }
+    return map
+  }, [events])
+
+  const upcoming = useMemo(() => {
+    const cutoff = startOfDay(new Date())
+    return events
+      .filter((event) => event.start && new Date(event.start) >= cutoff)
+      .slice()
+      .sort((a, b) => new Date(a.start) - new Date(b.start))
+      .slice(0, 5)
+      .map((event, index) => ({
+        key: `${event.id ?? 'event'}-${index}`,
+        date: new Date(event.start),
+        title: event.title,
+        timeLabel: upcomingTimeLabel(event),
+        category: categoryOf(event.extendedProps?.category),
+        raw: event.extendedProps?.raw,
+      }))
+  }, [events])
+
   function handleViewChange(nextView) {
     if (nextView === view) {
       return
@@ -175,11 +281,83 @@ export default function CalendarPage() {
 
   function handleDatesSet(info) {
     setRangeLabel(info.view.title)
+    const currentStart = info.view.currentStart
+    setMiniMonth(
+      new Date(currentStart.getFullYear(), currentStart.getMonth(), 1)
+    )
+    if (info.view.type === 'timeGridDay') {
+      setSelectedDay(new Date(currentStart))
+    }
+
+    // Fetch at least the whole visible month, even in Week/Day views, so the
+    // sidebar's mini dots and upcoming list stay populated.
+    const infoStart = info.start.getTime()
+    const infoEnd = info.end.getTime()
+    const firstMonth = new Date(
+      info.start.getFullYear(),
+      info.start.getMonth(),
+      1
+    )
+    const afterLastMonth = new Date(
+      info.end.getFullYear(),
+      info.end.getMonth() + 1,
+      1
+    )
     eventsApi.setRange({
-      start: info.start.toISOString(),
-      end: info.end.toISOString(),
+      start: new Date(Math.min(infoStart, firstMonth.getTime())).toISOString(),
+      end: new Date(Math.max(infoEnd, afterLastMonth.getTime())).toISOString(),
       timezone: getBrowserTimeZone(),
     })
+
+    if (info.view.type === 'dayGridMonth') {
+      // Two frames: FullCalendar finishes sizing its table after datesSet.
+      requestAnimationFrame(() => {
+        requestAnimationFrame(() => syncMonthRowHeight())
+      })
+    } else {
+      surfaceRef.current?.style.removeProperty('--cal-month-row-h')
+    }
+  }
+
+  /** Divide the month table's height evenly across its week rows. */
+  function syncMonthRowHeight() {
+    const surface = surfaceRef.current
+    if (!surface || !surface.querySelector('.fc-dayGridMonth-view')) return
+    const table = surface.querySelector('.fc-scrollgrid-sync-table')
+    if (!table) return
+    const rows = table.querySelectorAll('tbody > tr').length
+    if (!rows) return
+    const spacing =
+      Number.parseFloat(getComputedStyle(table).borderSpacing) || 6
+    const available = table.clientHeight - (rows + 1) * spacing
+    const rowHeight = Math.floor(available / rows)
+    if (Number.isFinite(rowHeight) && rowHeight > 0) {
+      surface.style.setProperty('--cal-month-row-h', `${rowHeight}px`)
+    }
+  }
+
+  function handleToday() {
+    calendarRef.current?.getApi().today()
+    const now = new Date()
+    setSelectedDay(now)
+    setMiniMonth(new Date(now.getFullYear(), now.getMonth(), 1))
+  }
+
+  function shiftMiniMonth(delta) {
+    const next = new Date(miniMonth.getFullYear(), miniMonth.getMonth() + delta, 1)
+    setMiniMonth(next)
+    calendarRef.current?.getApi().gotoDate(next)
+  }
+
+  function handleSelectMiniDay(date) {
+    setSelectedDay(date)
+    calendarRef.current?.getApi().gotoDate(date)
+  }
+
+  function openScheduledEvent(item) {
+    if (item?.raw) {
+      setSelectedOccurrence(occurrenceToSelection(item.raw))
+    }
   }
 
   function handleSlotSelect(info) {
@@ -422,34 +600,73 @@ export default function CalendarPage() {
     hasCalendar && !eventsApi.loading && eventsApi.events.length === 0
 
   return (
-    <div className="calendar-page">
-          <CalendarToolbar
-            view={view}
-            rangeLabel={rangeLabel}
-            onPrev={() => calendarRef.current?.getApi().prev()}
-            onNext={() => calendarRef.current?.getApi().next()}
-            onToday={() => calendarRef.current?.getApi().today()}
-            onViewChange={handleViewChange}
-            calendars={calendars}
-            selectedCalendarId={selectedCalendarId}
-            calendarsLoading={calendarsLoading}
-            calendarsError={calendarsError}
-            onSelectCalendar={handleSelectCalendar}
-            onRetryCalendars={() => calendarsApi.reload()}
-            onCreateCalendar={() =>
-              setCalendarDialog({ open: true, calendar: null })
-            }
-            onManageCalendars={() =>
-              setCalendarDialog({
-                open: true,
-                calendar: selectedCalendar || calendars[0] || null,
-              })
-            }
-            canCreate={hasCalendar}
-            onCreateEvent={() => setEditor({ open: true, mode: 'create' })}
-          />
+    <div
+      className={
+        view === 'dayGridMonth'
+          ? 'calendar-page cal-page--month'
+          : 'calendar-page'
+      }
+    >
+      <CalendarToolbar
+        calendars={calendars}
+        selectedCalendarId={selectedCalendarId}
+        calendarsLoading={calendarsLoading}
+        calendarsError={calendarsError}
+        onSelectCalendar={handleSelectCalendar}
+        onRetryCalendars={() => calendarsApi.reload()}
+        onCreateCalendar={() =>
+          setCalendarDialog({ open: true, calendar: null })
+        }
+        onManageCalendars={() =>
+          setCalendarDialog({
+            open: true,
+            calendar: selectedCalendar || calendars[0] || null,
+          })
+        }
+        canCreate={hasCalendar}
+        onCreateEvent={() => setEditor({ open: true, mode: 'create' })}
+      />
 
-      <div className="calendar-surface" ref={surfaceRef}>
+      <div className="cal-layout">
+        <section className="cal-card on-white" aria-label="Calendar">
+          <div className="cal-card-head">
+            <div className="cal-nav-group">
+              <button
+                type="button"
+                className="cal-nav-btn"
+                aria-label={`Previous ${periodName(view)}`}
+                onClick={() => calendarRef.current?.getApi().prev()}
+              >
+                <ChevronLeft size={18} aria-hidden="true" />
+              </button>
+              <button
+                type="button"
+                className="cal-nav-btn"
+                aria-label={`Next ${periodName(view)}`}
+                onClick={() => calendarRef.current?.getApi().next()}
+              >
+                <ChevronRight size={18} aria-hidden="true" />
+              </button>
+              <button
+                type="button"
+                className="cal-today-btn"
+                onClick={handleToday}
+              >
+                Today
+              </button>
+              <h1 className="cal-view-title" aria-live="polite">
+                {rangeLabel || 'Calendar'}
+              </h1>
+              <span className="cal-deco" aria-hidden="true">
+                <span className="cal-deco-cube" />
+                <span className="cal-deco-sphere" />
+                <span className="cal-deco-dot" />
+              </span>
+            </div>
+            <CalendarViewSelector view={view} onChange={handleViewChange} />
+          </div>
+
+          <div className="calendar-surface" ref={surfaceRef}>
           <FullCalendar
             ref={calendarRef}
             plugins={[dayGridPlugin, timeGridPlugin, listPlugin, interactionPlugin]}
@@ -461,12 +678,12 @@ export default function CalendarPage() {
             initialDate={requestedDate && /^\d{4}-\d{2}-\d{2}$/.test(requestedDate) ? requestedDate : undefined}
             headerToolbar={false}
             footerToolbar={false}
-            height="100%"
+            height={view === 'dayGridMonth' ? 'auto' : '100%'}
             expandRows
             stickyHeaderDates
-            fixedWeekCount={false}
+            fixedWeekCount
             dayMaxEvents={3}
-            nowIndicator={view === 'timeGridDay'}
+            nowIndicator
             timeZone="local"
             slotMinTime="00:00:00"
             slotMaxTime="24:00:00"
@@ -474,7 +691,12 @@ export default function CalendarPage() {
             slotDuration="00:30:00"
             snapDuration="00:15:00"
             slotLabelInterval="01:00"
-            allDaySlot={view !== 'timeGridWeek'}
+            eventTimeFormat={{
+              hour: 'numeric',
+              minute: '2-digit',
+              meridiem: 'short',
+            }}
+            allDaySlot
             selectable={hasCalendar}
             selectMirror
             unselectAuto
@@ -516,6 +738,21 @@ export default function CalendarPage() {
               info.el.style.setProperty('--evc-bg', cat.background)
               info.el.style.setProperty('--evc-accent', cat.accent)
               info.el.style.setProperty('--evc-text', cat.text)
+              info.el.dataset.isAllDay = info.event.allDay ? 'true' : 'false'
+              // The compact mobile month view renders category dots instead of
+              // text, so the event needs an explicit accessible name.
+              const timeLabel = info.event.allDay
+                ? 'All day'
+                : info.event.start?.toLocaleTimeString(undefined, {
+                    hour: 'numeric',
+                    minute: '2-digit',
+                  })
+              info.el.setAttribute(
+                'aria-label',
+                [info.event.title, cat.label, timeLabel]
+                  .filter(Boolean)
+                  .join(', ')
+              )
               // FullCalendar re-mounts events on view changes; make sure the
               // guide lines are redrawn with the fresh event geometry even if
               // the DOM observer's last paint ran before the events mounted.
@@ -622,7 +859,20 @@ export default function CalendarPage() {
               />
             </CalendarOverlay>
           )}
-        </div>
+          </div>
+        </section>
+
+        <CalendarAside
+          monthDate={miniMonth}
+          selectedDate={selectedDay}
+          eventDays={eventDays}
+          upcoming={upcoming}
+          onPrevMonth={() => shiftMiniMonth(-1)}
+          onNextMonth={() => shiftMiniMonth(1)}
+          onSelectDay={handleSelectMiniDay}
+          onOpenEvent={openScheduledEvent}
+        />
+      </div>
 
         {selectedOccurrence && hasCalendar && (
           <EventDetailPanel

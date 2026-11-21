@@ -63,6 +63,7 @@ def _task_filter(
     created_by: int | None = Query(default=None, description="Filter by creator"),
     assigned_user_id: int | None = Query(default=None, description="Filter by active assignee"),
     parent_task_id: int | None = Query(default=None, description="Filter by parent task"),
+    project_id: int | None = Query(default=None, description="Filter by project"),
     label_id: int | None = Query(default=None, description="Filter by label"),
     due: str | None = Query(default=None, description="overdue | today | upcoming | no_due"),
     q: str | None = Query(default=None, description="Search in title and description"),
@@ -83,6 +84,7 @@ def _task_filter(
             created_by=created_by,
             assigned_user_id=assigned_user_id,
             parent_task_id=parent_task_id,
+            project_id=project_id,
             label_id=label_id,
             due=due,
             q=q,
@@ -181,10 +183,11 @@ def list_assigned_by_me(
     summary="Aggregated counters for the caller's visible tasks",
 )
 def task_statistics(
+    project_id: int | None = Query(default=None, description="Optional project scope"),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    return service.task_statistics(db, current_user.id)
+    return service.task_statistics(db, current_user.id, project_id=project_id)
 
 
 # ---------------------------------------------------------------------------

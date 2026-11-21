@@ -1,102 +1,274 @@
 /*
- * Workspace dashboard — Soft 3D visual design (Warm Mist).
- * Scoped to `.workspace-page` so Calendar and global theme layering stay intact.
- * Uses Warm Mist canvas and warm-tinted Soft 3D elevation tokens.
+ * Workspace dashboard — 3D glass-clay redesign (simplified for performance).
+ * Scoped to `.workspace-page`. Black / yellow / white palette, light + dark via data-theme.
  */
 .workspace-page {
-  /* Warm Mist tokens */
-  --ws-page-bg: #F2F0EB;
-  --ws-surface: #FFFFFF;
-  --ws-surface-subtle: #F7F5F1;
-  --ws-inset: #EAE7E0;
-  --ws-ink: #242321;
-  --ws-ink-muted: #77736C;
-  --ws-line: #E5E1D9;
-  --ws-line-soft: #E5E1D9;
-  --ws-radius-card: 16px;
-  --ws-radius-control: 10px;
-  --ws-shadow-raised: 0 4px 12px rgba(55, 45, 30, 0.07), 0 1px 3px rgba(55, 45, 30, 0.05);
-  --ws-shadow-raised-hover: 0 8px 20px rgba(55, 45, 30, 0.1), 0 2px 5px rgba(55, 45, 30, 0.06);
-  --ws-shadow-control: 0 1px 3px rgba(55, 45, 30, 0.08), 0 1px 2px rgba(55, 45, 30, 0.04), inset 0 1px 0 rgba(255, 255, 255, 0.7);
-  --ws-shadow-control-press: inset 0 2px 4px rgba(55, 45, 30, 0.08);
-  --ws-transition: 180ms ease;
+  /* glass-clay tokens — light */
+  --ws-bg: #F5F3EE;
+  --ws-text: #211E1A;
+  --ws-text-2: #6E6A60;
+  --ws-text-3: #9D998E;
+  --ws-edge: rgba(255, 255, 255, .9);
+  --ws-edge-soft: rgba(35, 30, 24, .07);
+  --ws-glass-hi: rgba(255, 255, 255, .9);
+  --ws-glass-lo: rgba(35, 30, 24, .05);
+  --ws-card-grad: linear-gradient(165deg, rgba(255, 255, 255, .88), rgba(255, 255, 255, .6));
+  --ws-panel: rgba(255, 255, 255, .55);
+  --ws-row-hover: rgba(255, 255, 255, .7);
+  --ws-shadow-card: 0 4px 16px rgba(35, 30, 24, .1);
+  --ws-shadow-hover: 0 6px 20px rgba(35, 30, 24, .14);
+  --ws-shadow-pop: 0 8px 24px rgba(35, 30, 24, .16);
+  --ws-accent: #E67700;
+  --ws-ease: cubic-bezier(.2, 0, 0, 1);
+  --ws-r-card: 22px;
 
-  background: var(--ws-page-bg);
+  /* glossy gradient + tint pairs */
+  --ws-c1-yellow: #FFE066; --ws-c2-yellow: #F59F00; --ws-glow-yellow: rgba(245, 159, 0, .5); --ws-fg-yellow: #9A6700; --ws-tint-yellow: rgba(245, 159, 0, .14);
+  --ws-c1-gold: #FFD43B; --ws-c2-gold: #E67700; --ws-glow-gold: rgba(230, 119, 0, .5); --ws-fg-gold: #A05E00; --ws-tint-gold: rgba(230, 119, 0, .13);
+  --ws-c1-ink: #3E3B35; --ws-c2-ink: #12110F; --ws-glow-ink: rgba(20, 18, 14, .45); --ws-fg-ink: var(--ws-text-2); --ws-tint-ink: rgba(35, 30, 24, .1); --ws-n1-ink: #57534A; --ws-n2-ink: #17150F;
+
+  /* shadcn/ui token overrides (glass-clay light) */
+  --background: 45 27% 95%;
+  --foreground: 33 12% 12%;
+  --card: 0 0% 100%;
+  --card-foreground: 33 12% 12%;
+  --popover: 0 0% 100%;
+  --popover-foreground: 33 12% 12%;
+  --primary: 33 12% 12%;
+  --primary-foreground: 0 0% 100%;
+  --secondary: 45 20% 95%;
+  --secondary-foreground: 33 12% 12%;
+  --muted: 45 20% 95%;
+  --muted-foreground: 45 7% 40%;
+  --accent: 45 20% 90%;
+  --accent-foreground: 33 12% 12%;
+  --destructive: 4 77% 40%;
+  --destructive-foreground: 0 0% 100%;
+  --border: 40 19% 87%;
+  --input: 40 19% 87%;
+  --ring: 45 7% 40%;
+
+  background: var(--ws-bg);
   border-radius: 18px;
   padding: 20px;
+  position: relative;
+  overflow: hidden;
+  color: var(--ws-text);
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
 }
 
-/* Elevated dashboard cards */
+.workspace-page[data-theme='dark'] {
+  --ws-bg: #0D0C0B;
+  --ws-text: #F2F0EA;
+  --ws-text-2: #A8A499;
+  --ws-text-3: #7B776D;
+  --ws-edge: rgba(255, 255, 255, .1);
+  --ws-edge-soft: rgba(0, 0, 0, .35);
+  --ws-glass-hi: rgba(255, 255, 255, .08);
+  --ws-glass-lo: rgba(0, 0, 0, .3);
+  --ws-card-grad: linear-gradient(165deg, rgba(42, 40, 35, .8), rgba(26, 25, 22, .62));
+  --ws-panel: rgba(255, 255, 255, .06);
+  --ws-row-hover: rgba(255, 255, 255, .06);
+  --ws-shadow-card: 0 4px 16px rgba(0, 0, 0, .35);
+  --ws-shadow-hover: 0 6px 20px rgba(0, 0, 0, .4);
+  --ws-shadow-pop: 0 8px 24px rgba(0, 0, 0, .45);
+  --ws-accent: #FFD43B;
+
+  /* shadcn/ui token overrides (glass-clay dark) */
+  --background: 30 8% 5%;
+  --foreground: 45 20% 96%;
+  --card: 30 8% 11%;
+  --card-foreground: 45 20% 96%;
+  --popover: 30 8% 11%;
+  --popover-foreground: 45 20% 96%;
+  --primary: 45 20% 96%;
+  --primary-foreground: 30 8% 5%;
+  --secondary: 30 8% 14%;
+  --secondary-foreground: 45 20% 96%;
+  --muted: 30 8% 14%;
+  --muted-foreground: 45 8% 64%;
+  --accent: 30 8% 14%;
+  --accent-foreground: 45 20% 96%;
+  --destructive: 4 70% 45%;
+  --destructive-foreground: 0 0% 100%;
+  --border: 30 8% 16%;
+  --input: 30 8% 20%;
+  --ring: 45 8% 55%;
+
+  --ws-fg-yellow: #FFD43B;
+  --ws-tint-yellow: rgba(255, 212, 59, .15);
+  --ws-fg-gold: #FFC078;
+  --ws-tint-gold: rgba(255, 192, 120, .14);
+  --ws-c1-ink: #4A463E; --ws-c2-ink: #191815; --ws-tint-ink: rgba(255, 255, 255, .08); --ws-fg-ink: var(--ws-text-2); --ws-n1-ink: #F2F0EA; --ws-n2-ink: #B5B0A4;
+}
+
+.workspace-page * { box-sizing: border-box; }
+.workspace-page ::selection { background: rgba(245, 159, 0, .25); }
+
+/* background blobs (static, low blur for performance) */
+.workspace-page .ws-blob {
+  position: absolute;
+  border-radius: 50%;
+  filter: blur(12px);
+  pointer-events: none;
+  z-index: 0;
+  opacity: .35;
+}
+.workspace-page .ws-blob-1 { width: 420px; height: 420px; background: #FFE066; top: -120px; left: -100px; }
+.workspace-page .ws-blob-2 { width: 460px; height: 460px; background: #FFC078; top: 4%; right: -160px; }
+.workspace-page .ws-blob-3 { width: 380px; height: 380px; background: #DDD9CC; bottom: -120px; left: 28%; }
+.workspace-page[data-theme='dark'] .ws-blob { opacity: .22; }
+.workspace-page[data-theme='dark'] .ws-blob-1 { background: #B37B00; }
+.workspace-page[data-theme='dark'] .ws-blob-2 { background: #7A4E00; }
+.workspace-page[data-theme='dark'] .ws-blob-3 { background: #26241F; }
+
+/* hero */
+.workspace-page .ws-hero { padding: 34px 0 6px; position: relative; z-index: 1; }
+.workspace-page .ws-hero h1 {
+  margin: 0; display: inline-block;
+  font: 800 clamp(26px, 4vw, 34px) / 1.15 'Outfit', 'Inter', sans-serif;
+  letter-spacing: -.03em; color: var(--ws-text);
+  background: linear-gradient(180deg, transparent 58%, rgba(255, 212, 59, .85) 58%, rgba(255, 212, 59, .85) 92%, transparent 92%);
+}
+.workspace-page[data-theme='dark'] .ws-hero h1 {
+  background: linear-gradient(180deg, transparent 58%, rgba(255, 212, 59, .32) 58%, rgba(255, 212, 59, .32) 92%, transparent 92%);
+}
+.workspace-page .ws-hero .ws-date { margin: 8px 0 0; color: var(--ws-text); font-size: 15px; font-weight: 600; letter-spacing: -.01em; }
+
+/* glass-clay card base */
 .workspace-page .ws-card {
-  background: var(--ws-surface);
-  border: 1px solid var(--ws-line);
-  border-radius: var(--ws-radius-card);
-  box-shadow: var(--ws-shadow-raised);
+  position: relative;
+  background: var(--ws-card-grad);
+  border-radius: var(--ws-r-card);
+  min-width: 0;
+  border: 1px solid var(--ws-edge);
+  padding: 0;
+  box-shadow: var(--ws-shadow-card), inset 0 1px 0 var(--ws-glass-hi), inset 0 -10px 18px var(--ws-glass-lo);
+  transition: box-shadow .2s var(--ws-ease);
+  transform: translateZ(0);
+  contain: layout style paint;
 }
+.workspace-page .ws-card:hover { box-shadow: var(--ws-shadow-hover), inset 0 1px 0 var(--ws-glass-hi), inset 0 -10px 18px var(--ws-glass-lo); }
+.workspace-page .ws-card-primary { box-shadow: 0 4px 14px rgba(35, 30, 24, .08), 0 2px 5px rgba(35, 30, 24, .05); }
 
-.workspace-page .ws-card-interactive {
-  transition:
-    box-shadow var(--ws-transition),
-    background-color var(--ws-transition),
-    transform var(--ws-transition);
+/* puffy 3D icon chip */
+.workspace-page .ws-chip {
+  width: 40px; height: 40px; border-radius: 14px;
+  display: grid; place-items: center; color: #17150F; flex-shrink: 0;
+  background: linear-gradient(180deg, var(--ws-c1, #FFE066), var(--ws-c2, #F59F00));
+  box-shadow: inset 0 2px 3px rgba(255, 255, 255, .55), inset 0 -4px 7px rgba(0, 0, 0, .22), 0 6px 12px -4px var(--ws-glow, rgba(245, 159, 0, .5));
 }
-.workspace-page .ws-card-interactive:hover {
-  box-shadow: var(--ws-shadow-raised-hover);
-}
-.workspace-page .ws-card-interactive:active {
-  box-shadow: var(--ws-shadow-raised);
-}
+.workspace-page .ws-chip.g-ink { color: #F2F0EA; }
+.workspace-page[data-theme='dark'] .ws-chip.g-ink { color: #F2F0EA; }
+.workspace-page .ws-chip .ws-icon { filter: drop-shadow(0 1px 1px rgba(0, 0, 0, .2)); }
 
-/* Tactile buttons inside workspace */
-.workspace-page .ws-btn {
-  box-shadow: var(--ws-shadow-control);
-  transition:
-    box-shadow var(--ws-transition),
-    background-color var(--ws-transition);
-}
-.workspace-page .ws-btn:hover:not(:disabled) {
-  box-shadow: var(--ws-shadow-raised-hover);
-}
-.workspace-page .ws-btn:active:not(:disabled) {
-  box-shadow: var(--ws-shadow-control-press);
-}
+/* color variants */
+.workspace-page .g-yellow { --ws-c1: var(--ws-c1-yellow); --ws-c2: var(--ws-c2-yellow); --ws-glow: var(--ws-glow-yellow); --ws-fg: var(--ws-fg-yellow); --ws-tint: var(--ws-tint-yellow); }
+.workspace-page .g-gold { --ws-c1: var(--ws-c1-gold); --ws-c2: var(--ws-c2-gold); --ws-glow: var(--ws-glow-gold); --ws-fg: var(--ws-fg-gold); --ws-tint: var(--ws-tint-gold); }
+.workspace-page .g-ink { --ws-c1: var(--ws-c1-ink); --ws-c2: var(--ws-c2-ink); --ws-glow: var(--ws-glow-ink); --ws-fg: var(--ws-fg-ink); --ws-tint: var(--ws-tint-ink); --ws-n1: var(--ws-n1-ink); --ws-n2: var(--ws-n2-ink); }
 
-/* Soft 3D list/row surfaces */
+/* stats */
+.workspace-page .ws-stats {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 16px;
+  margin-top: 26px;
+  position: relative;
+  z-index: 1;
+}
+.workspace-page .ws-stat {
+  position: relative;
+  background: var(--ws-card-grad);
+  border-radius: var(--ws-r-card);
+  min-width: 0;
+  border: 1px solid var(--ws-edge);
+  padding: 16px;
+  box-shadow: var(--ws-shadow-card), inset 0 1px 0 var(--ws-glass-hi), inset 0 -10px 18px var(--ws-glass-lo);
+  transition: box-shadow .2s var(--ws-ease);
+  transform: translateZ(0);
+  contain: layout style paint;
+}
+.workspace-page .ws-stat:hover { box-shadow: var(--ws-shadow-hover), inset 0 1px 0 var(--ws-glass-hi), inset 0 -10px 18px var(--ws-glass-lo); }
+.workspace-page .ws-stat-top { display: flex; align-items: center; gap: 10px; margin-bottom: 14px; }
+.workspace-page .ws-stat-label { font-size: 13px; font-weight: 500; color: var(--ws-text-2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.workspace-page .ws-stat-num {
+  font: 800 32px / 1.1 'Outfit', 'Inter', sans-serif;
+  letter-spacing: -.02em;
+  font-variant-numeric: tabular-nums;
+  background: linear-gradient(180deg, var(--ws-n1, var(--ws-c1, #FFE066)), var(--ws-n2, var(--ws-c2, #F59F00)));
+  -webkit-background-clip: text; background-clip: text; color: transparent;
+  filter: drop-shadow(0 2px 3px var(--ws-glow, rgba(245, 159, 0, .5)));
+}
+.workspace-page .ws-stat-sub { margin-top: 4px; font-size: 12px; color: var(--ws-text-3); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+/* grid layout */
+.workspace-page .ws-grid {
+  display: grid;
+  grid-template-columns: 1.4fr 1fr;
+  gap: 18px;
+  align-items: start;
+  margin-top: 20px;
+  padding-bottom: 64px;
+  position: relative;
+  z-index: 1;
+}
+.workspace-page .ws-col { display: grid; gap: 18px; min-width: 0; }
+@media (max-width: 960px) { .workspace-page .ws-grid { grid-template-columns: 1fr; } }
+
+/* card title */
+.workspace-page .ws-card-title { font: 600 16px / 1.3 'Outfit', 'Inter', sans-serif; letter-spacing: -.01em; color: var(--ws-text); }
+
+/* card header */
+.workspace-page .ws-card-head {
+  display: flex; align-items: center; justify-content: space-between; gap: 10px;
+  margin-bottom: 8px; position: relative; z-index: 1;
+}
+.workspace-page .ws-link {
+  display: inline-flex; align-items: center; gap: 5px;
+  font-size: 13px; font-weight: 500; color: var(--ws-text-2);
+  padding: 6px 10px; margin: -6px 0; border-radius: 9px;
+  transition: background .15s, color .15s; white-space: nowrap;
+  background: none; border: 0; cursor: pointer;
+}
+.workspace-page .ws-link:hover { background: var(--ws-panel); color: var(--ws-text); }
+
+/* rows */
 .workspace-page .ws-row {
-  border-radius: 10px;
-  transition:
-    background-color 150ms ease,
-    box-shadow 150ms ease;
+  position: relative;
+  display: flex; align-items: center; gap: 12px;
+  padding: 11px 12px 11px 19px; border-radius: 14px;
+  transition: background .15s;
 }
-.workspace-page .ws-row:hover {
-  background: var(--ws-surface-subtle);
-  box-shadow: 0 1px 3px rgba(55, 45, 30, 0.06);
-}
-
-.workspace-page .ws-section-title {
-  color: var(--ws-ink);
+.workspace-page .ws-row:hover { background: var(--ws-row-hover); }
+.workspace-page .ws-row::before {
+  content: ""; position: absolute; left: 8px; top: 12px; bottom: 12px; width: 3.5px; border-radius: 99px;
+  background: linear-gradient(180deg, var(--ws-c1, #FFE066), var(--ws-c2, #F59F00));
+  box-shadow: 0 0 6px var(--ws-glow, rgba(245, 159, 0, .5));
 }
 
-.workspace-page .ws-muted {
-  color: var(--ws-ink-muted);
+/* theme toggle button */
+.workspace-page .ws-theme-btn {
+  width: 38px; height: 38px; padding: 0; justify-content: center;
+  display: inline-flex; align-items: center; gap: 7px; border-radius: 13px;
+  font-weight: 600; font-size: 13.5px; white-space: nowrap;
+  background: var(--ws-panel); border: 1px solid var(--ws-edge-soft);
+  box-shadow: inset 0 2px 4px rgba(35, 30, 24, .06);
+  color: var(--ws-text-2); cursor: pointer;
+  transition: border-color .15s, color .15s, background .15s;
 }
+.workspace-page .ws-theme-btn:hover { border-color: var(--ws-text-3); color: var(--ws-text); }
+.workspace-page[data-theme='dark'] .ws-theme-btn { box-shadow: inset 0 2px 4px rgba(0, 0, 0, .3); }
 
-/* Primary (Today's Schedule/Tasks) emphasis: slightly stronger presence */
-.workspace-page .ws-card-primary {
-  box-shadow: 0 4px 14px rgba(55, 45, 30, 0.08), 0 2px 5px rgba(55, 45, 30, 0.05);
+/* responsive */
+@media (max-width: 600px) {
+  .workspace-page { padding: 12px; border-radius: 14px; }
+  .workspace-page .ws-stat-label { white-space: normal; }
+  .workspace-page .ws-hero { padding-top: 24px; }
 }
+@media (max-width: 960px) { .workspace-page .ws-grid { grid-template-columns: 1fr; } }
 
+/* reduced motion */
 @media (prefers-reduced-motion: reduce) {
-  .workspace-page .ws-card-interactive,
-  .workspace-page .ws-btn,
-  .workspace-page .ws-row {
-    transition: none !important;
-  }
-}
-
-@media (max-width: 640px) {
-  .workspace-page {
-    padding: 12px;
-    border-radius: 14px;
-  }
+  .workspace-page .ws-blob { animation: none !important; }
+  * { transition: none !important; }
 }

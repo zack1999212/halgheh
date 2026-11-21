@@ -26,6 +26,27 @@ export default function AppLayout() {
     navigate('/login', { replace: true })
   }, [navigate])
 
+  const refreshUser = useCallback(async () => {
+    try {
+      const currentUser = await getCurrentUser()
+      setUser(currentUser)
+      return currentUser
+    } catch (err) {
+      if (err?.status === 401) {
+        handleUnauthorized()
+      }
+      return null
+    }
+  }, [handleUnauthorized])
+
+  const handleUserUpdated = useCallback((updatedUser) => {
+    if (updatedUser) {
+      setUser(updatedUser)
+      return
+    }
+    refreshUser()
+  }, [refreshUser])
+
   useEffect(() => {
     let active = true
 
@@ -53,6 +74,7 @@ export default function AppLayout() {
           user={user}
           onLogout={handleLogout}
           onUnauthorized={handleUnauthorized}
+          onUserUpdated={handleUserUpdated}
         />
 
         <main className="app-content flex min-h-0 flex-1 flex-col">
