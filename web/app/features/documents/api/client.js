@@ -33,7 +33,7 @@ function queryString(params) {
 
 export function listWorkspaces({ limit = 200, offset = 0 } = {}) {
   return apiRequest(`${BASE}/workspaces${queryString({ limit, offset })}`, {
-    fallbackMessage: 'Could not load workspaces.',
+    fallbackMessage: 'Could not load vaults.',
   })
 }
 
@@ -41,7 +41,7 @@ export function createWorkspace({ name, description } = {}) {
   return apiRequest(`${BASE}/workspaces`, {
     method: 'POST',
     body: { name, description: description || null },
-    fallbackMessage: 'Could not create the workspace.',
+    fallbackMessage: 'Could not create the vault.',
   })
 }
 

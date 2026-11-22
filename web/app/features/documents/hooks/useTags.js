@@ -26,7 +26,7 @@ export function useTags(workspaceId) {
 
   const create = useCallback(
     async ({ name, color }) => {
-      if (!workspaceId) throw new Error('No workspace selected')
+      if (!workspaceId) throw new Error('No vault selected')
       setCreating(true)
       try {
         const tag = await createTagRequest({ workspaceId, name, color })

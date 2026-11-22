@@ -90,6 +90,13 @@ export default function DocumentEditor({
   }))
   const [saveState, setSaveState] = useState('idle') // idle|dirty|saving|saved|error
   const [saveError, setSaveError] = useState('')
+  useEffect(() => {
+    if (saveState !== 'saved') return undefined
+    const t = window.setTimeout(() => {
+      setSaveState((current) => (current === 'saved' ? 'idle' : current))
+    }, 1500)
+    return () => window.clearTimeout(t)
+  }, [saveState])
   const [showPreview, setShowPreview] = useState(readOnly)
   const [restoreBusy, setRestoreBusy] = useState(false)
   const [restoreError, setRestoreError] = useState('')
@@ -117,7 +124,15 @@ export default function DocumentEditor({
   // Monotonic counter so a successful save does not clear pending edits that
   // arrived while the request was in flight.
   const editSeqRef = useRef(0)
+  const inFlightRef = useRef(false)
+  const queuedFlushRef = useRef(false)
+  const flushSaveRef = useRef(() => {})
+  const aliveRef = useRef(true)
   const onSaveRef = useRef(onSave)
+  useEffect(() => {
+    aliveRef.current = true
+    return () => { aliveRef.current = false }
+  }, [])
   onSaveRef.current = onSave
 
   const documentId = doc?.id
@@ -170,33 +185,54 @@ export default function DocumentEditor({
   }, [])
 
   const flushSave = useCallback(async () => {
-    const patch = buildPatch()
-    if (!Object.keys(patch).length) {
-      // The server already matches the draft (e.g. it changed underneath
-      // us); nothing to persist, so clear the pending-changes state.
-      pendingEditRef.current = false
-      setSaveState('idle')
+    if (inFlightRef.current) {
+      queuedFlushRef.current = true
       return
     }
-    // The backend requires a non-empty title. While the user is retyping the
-    // title (the field is momentarily empty) keep the change pending instead
-    // of sending a request that can only fail with HTTP 422.
+    const patch = buildPatch()
+    if (!Object.keys(patch).length) {
+      pendingEditRef.current = false
+      queuedFlushRef.current = false
+      if (aliveRef.current) setSaveState('idle')
+      return
+    }
     if (!String(draftRef.current.title ?? '').trim()) {
-      setSaveState('dirty')
+      if (aliveRef.current) setSaveState('dirty')
       return
     }
     const seq = editSeqRef.current
-    setSaveState('saving')
+    inFlightRef.current = true
+    queuedFlushRef.current = false
+    if (aliveRef.current) setSaveState('saving')
     try {
       await onSaveRef.current(patch)
-      if (editSeqRef.current === seq) pendingEditRef.current = false
-      setSaveState('saved')
-      setSaveError('')
+      if (editSeqRef.current === seq) {
+        pendingEditRef.current = false
+        if (aliveRef.current) {
+          setSaveState('saved')
+          setSaveError('')
+        }
+      } else if (aliveRef.current) {
+        setSaveState('dirty')
+        setSaveError('')
+      }
     } catch (caught) {
-      setSaveState('error')
-      setSaveError(caught.message || 'Could not save the document.')
+      if (aliveRef.current) {
+        setSaveState('error')
+        setSaveError(caught.message || 'Could not save the document.')
+      }
+    } finally {
+      inFlightRef.current = false
+      if (
+        aliveRef.current &&
+        (queuedFlushRef.current || (pendingEditRef.current && editSeqRef.current !== seq))
+      ) {
+        queuedFlushRef.current = false
+        window.setTimeout(() => { void flushSaveRef.current() }, 0)
+      }
     }
   }, [buildPatch])
+  flushSaveRef.current = flushSave
 
   // Preview resolution is backend-authoritative (audit finding M3): the
   // server returns `wiki_resolutions` on the document detail, keyed by the
@@ -393,7 +429,7 @@ export default function DocumentEditor({
     }
     timerRef.current = window.setTimeout(() => {
       timerRef.current = null
-      flushSave()
+      void flushSaveRef.current()
     }, AUTOSAVE_DELAY_MS)
   }
 
@@ -557,7 +593,7 @@ export default function DocumentEditor({
           <ErrorState
             title="Your changes could not be saved"
             message={saveError}
-            onRetry={() => flushSave()}
+            onRetry={() => { void flushSaveRef.current() }}
           />
         </div>
       )}
@@ -693,7 +729,7 @@ export default function DocumentEditor({
                 if (timerRef.current) {
                   window.clearTimeout(timerRef.current)
                   timerRef.current = null
-                  flushSave()
+                  void flushSaveRef.current()
                 }
                 // Delay closing so click/keyboard selection can complete.
                 window.setTimeout(() => closeWikiSuggestions(), 120)
@@ -759,7 +795,7 @@ export default function DocumentEditor({
                             <span className="min-w-0 flex-1 truncate font-medium">
                               {item.title}
                             </span>
-                            {/* L5: only claim "Workspace root" when the server
+                            {/* L5: only claim "Vault root" when the server
                                 says the document really has no folder; a
                                 collaborator without folder-tree access simply
                                 sees no context instead of a wrong one. */}
@@ -772,7 +808,7 @@ export default function DocumentEditor({
                               </span>
                             ) : item.folderId == null ? (
                               <span className="shrink-0 text-[12px] text-muted-foreground">
-                                Workspace root
+                                Vault root
                               </span>
                             ) : null}
                           </button>

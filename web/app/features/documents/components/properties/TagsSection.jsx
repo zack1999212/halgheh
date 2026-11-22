@@ -46,7 +46,7 @@ function TagEditDialog({ tag, open, busy, error, onClose, onSave }) {
     <DialogShell
       open={open}
       title="Edit tag"
-      description="Rename the tag or change its color. Changes apply across the workspace."
+      description="Rename the tag or change its color. Changes apply across the vault."
       onClose={busy ? () => {} : onClose}
       footer={
         <>
@@ -304,7 +304,7 @@ export default function TagsSection({
             ))}
           </ul>
         ) : (
-          <p className="text-[13px] text-muted-foreground">No tags in this workspace yet.</p>
+          <p className="text-[13px] text-muted-foreground">No tags in this vault yet.</p>
         )}
       </DialogShell>
 
