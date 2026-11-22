@@ -34,6 +34,13 @@ from .version import (
     DocumentVersionResponse,
     DocumentVersionRestoreRequest,
 )
+from .ai import (
+    DocumentAIAskRequest,
+    DocumentAIGenerateRequest,
+    DocumentAIImproveRequest,
+    DocumentAIResponse,
+    DocumentAISummaryRequest,
+)
 from .tag import (
     TagCreate,
     TagListResponse,
@@ -93,4 +100,9 @@ __all__ = [
     "DocumentPermissionResponse",
     "DocumentPermissionUpdate",
     "DocumentFavoriteResponse",
+    "DocumentAIAskRequest",
+    "DocumentAIGenerateRequest",
+    "DocumentAIImproveRequest",
+    "DocumentAIResponse",
+    "DocumentAISummaryRequest",
 ]

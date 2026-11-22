@@ -6,6 +6,7 @@ import {
   Eye,
   LoaderCircle,
   Pencil,
+  Sparkles,
   Star,
   Trash2,
 } from 'lucide-react'
@@ -19,6 +20,7 @@ import { listDocuments } from '../../api/client.js'
 import { countCharacters, countWords } from '../../utils/textStats.js'
 import { renderMarkdown } from '../../utils/markdown.js'
 import { formatRelativeTime } from '../../utils/formatTime.js'
+import DocumentAIAssistant from '../ai/DocumentAIAssistant.jsx'
 
 const AUTOSAVE_DELAY_MS = 800
 const WIKI_SUGGESTION_LIMIT = 8
@@ -100,6 +102,7 @@ export default function DocumentEditor({
   const [showPreview, setShowPreview] = useState(readOnly)
   const [restoreBusy, setRestoreBusy] = useState(false)
   const [restoreError, setRestoreError] = useState('')
+  const [aiOpen, setAiOpen] = useState(false)
   const textareaRef = useRef(null)
   const [wikiSuggest, setWikiSuggest] = useState({
     open: false,
@@ -521,6 +524,13 @@ export default function DocumentEditor({
         {!readOnly && <SaveStatus state={saveState} />}
         {readOnly && <span className="text-[12px] text-muted-foreground">View only</span>}
 
+        <IconButton
+          label="AI assistant"
+          onClick={() => setAiOpen(true)}
+        >
+          <Sparkles size={16} aria-hidden="true" />
+        </IconButton>
+
         {!readOnly && (
           <IconButton
             label={doc.is_favorite ? 'Remove from favorites' : 'Add to favorites'}
@@ -833,6 +843,33 @@ export default function DocumentEditor({
           Last updated {formatRelativeTime(doc.updated_at)}
         </p>
       </div>
+
+      <DocumentAIAssistant
+        open={aiOpen}
+        onOpenChange={setAiOpen}
+        document={doc}
+        canApply={canEdit}
+        getEditSeq={() => editSeqRef.current}
+        onApplyContent={(content, meta) => {
+          if (!canEdit) return false
+          const nextContent = typeof content === 'string' ? content : ''
+          const selected = typeof meta?.selectedText === 'string' ? meta.selectedText : ''
+          if (meta?.action === 'improve' && selected) {
+            const current = draftRef.current.content || ''
+            const occurrences = current.split(selected).length - 1
+            if (occurrences > 1) {
+              return 'Selected text appears multiple times in the document. Provide a more specific selection to avoid replacing the wrong occurrence.'
+            }
+            if (occurrences === 1) {
+              updateDraft({ content: current.replace(selected, nextContent) })
+              return true
+            }
+            return false
+          }
+          updateDraft({ content: nextContent })
+          return true
+        }}
+      />
     </section>
   )
 }
