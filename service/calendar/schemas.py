@@ -101,6 +101,7 @@ class EventCreate(BaseModel):
     recurrence_rule: str | None = None
     category: str = DEFAULT_EVENT_CATEGORY
     project_id: int | None = None
+    workspace_id: int | None = None
 
     @field_validator("title")
     @classmethod
@@ -196,6 +197,14 @@ class EventUpdate(BaseModel):
         return self
 
 
+class WorkspaceSummaryOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    name: str
+    workspace_type: str
+
+
 class EventResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
@@ -215,6 +224,7 @@ class EventResponse(BaseModel):
     project_id: int | None = None
     created_at: datetime
     updated_at: datetime
+    workspaces: list[WorkspaceSummaryOut] = Field(default_factory=list)
 
 
 class EventExceptionCreate(BaseModel):
@@ -365,6 +375,7 @@ class OccurrenceResponse(BaseModel):
     is_exception: bool
     category: str
     project_id: int | None = None
+    workspaces: list[WorkspaceSummaryOut] = Field(default_factory=list)
 
 
 class ReminderCreate(BaseModel):

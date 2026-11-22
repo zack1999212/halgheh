@@ -39,9 +39,36 @@ def _event_not_found() -> HTTPException:
     return HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Event not found")
 
 
+def _event_workspace_role(db: Session, event: Event, user_id: int) -> str | None:
+    from ..workspace import repository as ws_repo
+    from ..workspace import permissions as ws_permissions
+    from ..docs.models import Workspace
+
+    ws_ids = ws_repo.get_resource_workspace_ids(db, "event", event.id)
+    if not ws_ids:
+        return None
+    best = None
+    for ws_id in ws_ids:
+        ws = db.get(Workspace, ws_id)
+        if ws is None:
+            continue
+        member = ws_repo.get_member(db, ws_id, user_id)
+        role = ws_permissions.workspace_role(ws, user_id, member.role if member else None)
+        if ws_permissions.can_view(role):
+            if best is None or role == "owner" or (role in ("admin", "editor") and best == "viewer"):
+                best = role
+    return best if best is not None else "none"
+
+
 def _readable_event(db: Session, calendar_id: int, event_id: int, user_id: int) -> Event:
     event = repository.get_event_for_calendar(db, calendar_id, event_id)
     if event is None:
+        raise _event_not_found()
+    ws_role = _event_workspace_role(db, event, user_id)
+    if ws_role is not None:
+        from ..workspace import permissions as ws_permissions
+        if ws_permissions.can_view(ws_role):
+            return event
         raise _event_not_found()
     if event.project_id is None:
         calendar = db.get(Calendar, calendar_id)
@@ -56,6 +83,14 @@ def _managed_event(db: Session, calendar_id: int, event_id: int, user_id: int) -
     event = repository.get_event_for_calendar(db, calendar_id, event_id)
     if event is None:
         raise _event_not_found()
+    ws_role = _event_workspace_role(db, event, user_id)
+    if ws_role is not None:
+        from ..workspace import permissions as ws_permissions
+        if not ws_permissions.can_view(ws_role):
+            raise _event_not_found()
+        if ws_permissions.can_manage_content(ws_role):
+            return event
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not allowed to modify this event")
     if event.project_id is None:
         calendar = db.get(Calendar, calendar_id)
         if calendar is None or calendar.user_id != user_id:
@@ -227,6 +262,34 @@ def _get_owned_calendar(db: Session, calendar_id: int, user_id: int) -> Calendar
     return calendar
 
 
+def _resolve_event_workspace_id(db: Session, user_id: int, *, workspace_id: int | None, project_id: int | None) -> int:
+    from ..workspace import service as ws_service
+    from ..workspace import permissions as ws_permissions
+    from ..workspace import repository as ws_repo
+    from ..project.models import Project
+
+    if workspace_id is not None:
+        ws, role = ws_service.get_accessible_workspace(db, workspace_id, user_id)
+        if not ws_permissions.can_create_resource(role):
+            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not allowed to create resources in this workspace")
+        if project_id is not None and ws.workspace_type == "shared":
+            project = db.get(Project, project_id)
+            if project is not None and project.workspace_id is not None and project.workspace_id != ws.id:
+                raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="workspace_id does not match the project workspace")
+        return ws.id
+    if project_id is not None:
+        project = db.get(Project, project_id)
+        if project is not None and project.workspace_id is not None:
+            ws, role = ws_service.get_accessible_workspace(db, project.workspace_id, user_id)
+            if not ws_permissions.can_create_resource(role):
+                raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not allowed to create resources in this workspace")
+            return ws.id
+    personal = ws_repo.get_personal_workspace_for_user(db, user_id)
+    if personal is None:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Personal workspace not found")
+    return personal.id
+
+
 def create_event(db: Session, calendar_id: int, user_id: int, data: EventCreate) -> Event:
     _get_owned_calendar(db, calendar_id, user_id)
     if data.project_id is not None:
@@ -244,7 +307,13 @@ def create_event(db: Session, calendar_id: int, user_id: int, data: EventCreate)
             )
         except ValueError:
             raise HTTPException(status_code=422, detail="Invalid recurrence rule")
-    event = repository.create_event(db, calendar_id, **data.model_dump())
+    payload = data.model_dump()
+    workspace_id = payload.pop("workspace_id", None)
+    resolved_workspace_id = _resolve_event_workspace_id(db, user_id, workspace_id=workspace_id, project_id=data.project_id)
+    event = repository.create_event(db, calendar_id, **payload)
+    db.flush()
+    from ..workspace import repository as ws_repo
+    ws_repo.add_resource_workspace(db, "event", event.id, resolved_workspace_id)
     if event.project_id is not None:
         project_activity.record(
             db,
@@ -301,15 +370,21 @@ def list_events(
     end: datetime | None = None,
     timezone: str | None = None,
     project_id: int | None = None,
+    workspace_id: int | None = None,
 ) -> list[Event]:
     calendar = db.get(Calendar, calendar_id)
     if calendar is None:
         raise _calendar_not_found()
 
-    if project_id is not None:
+    if workspace_id is not None:
+        from ..workspace import service as ws_service
+        ws_service.get_accessible_workspace(db, workspace_id, user_id)
+    elif project_id is not None:
         project_service.require_project_view(db, user_id, project_id)
     elif calendar.user_id != user_id:
-        raise _calendar_not_found()
+        # Allow if user can access any workspace-associated event in this calendar;
+        # _accessible will filter. Do not expose unrelated personal events.
+        pass
 
     if start is None and end is None and timezone is None:
         events = repository.list_events_for_calendar(db, calendar_id)
@@ -351,8 +426,17 @@ def list_events(
         )
 
     def _accessible(event: Event) -> bool:
+        from ..workspace import repository as ws_repo
+        from ..workspace import permissions as ws_permissions
+        from ..docs.models import Workspace
+
+        ws_ids = ws_repo.get_resource_workspace_ids(db, "event", event.id)
+        if workspace_id is not None:
+            return workspace_id in ws_ids and _event_workspace_role(db, event, user_id) not in (None, "none")
+        if ws_ids:
+            return _event_workspace_role(db, event, user_id) not in (None, "none")
+        # legacy fallback only when no workspace associations
         if project_id is None:
-            # Personal calendar views must not include project-associated events.
             return event.project_id is None and calendar.user_id == user_id
         if event.project_id is None:
             return False
@@ -363,9 +447,10 @@ def list_events(
         return event.project_id == project_id
 
     result = [e for e in events if _accessible(e)]
-    if not result and calendar.user_id != user_id and project_id is not None:
-        # Hide the existence of a personal calendar that exposes no accessible
-        # project events to this caller.
+    if not result and calendar.user_id != user_id and workspace_id is None and project_id is None:
+        # Hide personal calendar when no workspace-associated events are accessible.
+        raise _calendar_not_found()
+    if not result and calendar.user_id != user_id and project_id is not None and workspace_id is None:
         raise _calendar_not_found()
     return result
 
@@ -575,7 +660,26 @@ def update_event(
 
 
 def delete_event(db: Session, calendar_id: int, event_id: int, user_id: int) -> None:
-    event = _managed_event(db, calendar_id, event_id, user_id)
+    event = repository.get_event_for_calendar(db, calendar_id, event_id)
+    if event is None:
+        raise _event_not_found()
+    # ensure user can see it; workspace associations are authoritative when present
+    ws_role = _event_workspace_role(db, event, user_id)
+    if ws_role is not None:
+        from ..workspace import permissions as ws_permissions
+        if not ws_permissions.can_view(ws_role):
+            raise _event_not_found()
+    else:
+        # fallback to legacy readability
+        if event.project_id is not None:
+            project_service.require_project_view(db, user_id, event.project_id)
+        else:
+            calendar = db.get(Calendar, calendar_id)
+            if calendar is None or calendar.user_id != user_id:
+                raise _event_not_found()
+    from ..workspace import service as ws_service
+    if not ws_service.can_delete_resource_everywhere(db, user_id, "event", event):
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not allowed to delete this event everywhere")
     try:
         repository.delete_event(db, event)
         db.commit()
@@ -619,6 +723,7 @@ def list_project_events(
     start: datetime | None = None,
     end: datetime | None = None,
     timezone: str | None = None,
+    workspace_id: int | None = None,
 ) -> list[Event]:
     """Events associated with ``project_id``, readable by an accepted member.
 
@@ -627,7 +732,29 @@ def list_project_events(
     personal events from those calendars.
     """
     project_service.require_project_view(db, user_id, project_id)
+    if workspace_id is not None:
+        from ..workspace import service as ws_service
+        ws_service.get_accessible_workspace(db, workspace_id, user_id)
     events = repository.list_events_for_project(db, project_id)
+
+    from ..workspace import repository as ws_repo
+    filtered = []
+    for event in events:
+        ws_ids = ws_repo.get_resource_workspace_ids(db, "event", event.id)
+        if workspace_id is not None:
+            if workspace_id not in ws_ids:
+                continue
+            if _event_workspace_role(db, event, user_id) in (None, "none"):
+                continue
+            filtered.append(event)
+            continue
+        if ws_ids:
+            if _event_workspace_role(db, event, user_id) not in (None, "none"):
+                filtered.append(event)
+            continue
+        # legacy fallback
+        filtered.append(event)
+    events = filtered
 
     if start is None and end is None and timezone is None:
         return events
@@ -687,11 +814,17 @@ def _accessible_event(
     event: Event,
     user_id: int,
     project_id: int | None = None,
+    workspace_id: int | None = None,
 ) -> bool:
-    """Personal events require calendar ownership; project events require
-    accepted membership in the event's project."""
+    """Event access for occurrence expansion."""
+    from ..workspace import repository as ws_repo
+    ws_ids = ws_repo.get_resource_workspace_ids(db, "event", event.id)
+    if workspace_id is not None:
+        return workspace_id in ws_ids and _event_workspace_role(db, event, user_id) not in (None, "none")
+    if ws_ids:
+        return _event_workspace_role(db, event, user_id) not in (None, "none")
+    # legacy fallback only when no workspace associations
     if project_id is None:
-        # Personal calendar occurrence views must not include project events.
         return event.project_id is None and calendar.user_id == user_id
     if event.project_id is None or event.project_id != project_id:
         return False
@@ -723,24 +856,29 @@ def list_occurrences(
     end: datetime,
     timezone_name: str,
     project_id: int | None = None,
+    workspace_id: int | None = None,
 ) -> list[OccurrenceResponse]:
     calendar = db.get(Calendar, calendar_id)
     if calendar is None:
         raise _calendar_not_found()
 
-    if project_id is not None:
+    if workspace_id is not None:
+        from ..workspace import service as ws_service
+        ws_service.get_accessible_workspace(db, workspace_id, user_id)
+    elif project_id is not None:
         project_service.require_project_view(db, user_id, project_id)
 
     tz, local_start_date, local_end_date = _validate_occurrence_window(
         start, end, timezone_name
     )
 
-    if project_id is not None and not _has_accessible_event(db, calendar, user_id, project_id):
+    if project_id is not None and workspace_id is None and not _has_accessible_event(db, calendar, user_id, project_id):
         # Hide another user's personal calendar from callers who receive no
         # project events from it.
         raise _calendar_not_found()
-    if project_id is None and calendar.user_id != user_id:
-        raise _calendar_not_found()
+    if project_id is None and workspace_id is None and calendar.user_id != user_id:
+        # Allow workspace-associated events; _expand filters by access.
+        pass
 
     results = _expand_calendar_occurrences(
         db,
@@ -752,7 +890,10 @@ def list_occurrences(
         local_start_date=local_start_date,
         local_end_date=local_end_date,
         project_id=project_id,
+        workspace_id=workspace_id,
     )
+    if not results and calendar.user_id != user_id and workspace_id is None and project_id is None:
+        raise _calendar_not_found()
     return results
 
 
@@ -763,6 +904,7 @@ def list_project_occurrences(
     start: datetime,
     end: datetime,
     timezone_name: str,
+    workspace_id: int | None = None,
 ) -> list[OccurrenceResponse]:
     """Expanded occurrences of every event associated with a project.
 
@@ -770,6 +912,9 @@ def list_project_occurrences(
     the creators' private calendars or to their personal events.
     """
     project_service.require_project_view(db, user_id, project_id)
+    if workspace_id is not None:
+        from ..workspace import service as ws_service
+        ws_service.get_accessible_workspace(db, workspace_id, user_id)
     tz, local_start_date, local_end_date = _validate_occurrence_window(
         start, end, timezone_name
     )
@@ -790,6 +935,7 @@ def list_project_occurrences(
                 local_start_date=local_start_date,
                 local_end_date=local_end_date,
                 project_id=project_id,
+                workspace_id=workspace_id,
             )
         )
         if len(merged) > recurrence.MAX_OCCURRENCES:
@@ -812,11 +958,12 @@ def _expand_calendar_occurrences(
     local_start_date: date,
     local_end_date: date,
     project_id: int | None = None,
+    workspace_id: int | None = None,
 ) -> list[OccurrenceResponse]:
     calendar_id = calendar.id
 
     def _event_in_scope(e: Event) -> bool:
-        return _accessible_event(db, calendar, e, user_id, project_id)
+        return _accessible_event(db, calendar, e, user_id, project_id, workspace_id)
 
     nonrec_timed = [
         e
@@ -1765,3 +1912,48 @@ def delete_comment(
     except IntegrityError:
         db.rollback()
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Could not delete comment")
+
+
+# ---------------------------------------------------------------------------
+# Workspace associations (Phase 3)
+# ---------------------------------------------------------------------------
+
+
+def list_event_workspaces(db: Session, user_id: int, calendar_id: int, event_id: int) -> list[int]:
+    event = _readable_event(db, calendar_id, event_id, user_id)
+    from ..workspace import repository as ws_repo
+    return ws_repo.get_resource_workspace_ids(db, "event", event.id)
+
+
+def attach_event_to_workspace(db: Session, user_id: int, calendar_id: int, event_id: int, workspace_id: int) -> dict:
+    event = _readable_event(db, calendar_id, event_id, user_id)
+    from ..workspace import service as ws_service
+    return ws_service.attach_resource_to_workspace(db, user_id, "event", event.id, workspace_id)
+
+
+def detach_event_from_workspace(db: Session, user_id: int, calendar_id: int, event_id: int, workspace_id: int) -> dict:
+    event = _readable_event(db, calendar_id, event_id, user_id)
+    from ..workspace import service as ws_service
+    return ws_service.detach_resource_from_workspace(db, user_id, "event", event.id, workspace_id)
+
+
+def _event_workspaces_map(db: Session, actor_id: int, event_ids: list[int]) -> dict[int, list[dict]]:
+    from ..workspace import repository as ws_repo
+    return ws_repo.list_resource_workspaces_for_actor(db, "event", event_ids, actor_id)
+
+
+def attach_event_workspaces(db: Session, actor_id: int, events: list[Event]) -> list[Event]:
+    ws_map = _event_workspaces_map(db, actor_id, [e.id for e in events])
+    for e in events:
+        try:
+            e.workspaces = ws_map.get(e.id, [])
+        except Exception:
+            pass
+    return events
+
+
+def attach_occurrence_workspaces(db: Session, actor_id: int, occurrences: list[OccurrenceResponse]) -> list[OccurrenceResponse]:
+    ws_map = _event_workspaces_map(db, actor_id, [o.event_id for o in occurrences])
+    for o in occurrences:
+        o.workspaces = ws_map.get(o.event_id, [])
+    return occurrences

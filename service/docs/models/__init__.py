@@ -1,4 +1,4 @@
-from .workspace import Workspace
+from .workspace import PERSONAL_WORKSPACE, SHARED_WORKSPACE, WORKSPACE_TYPES, Workspace
 from .folder import Folder
 from .document import Document
 from .document_link import (
@@ -19,6 +19,9 @@ from .document_permission import (
 
 __all__ = [
     "Workspace",
+    "WORKSPACE_TYPES",
+    "PERSONAL_WORKSPACE",
+    "SHARED_WORKSPACE",
     "Folder",
     "Document",
     "DocumentLink",

@@ -108,6 +108,35 @@ def _project_role_for_task(db: Session, task: Task, actor_id: int) -> str:
 def _access_role(db: Session, task: Task | None, actor_id: int) -> str:
     if task is None:
         return permissions.ROLE_NONE
+    # Canonical workspace association access
+    from ..workspace import repository as ws_repo
+    from ..workspace import permissions as ws_permissions
+    from ..docs.models import Workspace
+
+    ws_ids = ws_repo.get_resource_workspace_ids(db, "task", task.id)
+    if ws_ids:
+        best = permissions.ROLE_NONE
+        for ws_id in ws_ids:
+            ws = db.get(Workspace, ws_id)
+            if ws is None:
+                continue
+            if ws.owner_id == actor_id:
+                return permissions.ROLE_OWNER
+            if ws.workspace_type == "personal":
+                continue
+            member = ws_repo.get_member(db, ws.id, actor_id)
+            role = ws_permissions.workspace_role(ws, actor_id, member.role if member else None)
+            if not ws_permissions.can_view(role):
+                continue
+            if ws_permissions.can_manage_content(role):
+                return permissions.ROLE_OWNER
+            best = permissions.ROLE_PROJECT_VIEWER
+        if best != permissions.ROLE_NONE:
+            return best
+        # associated but no accessible workspace -> invisible
+        return permissions.ROLE_NONE
+
+    # Legacy fallback (pre-migration / missing associations)
     if task.project_id is not None:
         prole = _project_role_for_task(db, task, actor_id)
         if not project_permissions.can_view(prole):
@@ -140,9 +169,39 @@ def _validate_dates(start: date | None, due: date | None) -> None:
         raise _bad_request("due_date must not be earlier than start_date")
 
 
-def serialize_task(task: Task) -> dict:
+def _task_workspaces_map(db: Session, actor_id: int, task_ids: list[int]) -> dict[int, list[dict]]:
+    from ..workspace import repository as ws_repo
+    return ws_repo.list_resource_workspaces_for_actor(db, "task", task_ids, actor_id)
+
+
+def attach_task_workspaces(db: Session, actor_id: int, tasks: list[Task]) -> list[dict]:
+    ws_map = _task_workspaces_map(db, actor_id, [t.id for t in tasks])
+    result = []
+    for t in tasks:
+        result.append({
+            "id": t.id,
+            "title": t.title,
+            "status": t.status,
+            "priority": t.priority,
+            "start_date": t.start_date,
+            "due_date": t.due_date,
+            "completed_at": t.completed_at,
+            "parent_task_id": t.parent_task_id,
+            "created_by": t.created_by,
+            "project_id": t.project_id,
+            "created_at": t.created_at,
+            "updated_at": t.updated_at,
+            "workspaces": ws_map.get(t.id, []),
+        })
+    return result
+
+
+def serialize_task(task: Task, *, actor_id: int | None = None, db: Session | None = None) -> dict:
     """Shape a loaded Task for ``TaskResponse`` (labels flattened from the
     link rows; done in the service so the router stays thin)."""
+    workspaces = []
+    if actor_id is not None and db is not None:
+        workspaces = _task_workspaces_map(db, actor_id, [task.id]).get(task.id, [])
     return {
         "id": task.id,
         "title": task.title,
@@ -159,6 +218,7 @@ def serialize_task(task: Task) -> dict:
         "updated_at": task.updated_at,
         "labels": [link.label for link in task.label_assignments],
         "assignments": list(task.assignments),
+        "workspaces": workspaces,
     }
 
 
@@ -167,13 +227,55 @@ def serialize_task(task: Task) -> dict:
 # ---------------------------------------------------------------------------
 
 
+def _resolve_task_workspace_id(db: Session, actor_id: int, *, workspace_id: int | None, project_id: int | None) -> int:
+    from ..workspace import service as ws_service
+    from ..workspace import repository as ws_repo
+    from ..workspace import permissions as ws_permissions
+
+    if workspace_id is not None:
+        ws, role = ws_service.get_accessible_workspace(db, workspace_id, actor_id)
+        if not ws_permissions.can_create_resource(role):
+            raise _forbidden("Not allowed to create resources in this workspace")
+        if project_id is not None and ws.workspace_type == "shared":
+            # if project-bound, ensure project belongs to same workspace when possible
+            from ..project.models import Project
+            project = db.get(Project, project_id)
+            if project is not None and project.workspace_id is not None and project.workspace_id != ws.id:
+                raise _bad_request("workspace_id does not match the project workspace")
+        return ws.id
+    if project_id is not None:
+        from ..project.models import Project
+        project = db.get(Project, project_id)
+        if project is not None and project.workspace_id is not None:
+            ws, role = ws_service.get_accessible_workspace(db, project.workspace_id, actor_id)
+            if not ws_permissions.can_create_resource(role):
+                raise _forbidden("Not allowed to create resources in this workspace")
+            return ws.id
+    # fallback to personal workspace for compatibility
+    from ..workspace import repository as ws_repo
+    personal = ws_repo.get_personal_workspace_for_user(db, actor_id)
+    if personal is None:
+        raise _bad_request("Personal workspace not found")
+    return personal.id
+
+
+def _ensure_task_workspace_association(db: Session, task: Task, workspace_id: int) -> None:
+    from ..workspace import repository as ws_repo
+    if not ws_repo.has_resource_workspace(db, "task", task.id, workspace_id):
+        ws_repo.add_resource_workspace(db, "task", task.id, workspace_id)
+
+
 def create_task(db: Session, actor_id: int, data: TaskCreate) -> Task:
     """Create a task owned by the authenticated actor (rule: every task has
     an authenticated creator; ids from the request body are never trusted)."""
     _validate_dates(data.start_date, data.due_date)
     project_id = getattr(data, "project_id", None)
+    workspace_id = getattr(data, "workspace_id", None)
     if project_id is not None:
         project_service.require_project_manage(db, actor_id, project_id)
+    resolved_workspace_id = _resolve_task_workspace_id(
+        db, actor_id, workspace_id=workspace_id, project_id=project_id
+    )
     task = repository.create_task(
         db,
         title=data.title,
@@ -187,6 +289,7 @@ def create_task(db: Session, actor_id: int, data: TaskCreate) -> Task:
         due_date=data.due_date,
         completed_at=None,
     )
+    _ensure_task_workspace_association(db, task, resolved_workspace_id)
     repository.add_activity(
         db,
         task_id=task.id,
@@ -242,6 +345,13 @@ def create_subtask(
         due_date=data.due_date,
         completed_at=None,
     )
+    from ..workspace import repository as ws_repo
+    parent_ws_ids = ws_repo.get_resource_workspace_ids(db, "task", parent.id)
+    if not parent_ws_ids:
+        resolved_workspace_id = _resolve_task_workspace_id(db, actor_id, workspace_id=getattr(data, "workspace_id", None), project_id=parent.project_id)
+        parent_ws_ids = [resolved_workspace_id]
+    for ws_id in parent_ws_ids:
+        _ensure_task_workspace_association(db, task, ws_id)
     repository.add_activity(
         db,
         task_id=task.id,
@@ -285,6 +395,9 @@ def list_tasks(
     future manager view). Unrelated users' data is unreachable by the
     visibility clause regardless of the filter values supplied.
     """
+    if getattr(flt, "workspace_id", None) is not None:
+        from ..workspace import service as ws_service
+        ws_service.get_accessible_workspace(db, flt.workspace_id, actor_id)
     scopes = {
         "visible": repository.list_visible,
         "created": repository.list_created_by,
@@ -365,13 +478,14 @@ def update_task(db: Session, actor_id: int, task_id: int, data: TaskUpdate) -> T
 
 
 def delete_task(db: Session, actor_id: int, task_id: int) -> None:
-    """Owner-only hard delete (platform convention).
+    """Delete a task everywhere.
 
-    The audit entry is written in the same transaction *before* the delete;
-    the FK ``ON DELETE SET NULL`` then clears ``task_id`` but keeps the row,
-    so history survives with an embedded snapshot of the task.
+    Authorized: resource creator, or an owner of an associated shared/personal workspace.
     """
-    task = _owned_task(db, actor_id, task_id)
+    task, _role = _visible_task(db, actor_id, task_id)
+    from ..workspace import service as ws_service
+    if not ws_service.can_delete_resource_everywhere(db, actor_id, "task", task):
+        raise _forbidden("Not allowed to delete this task everywhere")
     repository.add_activity(
         db,
         task_id=task.id,
@@ -992,3 +1106,23 @@ def detach_label(db: Session, actor_id: int, task_id: int, label_id: int) -> Tas
     )
     db.refresh(task)
     return task
+
+
+# ---------------------------------------------------------------------------
+# Workspace associations (Phase 3)
+# ---------------------------------------------------------------------------
+
+
+def list_task_workspaces(db: Session, actor_id: int, task_id: int) -> list[int]:
+    from ..workspace import service as ws_service
+    return ws_service.list_resource_workspaces(db, actor_id, "task", task_id)
+
+
+def attach_task_to_workspace(db: Session, actor_id: int, task_id: int, workspace_id: int) -> dict:
+    from ..workspace import service as ws_service
+    return ws_service.attach_resource_to_workspace(db, actor_id, "task", task_id, workspace_id)
+
+
+def detach_task_from_workspace(db: Session, actor_id: int, task_id: int, workspace_id: int) -> dict:
+    from ..workspace import service as ws_service
+    return ws_service.detach_resource_from_workspace(db, actor_id, "task", task_id, workspace_id)

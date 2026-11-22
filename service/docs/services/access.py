@@ -24,15 +24,39 @@ def owned_workspace(
     return workspace
 
 
-def readable_document(db: Session, user: User, document_id: int) -> Document:
-    """Document the user may read: owner, or granted viewer/editor.
+def _workspace_role_for_document(db: Session, document: Document, user_id: int) -> str | None:
+    from ...workspace import repository as ws_repo
+    from ...workspace import permissions as ws_permissions
+    from ..models import Workspace
 
-    Non-readers get the same 404 as an unknown id so the existence of
-    private documents is never revealed.
-    """
+    ws_ids = ws_repo.get_resource_workspace_ids(db, "document", document.id)
+    if not ws_ids:
+        return None
+    best = None
+    for ws_id in ws_ids:
+        ws = db.get(Workspace, ws_id)
+        if ws is None:
+            continue
+        member = ws_repo.get_member(db, ws_id, user_id)
+        resolved = ws_permissions.workspace_role(ws, user_id, member.role if member else None)
+        if ws_permissions.can_view(resolved):
+            if best is None or resolved == "owner" or (resolved in ("admin","editor") and best == "viewer"):
+                best = resolved
+    return best if best is not None else "none"
+
+
+def readable_document(db: Session, user: User, document_id: int) -> Document:
+    """Document the user may read through workspace membership/ownership or legacy grants."""
     document = document_repository.get(db, document_id)
     if document is None:
         raise _not_found("Document not found")
+    ws_role = _workspace_role_for_document(db, document, user.id)
+    if ws_role is not None:
+        from ...workspace import permissions as ws_permissions
+        if ws_permissions.can_view(ws_role):
+            return document
+        raise _not_found("Document not found")
+    # legacy fallback
     if document.project_id is not None:
         project, role = project_service.require_project_view(db, user.id, document.project_id)
         if not project_permissions.can_view(role):
@@ -49,6 +73,15 @@ def readable_document(db: Session, user: User, document_id: int) -> Document:
 def writable_document(db: Session, user: User, document_id: int) -> Document:
     """Document the user may modify: owner, or granted editor."""
     document = readable_document(db, user, document_id)
+    ws_role = _workspace_role_for_document(db, document, user.id)
+    if ws_role is not None:
+        from ...workspace import permissions as ws_permissions
+        if not ws_permissions.can_manage_content(ws_role):
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="You do not have permission to modify this document",
+            )
+        return document
     if document.project_id is not None:
         project, role = project_service.require_project_view(db, user.id, document.project_id)
         if not project_permissions.can_manage_project_content(role):

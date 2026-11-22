@@ -52,6 +52,10 @@ class ProjectInvitation(Base):
     invitee_id: Mapped[int] = mapped_column(
         ForeignKey("users.id", ondelete="CASCADE"), nullable=False
     )
+    workspace_invitation_id: Mapped[int | None] = mapped_column(
+        ForeignKey("workspace_invitations.id", ondelete="SET NULL"),
+        nullable=True,
+    )
     invitee_username: Mapped[str] = mapped_column(String(255), nullable=False)
     role: Mapped[str] = mapped_column(String(16), nullable=False)
     status: Mapped[str] = mapped_column(

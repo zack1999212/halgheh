@@ -10,6 +10,7 @@ from ...core.database import Base
 
 if TYPE_CHECKING:
     from ...auth.models import User
+    from ...docs.models import Workspace
 
 PROJECT_STATUSES = ("active", "on_hold", "completed", "archived")
 
@@ -47,6 +48,10 @@ class Project(Base):
     owner_id: Mapped[int] = mapped_column(
         ForeignKey("users.id", ondelete="CASCADE"), nullable=False
     )
+    workspace_id: Mapped[int | None] = mapped_column(
+        ForeignKey("workspaces.id", ondelete="SET NULL"),
+        nullable=True,
+    )
     name: Mapped[str] = mapped_column(String(200), nullable=False)
     status: Mapped[str] = mapped_column(
         String(32), nullable=False, default="active", server_default=text("'active'")
@@ -70,3 +75,4 @@ class Project(Base):
     )
 
     owner: Mapped["User"] = relationship("User")
+    workspace: Mapped["Workspace | None"] = relationship("Workspace")

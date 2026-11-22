@@ -10,6 +10,8 @@ from ..models import (
     PERMISSION_VIEWER,
 )
 from ...project.models import Project, ProjectMember
+from ...workspace.models import DocumentWorkspace, WorkspaceMember
+from ...docs.models import Workspace
 
 
 def get(db: Session, document_id: int) -> Document | None:
@@ -69,8 +71,20 @@ def list_for_user(
     accessible_projects = (
         select(Project.id).where(Project.owner_id == user_id)
     ).union(select(ProjectMember.project_id).where(ProjectMember.user_id == user_id))
+    accessible_workspaces = (
+        select(Workspace.id).where(Workspace.owner_id == user_id)
+    ).union(
+        select(WorkspaceMember.workspace_id)
+        .join(Workspace, Workspace.id == WorkspaceMember.workspace_id)
+        .where(WorkspaceMember.user_id == user_id, Workspace.workspace_type == "shared")
+    )
 
-    conditions = [
+    has_ws_assoc = exists().where(DocumentWorkspace.document_id == Document.id)
+    ws_accessible = exists().where(
+        DocumentWorkspace.document_id == Document.id,
+        DocumentWorkspace.workspace_id.in_(accessible_workspaces),
+    )
+    legacy_accessible = (
         exists().where(
             DocumentPermission.document_id == Document.id,
             DocumentPermission.user_id == user_id,
@@ -80,9 +94,15 @@ def list_for_user(
         )
         | (Document.owner_id == user_id)
         | (Document.project_id.in_(accessible_projects))
-    ]
+    )
+    conditions = [ws_accessible | (~has_ws_assoc & legacy_accessible)]
     if workspace_id is not None:
-        conditions.append(Document.workspace_id == workspace_id)
+        conditions.append(
+            exists().where(
+                DocumentWorkspace.document_id == Document.id,
+                DocumentWorkspace.workspace_id == workspace_id,
+            )
+        )
     if project_id is not None:
         conditions.append(Document.project_id == project_id)
     else:

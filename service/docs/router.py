@@ -252,8 +252,9 @@ def list_favorites(
     items, total = favorite_service.list_favorites(
         db, current_user, q=q, limit=limit, offset=offset
     )
+    responses = _attach_document_workspaces(db, current_user, [_document_response(d, f) for d, f in items])
     return DocumentListResponse(
-        items=[_document_response(d, f) for d, f in items],
+        items=responses,
         total=total,
         limit=limit,
         offset=offset,
@@ -293,8 +294,9 @@ def list_documents(
         is_deleted=is_deleted,
         sort=sort,
     )
+    responses = _attach_document_workspaces(db, current_user, [_document_response(d, f) for d, f in items])
     return DocumentListResponse(
-        items=[_document_response(d, f) for d, f in items],
+        items=responses,
         total=total,
         limit=limit,
         offset=offset,
@@ -316,6 +318,9 @@ def get_document(
     response.is_favorite = favorited
     response.folder = folder
     response.tags = tags
+    from ..workspace import repository as ws_repo
+    ws_map = ws_repo.list_resource_workspaces_for_actor(db, "document", [document.id], current_user.id)
+    response.workspaces = ws_map.get(document.id, [])
     # Authoritative wiki token resolutions for the preview (same rules as
     # synchronization), so the editor never infers state from list data.
     response.wiki_resolutions = wiki_service.content_resolutions(
@@ -604,7 +609,17 @@ def _is_favorited(db: Session, user: User, document_id: int) -> bool:
     )
 
 
-def _document_response(document, favorited: bool) -> DocumentResponse:
+def _attach_document_workspaces(db: Session, user: User, responses: list[DocumentResponse]) -> list[DocumentResponse]:
+    if not responses:
+        return responses
+    from ..workspace import repository as ws_repo
+    ws_map = ws_repo.list_resource_workspaces_for_actor(db, "document", [r.id for r in responses], user.id)
+    for r in responses:
+        r.workspaces = ws_map.get(r.id, [])
+    return responses
+
+
+def _document_response(document, favorited: bool, workspaces=None) -> DocumentResponse:
     """Build the response with the *current user's* favorite state.
 
     The row's ``is_favorite`` column is the owner's denormalized flag and
@@ -612,4 +627,51 @@ def _document_response(document, favorited: bool) -> DocumentResponse:
     """
     response = DocumentResponse.model_validate(document)
     response.is_favorite = favorited
+    if workspaces is not None:
+        response.workspaces = workspaces
     return response
+
+
+# ---------------------------------------------------------------------------
+# Workspace associations (Phase 3)
+# ---------------------------------------------------------------------------
+
+
+@router.get("/documents/{document_id}/workspaces")
+def list_document_workspaces(
+    document_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    return {"workspace_ids": document_service.list_document_workspaces(db, current_user, document_id)}
+
+
+@router.post("/documents/{document_id}/workspaces/{workspace_id}", status_code=201)
+def attach_document_to_workspace(
+    document_id: int,
+    workspace_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    return document_service.attach_document_to_workspace(db, current_user, document_id, workspace_id)
+
+
+@router.delete("/documents/{document_id}/workspaces/{workspace_id}", status_code=204)
+def detach_document_from_workspace(
+    document_id: int,
+    workspace_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    document_service.detach_document_from_workspace(db, current_user, document_id, workspace_id)
+    return _no_content
+
+
+@router.delete("/documents/{document_id}/permanent", status_code=204)
+def delete_document_everywhere(
+    document_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    document_service.delete_document_everywhere(db, current_user, document_id)
+    return _no_content

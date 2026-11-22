@@ -111,6 +111,7 @@ class ProjectResponse(BaseModel):
 
     id: int
     owner_id: int
+    workspace_id: int | None = None
     name: str
     description: str | None
     status: str
@@ -393,6 +394,7 @@ class ProjectOverviewProject(BaseModel):
 
     id: int
     owner_id: int
+    workspace_id: int | None = None
     name: str
     description: str | None
     status: str

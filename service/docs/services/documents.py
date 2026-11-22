@@ -38,9 +38,14 @@ def _unique_slug(db: Session, workspace_id: int, title: str) -> str:
 
 
 def create_document(db: Session, user: User, data: DocumentCreate) -> Document:
-    # Only the workspace owner creates documents; the owner is the
-    # authenticated user, never a client-supplied field.
-    access.owned_workspace(db, user, data.workspace_id)
+    # Workspace-scoped creation: canonical workspace permissions.
+    from ...workspace import repository as ws_repo
+    from ...workspace import service as ws_service
+    from ...workspace import permissions as ws_permissions
+
+    ws, role = ws_service.get_accessible_workspace(db, data.workspace_id, user.id)
+    if not ws_permissions.can_create_resource(role):
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not allowed to create resources in this workspace")
     if data.folder_id is not None:
         folder = folder_repository.get_in_workspace(
             db, data.folder_id, data.workspace_id
@@ -69,6 +74,8 @@ def create_document(db: Session, user: User, data: DocumentCreate) -> Document:
         # before the version snapshot is written, so both succeed or
         # neither does.
         db.flush()
+        if not ws_repo.has_resource_workspace(db, "document", document.id, data.workspace_id):
+            ws_repo.add_resource_workspace(db, "document", document.id, data.workspace_id)
     except IntegrityError:
         db.rollback()
         raise HTTPException(
@@ -363,3 +370,42 @@ def restore_document_version(
         raise
     db.refresh(document)
     return document
+
+
+# ---------------------------------------------------------------------------
+# Workspace associations (Phase 3)
+# ---------------------------------------------------------------------------
+
+
+def list_document_workspaces(db: Session, user: User, document_id: int) -> list[int]:
+    from ...workspace import service as ws_service
+    return ws_service.list_resource_workspaces(db, user.id, "document", document_id)
+
+
+def attach_document_to_workspace(db: Session, user: User, document_id: int, workspace_id: int) -> dict:
+    from ...workspace import service as ws_service
+    return ws_service.attach_resource_to_workspace(db, user.id, "document", document_id, workspace_id)
+
+
+def detach_document_from_workspace(db: Session, user: User, document_id: int, workspace_id: int) -> dict:
+    from ...workspace import service as ws_service
+    return ws_service.detach_resource_from_workspace(db, user.id, "document", document_id, workspace_id)
+
+
+def delete_document_everywhere(db: Session, user: User, document_id: int) -> None:
+    from ...workspace import service as ws_service
+    document = db.get(Document, document_id)
+    if document is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Document not found")
+    # ensure user can access it
+    from . import access as access_service
+    access_service.readable_document(db, user, document_id)
+    if not ws_service.can_delete_resource_everywhere(db, user.id, "document", document):
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not allowed to delete this document everywhere")
+    # hard delete: cascades handle related rows; associations cascade
+    db.delete(document)
+    try:
+        db.commit()
+    except Exception:
+        db.rollback()
+        raise

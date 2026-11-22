@@ -18,11 +18,13 @@ from __future__ import annotations
 from datetime import date
 from typing import Iterator
 
-from sqlalchemy import Select, and_, case, func, or_, select
+from sqlalchemy import Select, and_, case, exists, func, or_, select
 from sqlalchemy.orm import Session, selectinload
 
 from ..auth.models import User
 from ..project.models import Project, ProjectMember
+from ..workspace.models import TaskWorkspace, WorkspaceMember
+from ..docs.models import Workspace
 from .models import (
     Task,
     TaskActivity,
@@ -74,12 +76,21 @@ def _accessible_projects_subquery(user_id: int):
     return owned.union(joined)
 
 
+def _accessible_workspace_subquery(user_id: int):
+    owned = select(Workspace.id).where(Workspace.owner_id == user_id)
+    member = (
+        select(WorkspaceMember.workspace_id)
+        .join(Workspace, Workspace.id == WorkspaceMember.workspace_id)
+        .where(WorkspaceMember.user_id == user_id, Workspace.workspace_type == "shared")
+    )
+    return owned.union(member)
+
+
 def _visible_clause(user_id: int):
     """Visibility predicate.
 
-    Personal tasks (project_id IS NULL): creator, active assignee, or a
-    subtask whose parent is visible one level up.
-    Project tasks: any task whose project is accessible to the user.
+    Canonical: task is associated with any workspace accessible to the user.
+    Legacy fallback: personal/project visibility rules for rows missing associations.
     """
     assignee_active = _active_assignment_for(user_id)
     personal_parent_visible = Task.parent_task_id.in_(
@@ -105,7 +116,14 @@ def _visible_clause(user_id: int):
         Task.project_id.is_not(None),
         Task.project_id.in_(_accessible_projects_subquery(user_id)),
     )
-    return or_(personal_visible, project_visible)
+    workspace_visible = Task.id.in_(
+        select(TaskWorkspace.task_id).where(
+            TaskWorkspace.workspace_id.in_(_accessible_workspace_subquery(user_id))
+        )
+    )
+    has_workspace_assoc = exists().where(TaskWorkspace.task_id == Task.id)
+    legacy_visible = or_(personal_visible, project_visible)
+    return or_(workspace_visible, and_(~has_workspace_assoc, legacy_visible))
 
 
 def _order_clause(sort: str | None, order: str) -> tuple:
@@ -134,9 +152,17 @@ def _apply_filters(stmt: Select, flt: TaskFilter) -> Select:
         )
     if flt.parent_task_id is not None:
         stmt = stmt.where(Task.parent_task_id == flt.parent_task_id)
+    if getattr(flt, "workspace_id", None) is not None:
+        stmt = stmt.where(
+            Task.id.in_(
+                select(TaskWorkspace.task_id).where(
+                    TaskWorkspace.workspace_id == flt.workspace_id
+                )
+            )
+        )
     if getattr(flt, "project_id", None) is not None:
         stmt = stmt.where(Task.project_id == flt.project_id)
-    elif flt.parent_task_id is None:
+    elif flt.parent_task_id is None and getattr(flt, "workspace_id", None) is None:
         # Personal views/lists must not include project-associated tasks.
         # Subtask listings are scoped by an already-authorized parent task.
         stmt = stmt.where(Task.project_id.is_(None))

@@ -25,6 +25,7 @@ import service.docs.models  # noqa: F401,E402
 import service.notifications.models  # noqa: F401,E402
 import service.project.models  # noqa: F401,E402
 import service.task.models  # noqa: F401,E402
+import service.workspace.models  # noqa: F401,E402
 
 config = context.config
 

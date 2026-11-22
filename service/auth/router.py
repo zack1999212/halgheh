@@ -9,6 +9,7 @@ from sqlalchemy.orm import Session
 
 from ..calendar.service import create_default_calendar
 from ..core.database import get_db
+from ..workspace.service import ensure_personal_workspace
 from .dependencies import get_current_user
 from .models import User
 from .schemas import PasswordChange, UserCreate, UserLogin, UserOut, UserProfileUpdate
@@ -43,6 +44,7 @@ def create_user(db: Session, data: UserCreate) -> User:
     try:
         db.flush()
         create_default_calendar(db, user.id)
+        ensure_personal_workspace(db, user)
         db.commit()
     except IntegrityError:
         db.rollback()

@@ -64,6 +64,7 @@ def _task_filter(
     assigned_user_id: int | None = Query(default=None, description="Filter by active assignee"),
     parent_task_id: int | None = Query(default=None, description="Filter by parent task"),
     project_id: int | None = Query(default=None, description="Filter by project"),
+    workspace_id: int | None = Query(default=None, description="Filter by workspace"),
     label_id: int | None = Query(default=None, description="Filter by label"),
     due: str | None = Query(default=None, description="overdue | today | upcoming | no_due"),
     q: str | None = Query(default=None, description="Search in title and description"),
@@ -85,6 +86,7 @@ def _task_filter(
             assigned_user_id=assigned_user_id,
             parent_task_id=parent_task_id,
             project_id=project_id,
+            workspace_id=workspace_id,
             label_id=label_id,
             due=due,
             q=q,
@@ -118,7 +120,7 @@ def create_task(
     current_user: User = Depends(get_current_user),
 ):
     task = service.create_task(db, current_user.id, data)
-    return service.serialize_task(task)
+    return service.serialize_task(task, actor_id=current_user.id, db=db)
 
 
 @router.get(
@@ -138,7 +140,7 @@ def list_tasks(
     current_user: User = Depends(get_current_user),
 ):
     items, total = service.list_tasks(db, current_user.id, flt, scope=scope)
-    return {"items": items, "total": total, "limit": flt.limit, "offset": flt.offset}
+    return {"items": service.attach_task_workspaces(db, current_user.id, items), "total": total, "limit": flt.limit, "offset": flt.offset}
 
 
 @router.get(
@@ -154,7 +156,7 @@ def list_my_tasks(
     items, total = service.list_tasks(
         db, current_user.id, flt, scope="assigned"
     )
-    return {"items": items, "total": total, "limit": flt.limit, "offset": flt.offset}
+    return {"items": service.attach_task_workspaces(db, current_user.id, items), "total": total, "limit": flt.limit, "offset": flt.offset}
 
 
 @router.get(
@@ -174,7 +176,7 @@ def list_assigned_by_me(
     items, total = service.list_tasks(
         db, current_user.id, flt, scope="assigned_by"
     )
-    return {"items": items, "total": total, "limit": flt.limit, "offset": flt.offset}
+    return {"items": service.attach_task_workspaces(db, current_user.id, items), "total": total, "limit": flt.limit, "offset": flt.offset}
 
 
 @router.get(
@@ -270,7 +272,7 @@ def get_task(
     current_user: User = Depends(get_current_user),
 ):
     task = service.get_task(db, current_user.id, task_id)
-    return service.serialize_task(task)
+    return service.serialize_task(task, actor_id=current_user.id, db=db)
 
 
 @router.patch(
@@ -289,7 +291,7 @@ def update_task(
     current_user: User = Depends(get_current_user),
 ):
     task = service.update_task(db, current_user.id, task_id, data)
-    return service.serialize_task(task)
+    return service.serialize_task(task, actor_id=current_user.id, db=db)
 
 
 @router.delete(
@@ -329,7 +331,7 @@ def set_task_status(
     current_user: User = Depends(get_current_user),
 ):
     task = service.set_task_status(db, current_user.id, task_id, data.status)
-    return service.serialize_task(task)
+    return service.serialize_task(task, actor_id=current_user.id, db=db)
 
 
 @router.put(
@@ -345,7 +347,7 @@ def set_task_parent(
     current_user: User = Depends(get_current_user),
 ):
     task = service.set_parent_task(db, current_user.id, task_id, data.parent_task_id)
-    return service.serialize_task(task)
+    return service.serialize_task(task, actor_id=current_user.id, db=db)
 
 
 @router.get(
@@ -359,7 +361,7 @@ def get_task_parent(
     current_user: User = Depends(get_current_user),
 ):
     parent = service.get_parent_task(db, current_user.id, task_id)
-    return service.serialize_task(parent) if parent is not None else None
+    return service.serialize_task(parent, actor_id=current_user.id, db=db) if parent is not None else None
 
 
 # ---------------------------------------------------------------------------
@@ -385,7 +387,7 @@ def create_subtask(
             detail="parent_task_id must match the task in the URL",
         )
     task = service.create_subtask(db, current_user.id, task_id, data)
-    return service.serialize_task(task)
+    return service.serialize_task(task, actor_id=current_user.id, db=db)
 
 
 @router.get(
@@ -400,7 +402,7 @@ def list_subtasks(
     current_user: User = Depends(get_current_user),
 ):
     items, total = service.list_subtasks(db, current_user.id, task_id, flt)
-    return {"items": items, "total": total, "limit": flt.limit, "offset": flt.offset}
+    return {"items": service.attach_task_workspaces(db, current_user.id, items), "total": total, "limit": flt.limit, "offset": flt.offset}
 
 
 # ---------------------------------------------------------------------------
@@ -425,7 +427,7 @@ def assign_user(
     current_user: User = Depends(get_current_user),
 ):
     task = service.assign_user(db, current_user.id, task_id, data.assigned_user_id)
-    return service.serialize_task(task)
+    return service.serialize_task(task, actor_id=current_user.id, db=db)
 
 
 @router.put(
@@ -440,7 +442,7 @@ def reassign_task(
     current_user: User = Depends(get_current_user),
 ):
     task = service.reassign_task(db, current_user.id, task_id, data.assigned_user_id)
-    return service.serialize_task(task)
+    return service.serialize_task(task, actor_id=current_user.id, db=db)
 
 
 @router.delete(
@@ -551,7 +553,7 @@ def attach_label(
     current_user: User = Depends(get_current_user),
 ):
     task = service.attach_label(db, current_user.id, task_id, label_id)
-    return service.serialize_task(task)
+    return service.serialize_task(task, actor_id=current_user.id, db=db)
 
 
 @router.delete(
@@ -566,4 +568,39 @@ def detach_label(
     current_user: User = Depends(get_current_user),
 ):
     service.detach_label(db, current_user.id, task_id, label_id)
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+
+# ---------------------------------------------------------------------------
+# Workspace associations (Phase 3)
+# ---------------------------------------------------------------------------
+
+
+@router.get("/{task_id}/workspaces")
+def list_task_workspaces(
+    task_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    return {"workspace_ids": service.list_task_workspaces(db, current_user.id, task_id)}
+
+
+@router.post("/{task_id}/workspaces/{workspace_id}", status_code=status.HTTP_201_CREATED)
+def attach_task_to_workspace(
+    task_id: int,
+    workspace_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    return service.attach_task_to_workspace(db, current_user.id, task_id, workspace_id)
+
+
+@router.delete("/{task_id}/workspaces/{workspace_id}", status_code=status.HTTP_204_NO_CONTENT)
+def detach_task_from_workspace(
+    task_id: int,
+    workspace_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    service.detach_task_from_workspace(db, current_user.id, task_id, workspace_id)
     return Response(status_code=status.HTTP_204_NO_CONTENT)

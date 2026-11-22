@@ -103,7 +103,8 @@ def create_event(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    return service.create_event(db, calendar_id, current_user.id, data)
+    event = service.create_event(db, calendar_id, current_user.id, data)
+    return service.attach_event_workspaces(db, current_user.id, [event])[0]
 
 
 # Project events (declared before the /{calendar_id} collection routes so the
@@ -116,17 +117,20 @@ def list_project_events(
     start: datetime | None = Query(default=None),
     end: datetime | None = Query(default=None),
     timezone: str | None = Query(default=None),
+    workspace_id: int | None = Query(default=None),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    return service.list_project_events(
+    events = service.list_project_events(
         db,
         project_id,
         current_user.id,
         start=start,
         end=end,
         timezone=timezone,
+        workspace_id=workspace_id,
     )
+    return service.attach_event_workspaces(db, current_user.id, events)
 
 
 @router.get(
@@ -137,12 +141,14 @@ def list_project_occurrences(
     start: datetime = Query(...),
     end: datetime = Query(...),
     timezone: str = Query(...),
+    workspace_id: int | None = Query(default=None),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    return service.list_project_occurrences(
-        db, project_id, current_user.id, start, end, timezone
+    occ = service.list_project_occurrences(
+        db, project_id, current_user.id, start, end, timezone, workspace_id=workspace_id
     )
+    return service.attach_occurrence_workspaces(db, current_user.id, occ)
 
 
 @router.get("/{calendar_id}/events", response_model=list[EventResponse])
@@ -152,10 +158,11 @@ def list_events(
     end: datetime | None = Query(default=None),
     timezone: str | None = Query(default=None),
     project_id: int | None = Query(default=None),
+    workspace_id: int | None = Query(default=None),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    return service.list_events(
+    events = service.list_events(
         db,
         calendar_id,
         current_user.id,
@@ -163,7 +170,9 @@ def list_events(
         end=end,
         timezone=timezone,
         project_id=project_id,
+        workspace_id=workspace_id,
     )
+    return service.attach_event_workspaces(db, current_user.id, events)
 
 
 @router.get("/{calendar_id}/events/{event_id}", response_model=EventResponse)
@@ -173,7 +182,8 @@ def get_event(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    return service.get_event(db, calendar_id, event_id, current_user.id)
+    event = service.get_event(db, calendar_id, event_id, current_user.id)
+    return service.attach_event_workspaces(db, current_user.id, [event])[0]
 
 
 @router.patch("/{calendar_id}/events/{event_id}", response_model=EventResponse)
@@ -184,7 +194,8 @@ def update_event(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    return service.update_event(db, calendar_id, event_id, current_user.id, data)
+    event = service.update_event(db, calendar_id, event_id, current_user.id, data)
+    return service.attach_event_workspaces(db, current_user.id, [event])[0]
 
 
 @router.delete("/{calendar_id}/events/{event_id}", status_code=status.HTTP_204_NO_CONTENT)
@@ -205,12 +216,14 @@ def list_occurrences(
     end: datetime = Query(...),
     timezone: str = Query(...),
     project_id: int | None = Query(default=None),
+    workspace_id: int | None = Query(default=None),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    return service.list_occurrences(
-        db, calendar_id, current_user.id, start, end, timezone, project_id=project_id
+    occ = service.list_occurrences(
+        db, calendar_id, current_user.id, start, end, timezone, project_id=project_id, workspace_id=workspace_id
     )
+    return service.attach_occurrence_workspaces(db, current_user.id, occ)
 
 
 # --- Event exception endpoints ---
@@ -424,4 +437,42 @@ def delete_comment(
     current_user: User = Depends(get_current_user),
 ):
     service.delete_comment(db, calendar_id, event_id, comment_id, current_user.id)
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+
+# ---------------------------------------------------------------------------
+# Workspace associations (Phase 3)
+# ---------------------------------------------------------------------------
+
+
+@router.get("/{calendar_id}/events/{event_id}/workspaces")
+def list_event_workspaces(
+    calendar_id: int,
+    event_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    return {"workspace_ids": service.list_event_workspaces(db, current_user.id, calendar_id, event_id)}
+
+
+@router.post("/{calendar_id}/events/{event_id}/workspaces/{workspace_id}", status_code=status.HTTP_201_CREATED)
+def attach_event_to_workspace(
+    calendar_id: int,
+    event_id: int,
+    workspace_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    return service.attach_event_to_workspace(db, current_user.id, calendar_id, event_id, workspace_id)
+
+
+@router.delete("/{calendar_id}/events/{event_id}/workspaces/{workspace_id}", status_code=status.HTTP_204_NO_CONTENT)
+def detach_event_from_workspace(
+    calendar_id: int,
+    event_id: int,
+    workspace_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    service.detach_event_from_workspace(db, current_user.id, calendar_id, event_id, workspace_id)
     return Response(status_code=status.HTTP_204_NO_CONTENT)

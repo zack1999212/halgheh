@@ -43,6 +43,14 @@ class DocumentUpdate(BaseModel):
         return self
 
 
+class WorkspaceSummaryOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    name: str
+    workspace_type: str
+
+
 class DocumentResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
@@ -62,6 +70,7 @@ class DocumentResponse(BaseModel):
     is_deleted: bool
     created_at: datetime
     updated_at: datetime
+    workspaces: list[WorkspaceSummaryOut] = Field(default_factory=list)
 
 
 class DocumentListResponse(Page):

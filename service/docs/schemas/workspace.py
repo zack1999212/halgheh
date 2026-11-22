@@ -28,6 +28,7 @@ class WorkspaceResponse(BaseModel):
     owner_id: int
     name: str
     description: str | None
+    workspace_type: str = "personal"
     created_at: datetime
     updated_at: datetime
 

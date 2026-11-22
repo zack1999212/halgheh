@@ -11,7 +11,9 @@ from fastapi import HTTPException, status
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
+from ..docs.models import SHARED_WORKSPACE
 from ..notifications.service import add_notification
+from ..workspace import repository as workspace_repository
 from . import activity as project_activity
 from . import permissions, repository
 from .models import (
@@ -60,6 +62,46 @@ def _commit(db: Session, *, conflict_detail: str = "Conflict") -> None:
         )
 
 
+def _ensure_project_workspace(db: Session, project: Project) -> None:
+    """Compatibility bridge: every project-backed shared workspace must exist."""
+    if project.workspace_id is not None:
+        return
+    ws = workspace_repository.create_workspace(
+        db,
+        owner_id=project.owner_id,
+        name=project.name,
+        description=project.description,
+        workspace_type=SHARED_WORKSPACE,
+    )
+    project.workspace_id = ws.id
+    db.flush()
+
+
+def _sync_workspace_member(db: Session, project: Project, user_id: int, role: str) -> None:
+    if project.workspace_id is None:
+        return
+    existing = workspace_repository.get_member(db, project.workspace_id, user_id)
+    if existing is None:
+        workspace_repository.create_member(
+            db,
+            workspace_id=project.workspace_id,
+            user_id=user_id,
+            role=role,
+        )
+    else:
+        existing.role = role
+    db.flush()
+
+
+def _remove_workspace_member(db: Session, project: Project, user_id: int) -> None:
+    if project.workspace_id is None:
+        return
+    existing = workspace_repository.get_member(db, project.workspace_id, user_id)
+    if existing is not None:
+        workspace_repository.delete_member(db, existing)
+        db.flush()
+
+
 def _validate_dates(start_date, target_date) -> None:
     if start_date and target_date and target_date < start_date:
         raise _bad_request("target_date must not be earlier than start_date")
@@ -86,6 +128,7 @@ def serialize_project(project: Project, current_user_role: str) -> dict:
     return {
         "id": project.id,
         "owner_id": project.owner_id,
+        "workspace_id": getattr(project, "workspace_id", None),
         "name": project.name,
         "description": project.description,
         "status": project.status,
@@ -117,6 +160,7 @@ def create_project(db: Session, actor_id: int, data: ProjectCreate) -> dict:
         icon=data.icon,
         archived_at=None,
     )
+    _ensure_project_workspace(db, project)
     _commit(db, conflict_detail="Could not create project")
     db.refresh(project)
     return serialize_project(project, permissions.ROLE_OWNER)
@@ -179,6 +223,15 @@ def update_project(
 
     _validate_dates(project.start_date, project.target_date)
 
+    _ensure_project_workspace(db, project)
+    if project.workspace_id is not None:
+        ws = workspace_repository.get_workspace(db, project.workspace_id)
+        if ws is not None:
+            if "name" in updates:
+                ws.name = project.name
+            if "description" in updates:
+                ws.description = project.description
+
     _commit(db, conflict_detail="Could not update project")
     db.refresh(project)
     return serialize_project(project, role)
@@ -212,7 +265,13 @@ def delete_project(db: Session, actor_id: int, project_id: int) -> None:
     project, role = _get_accessible_project(db, project_id, actor_id)
     if not permissions.can_archive_or_delete(role):
         raise _forbidden("Not allowed to delete this project")
+    ws = None
+    if project.workspace_id is not None:
+        ws = workspace_repository.get_workspace(db, project.workspace_id)
     repository.delete_project(db, project)
+    if ws is not None:
+        # Explicitly remove the linked shared workspace; project.workspace_id is SET NULL.
+        workspace_repository.delete_workspace(db, ws)
     _commit(db, conflict_detail="Could not delete project")
 
 
@@ -232,6 +291,89 @@ def _member_not_found() -> HTTPException:
     return HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Member not found")
 
 
+
+def _legacy_invitation_response(invitation) -> dict:
+    return {
+        "id": invitation.id,
+        "project_id": invitation.project_id,
+        "inviter_id": invitation.inviter_id,
+        "invitee_id": invitation.invitee_id,
+        "invitee_username": invitation.invitee_username,
+        "role": invitation.role,
+        "status": invitation.status,
+        "created_at": invitation.created_at,
+        "expires_at": invitation.expires_at,
+        "responded_at": invitation.responded_at,
+        "revoked_at": invitation.revoked_at,
+    }
+
+
+def _sync_legacy_project_invitation(db: Session, project, ws_inv):
+    legacy = db.scalar(
+        __import__("sqlalchemy").select(repository.ProjectInvitation).where(
+            repository.ProjectInvitation.workspace_invitation_id == ws_inv.id
+        )
+    )
+    if legacy is None:
+        legacy = repository.ProjectInvitation(
+            project_id=project.id,
+            inviter_id=ws_inv.inviter_id,
+            invitee_id=ws_inv.invitee_id,
+            workspace_invitation_id=ws_inv.id,
+            invitee_username=ws_inv.invitee_username,
+            role=ws_inv.role,
+            status=ws_inv.status,
+            expires_at=ws_inv.expires_at,
+            responded_at=ws_inv.responded_at,
+            revoked_at=ws_inv.revoked_at,
+        )
+        legacy.created_at = ws_inv.created_at
+        db.add(legacy)
+        db.flush()
+        return legacy
+    legacy.project_id = project.id
+    legacy.inviter_id = ws_inv.inviter_id
+    legacy.invitee_id = ws_inv.invitee_id
+    legacy.invitee_username = ws_inv.invitee_username
+    legacy.role = ws_inv.role
+    legacy.status = ws_inv.status
+    legacy.expires_at = ws_inv.expires_at
+    legacy.responded_at = ws_inv.responded_at
+    legacy.revoked_at = ws_inv.revoked_at
+    db.flush()
+    return legacy
+
+
+def _get_or_create_workspace_invitation_for_legacy(db: Session, project, legacy_inv):
+    """Backfill/map legacy project invitation to canonical workspace invitation."""
+    from ..workspace import repository as ws_repo
+    from ..workspace import service as ws_service
+
+    _ensure_project_workspace(db, project)
+    if legacy_inv.workspace_invitation_id is not None:
+        ws_inv = ws_repo.get_invitation(db, legacy_inv.workspace_invitation_id)
+        if ws_inv is not None:
+            ws_service._sync_invitation_expiration(ws_inv)
+            return ws_inv
+
+    ws_inv = ws_repo.create_invitation(
+        db,
+        workspace_id=project.workspace_id,
+        inviter_id=legacy_inv.inviter_id,
+        invitee_id=legacy_inv.invitee_id,
+        invitee_username=legacy_inv.invitee_username,
+        role=legacy_inv.role,
+        status=legacy_inv.status,
+        expires_at=legacy_inv.expires_at,
+        responded_at=legacy_inv.responded_at,
+        revoked_at=legacy_inv.revoked_at,
+    )
+    ws_inv.created_at = legacy_inv.created_at
+    legacy_inv.workspace_invitation_id = ws_inv.id
+    db.flush()
+    return ws_inv
+
+
 def create_invitation(
     db: Session, actor_id: int, project_id: int, data: ProjectInvitationCreate
 ):
@@ -239,76 +381,56 @@ def create_invitation(
     if not permissions.can_manage_invitations(role):
         raise _forbidden("Not allowed to manage invitations")
 
-    invitee = repository.find_user_by_username(db, data.username)
-    if invitee is None:
-        raise _bad_request("Invited user not found")
+    _ensure_project_workspace(db, project)
+    from ..workspace import service as ws_service
 
-    if invitee.id == project.owner_id:
-        raise _bad_request("Cannot invite the project owner")
-
-    if repository.get_member(db, project.id, invitee.id) is not None:
-        raise _bad_request("User is already a project member")
-
-    pending = repository.get_pending_invitation_for_user(db, project.id, invitee.id)
-    if pending is not None:
-        _sync_invitation_expiration(pending)
-        if pending.status == "pending":
-            raise HTTPException(
-                status_code=status.HTTP_409_CONFLICT,
-                detail="A pending invitation already exists for this user",
-            )
-        # Expired pending invitation: mark expired and allow a new one.
-        db.flush()
-
-    inviter = repository.get_user(db, actor_id)
-    now = datetime.now(timezone.utc)
-    invitation = repository.create_invitation(
-        db,
-        project_id=project.id,
-        inviter_id=actor_id,
-        invitee_id=invitee.id,
-        invitee_username=invitee.username,
-        role=data.role,
-        status="pending",
-        expires_at=now + timedelta(days=INVITATION_EXPIRATION_DAYS),
-        responded_at=None,
-        revoked_at=None,
+    payload = ws_service.create_workspace_invitation(
+        db, actor_id, project.workspace_id, username=data.username, role=data.role
     )
-
-    inviter_name = getattr(inviter, "name", None) or getattr(inviter, "username", "Someone")
-    project_name = project.name
-    add_notification(
-        db,
-        user_id=invitee.id,
-        type="project_invitation",
-        title="Project invitation",
-        message=(
-            f'{inviter_name} invited {invitee.username} to join project '
-            f'"{project_name}" as {data.role}.'
-        ),
-    )
-
+    ws_inv = ws_service.repository.get_invitation(db, payload["id"])
+    legacy = _sync_legacy_project_invitation(db, project, ws_inv)
     _commit(db, conflict_detail="Could not create invitation")
-    db.refresh(invitation)
-    return invitation
+    db.refresh(legacy)
+    return _legacy_invitation_response(legacy)
 
 
 def list_project_invitations(db: Session, actor_id: int, project_id: int):
     project, role = _get_accessible_project(db, project_id, actor_id)
     if not permissions.can_manage_invitations(role):
         raise _forbidden("Not allowed to view project invitations")
-    invitations = repository.list_project_invitations(db, project.id)
+    _ensure_project_workspace(db, project)
+    from ..workspace import repository as ws_repo
+    from ..workspace import service as ws_service
+
+    ws_invitations = ws_repo.list_workspace_invitations(db, project.workspace_id)
     changed = False
-    for inv in invitations:
+    for inv in ws_invitations:
         before = inv.status
-        _sync_invitation_expiration(inv)
+        ws_service._sync_invitation_expiration(inv)
         if inv.status != before:
             changed = True
+            if project.workspace_id:
+                _sync_legacy_project_invitation(db, project, inv)
     if changed:
         db.commit()
-        for inv in invitations:
+        for inv in ws_invitations:
             db.refresh(inv)
-    return invitations
+
+    # ensure legacy rows exist for all workspace invitations linked to this project
+    legacy_rows = []
+    for inv in ws_invitations:
+        legacy = db.scalar(
+            __import__("sqlalchemy").select(repository.ProjectInvitation).where(
+                repository.ProjectInvitation.workspace_invitation_id == inv.id
+            )
+        )
+        if legacy is None:
+            legacy = _sync_legacy_project_invitation(db, project, inv)
+        legacy_rows.append(legacy)
+    if any(getattr(r, "id", None) is None for r in legacy_rows):
+        db.flush()
+    # keep response contract as list of project invitation objects/dicts
+    return [_legacy_invitation_response(r) for r in legacy_rows]
 
 
 def revoke_invitation(db: Session, actor_id: int, project_id: int, invitation_id: int):
@@ -318,22 +440,32 @@ def revoke_invitation(db: Session, actor_id: int, project_id: int, invitation_id
     invitation = repository.get_invitation_for_project(db, project_id, invitation_id)
     if invitation is None:
         raise _invitation_not_found()
-    _sync_invitation_expiration(invitation)
-    if invitation.status != "pending":
-        raise _bad_request("Only pending invitations can be revoked")
-    invitation.status = "revoked"
-    invitation.revoked_at = datetime.now(timezone.utc)
-    _commit(db, conflict_detail="Could not revoke invitation")
-    db.refresh(invitation)
-    return invitation
+    ws_inv = _get_or_create_workspace_invitation_for_legacy(db, project, invitation)
+    from ..workspace import service as ws_service
+    ws_service.revoke_workspace_invitation(db, actor_id, project.workspace_id, ws_inv.id)
+    # revoke_workspace_invitation committed; reload legacy
+    legacy = db.scalar(
+        __import__("sqlalchemy").select(repository.ProjectInvitation).where(
+            repository.ProjectInvitation.workspace_invitation_id == ws_inv.id
+        )
+    )
+    if legacy is None:
+        legacy = invitation
+        db.refresh(legacy)
+    else:
+        db.refresh(legacy)
+    return _legacy_invitation_response(legacy)
 
 
 def list_received_invitations(db: Session, actor_id: int):
-    invitations = repository.list_received_invitations(db, actor_id)
+    from ..workspace import repository as ws_repo
+    from ..workspace import service as ws_service
+
+    invitations = ws_repo.list_received_invitations(db, actor_id)
     changed = False
     for inv in invitations:
         before = inv.status
-        _sync_invitation_expiration(inv)
+        ws_service._sync_invitation_expiration(inv)
         if inv.status != before:
             changed = True
     if changed:
@@ -343,27 +475,33 @@ def list_received_invitations(db: Session, actor_id: int):
 
     results = []
     for inv in invitations:
-        project = repository.get_project(db, inv.project_id)
-        inviter = repository.get_user(db, inv.inviter_id)
-        results.append(
-            {
-                "id": inv.id,
-                "project_id": inv.project_id,
-                "inviter_id": inv.inviter_id,
-                "invitee_id": inv.invitee_id,
-                "invitee_username": inv.invitee_username,
-                "role": inv.role,
-                "status": inv.status,
-                "created_at": inv.created_at,
-                "expires_at": inv.expires_at,
-                "responded_at": inv.responded_at,
-                "revoked_at": inv.revoked_at,
-                "project_name": project.name if project else None,
-                "inviter_username": getattr(inviter, "username", None) if inviter else None,
-                "inviter_name": getattr(inviter, "name", None) if inviter else None,
-            }
+        project = _get_linked_project_by_workspace(db, inv.workspace_id)
+        # Only project-backed invitations in legacy received endpoint? Keep old behavior:
+        # old endpoint returned project invitations; now include project-backed workspace invites.
+        if project is None:
+            continue
+        legacy = db.scalar(
+            __import__("sqlalchemy").select(repository.ProjectInvitation).where(
+                repository.ProjectInvitation.workspace_invitation_id == inv.id
+            )
         )
+        if legacy is None:
+            legacy = _sync_legacy_project_invitation(db, project, inv)
+            db.commit()
+            db.refresh(legacy)
+        inviter = repository.get_user(db, inv.inviter_id)
+        payload = _legacy_invitation_response(legacy)
+        payload["project_name"] = project.name if project else None
+        payload["inviter_username"] = getattr(inviter, "username", None) if inviter else None
+        payload["inviter_name"] = getattr(inviter, "name", None) if inviter else None
+        results.append(payload)
     return results
+
+
+def _get_linked_project_by_workspace(db: Session, workspace_id: int):
+    from ..project.models import Project
+    from sqlalchemy import select
+    return db.scalar(select(Project).where(Project.workspace_id == workspace_id))
 
 
 def _get_received_invitation(db: Session, actor_id: int, invitation_id: int):
@@ -376,63 +514,40 @@ def _get_received_invitation(db: Session, actor_id: int, invitation_id: int):
 
 def accept_invitation(db: Session, actor_id: int, invitation_id: int):
     invitation = _get_received_invitation(db, actor_id, invitation_id)
-    if invitation.status != "pending":
-        if invitation.status == "expired":
-            db.commit()
-            raise _bad_request("Invitation has expired")
-        raise _bad_request("Invitation is not pending")
-    if invitation.expires_at <= datetime.now(timezone.utc):
-        invitation.status = "expired"
-        db.commit()
-        raise _bad_request("Invitation has expired")
-    if repository.get_member(db, invitation.project_id, actor_id) is not None:
-        raise _bad_request("User is already a project member")
-
-    now = datetime.now(timezone.utc)
-    member = repository.create_member(
-        db,
-        project_id=invitation.project_id,
-        user_id=actor_id,
-        role=invitation.role,
-        joined_at=now,
+    project = repository.get_project(db, invitation.project_id)
+    if project is None:
+        raise _invitation_not_found()
+    ws_inv = _get_or_create_workspace_invitation_for_legacy(db, project, invitation)
+    from ..workspace import service as ws_service
+    ws_service.accept_workspace_invitation(db, actor_id, ws_inv.id)
+    legacy = db.scalar(
+        __import__("sqlalchemy").select(repository.ProjectInvitation).where(
+            repository.ProjectInvitation.workspace_invitation_id == ws_inv.id
+        )
     )
-    invitation.status = "accepted"
-    invitation.responded_at = now
-
-    actor_user = repository.get_user(db, actor_id)
-    project_activity.record(
-        db,
-        project_id=invitation.project_id,
-        actor_id=actor_id,
-        event_type=project_activity.MEMBER_JOINED,
-        entity_type="member",
-        entity_id=member.id,
-        metadata={
-            "member_id": member.id,
-            "user_id": actor_id,
-            "username": getattr(actor_user, "username", None) if actor_user else invitation.invitee_username,
-            "name": getattr(actor_user, "name", None) if actor_user else None,
-            "role": invitation.role,
-        },
-    )
-
-    _commit(db, conflict_detail="Could not accept invitation")
-    db.refresh(invitation)
-    return invitation
+    if legacy is None:
+        legacy = invitation
+    db.refresh(legacy)
+    return _legacy_invitation_response(legacy)
 
 
 def decline_invitation(db: Session, actor_id: int, invitation_id: int):
     invitation = _get_received_invitation(db, actor_id, invitation_id)
-    if invitation.status == "expired":
-        db.commit()
-        raise _bad_request("Invitation has expired")
-    if invitation.status != "pending":
-        raise _bad_request("Invitation is not pending")
-    invitation.status = "declined"
-    invitation.responded_at = datetime.now(timezone.utc)
-    _commit(db, conflict_detail="Could not decline invitation")
-    db.refresh(invitation)
-    return invitation
+    project = repository.get_project(db, invitation.project_id)
+    if project is None:
+        raise _invitation_not_found()
+    ws_inv = _get_or_create_workspace_invitation_for_legacy(db, project, invitation)
+    from ..workspace import service as ws_service
+    ws_service.decline_workspace_invitation(db, actor_id, ws_inv.id)
+    legacy = db.scalar(
+        __import__("sqlalchemy").select(repository.ProjectInvitation).where(
+            repository.ProjectInvitation.workspace_invitation_id == ws_inv.id
+        )
+    )
+    if legacy is None:
+        legacy = invitation
+    db.refresh(legacy)
+    return _legacy_invitation_response(legacy)
 
 
 # --- Members ---
@@ -479,6 +594,8 @@ def update_member_role(
     if new_role not in permissions.MANAGEABLE_MEMBER_ROLES:
         raise _bad_request("Invalid member role")
     member.role = new_role
+    _ensure_project_workspace(db, project)
+    _sync_workspace_member(db, project, member.user_id, new_role)
     _commit(db, conflict_detail="Could not update member role")
     db.refresh(member)
     _ = member.user
@@ -496,6 +613,7 @@ def remove_member(db: Session, actor_id: int, project_id: int, member_id: int) -
     if member.user_id == project.owner_id:
         raise _bad_request("Project owner cannot be removed")
     repository.delete_member(db, member)
+    _remove_workspace_member(db, project, member.user_id)
     _commit(db, conflict_detail="Could not remove member")
 
 
@@ -1067,6 +1185,7 @@ def get_project_overview(db: Session, actor_id: int, project_id: int) -> dict:
         "project": {
             "id": project.id,
             "owner_id": project.owner_id,
+            "workspace_id": getattr(project, "workspace_id", None),
             "name": project.name,
             "description": project.description,
             "status": project.status,

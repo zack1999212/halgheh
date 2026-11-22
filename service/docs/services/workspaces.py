@@ -1,7 +1,8 @@
 from sqlalchemy.orm import Session
 
 from ...auth.models import User
-from ..models import Workspace
+from ...workspace import repository as canonical_workspace_repository
+from ..models import PERSONAL_WORKSPACE, SHARED_WORKSPACE, Workspace
 from ..repositories import workspaces as workspace_repository
 from ..schemas import WorkspaceCreate, WorkspaceUpdate
 from . import access
@@ -9,12 +10,18 @@ from . import access
 def create_workspace(
     db: Session, user: User, data: WorkspaceCreate
 ) -> Workspace:
+    # Compatibility: preserve docs workspace creation. The canonical model allows
+    # only one Personal Workspace per user; additional owner-only document
+    # workspaces are created as shared workspaces with no members.
+    existing_personal = canonical_workspace_repository.get_personal_workspace_for_user(db, user.id)
+    workspace_type = PERSONAL_WORKSPACE if existing_personal is None else SHARED_WORKSPACE
     workspace = workspace_repository.create(
         db,
         owner_id=user.id,  # never trusted from the client
         name=data.name,
         description=data.description,
     )
+    workspace.workspace_type = workspace_type
     try:
         db.commit()
     except Exception:

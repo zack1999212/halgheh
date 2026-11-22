@@ -43,6 +43,7 @@ class TaskFilter(BaseModel):
     created_by: int | None = None
     assigned_user_id: int | None = None
     project_id: int | None = None
+    workspace_id: int | None = None
     parent_task_id: int | None = None
     label_id: int | None = None
     due: StatusFilterValue | None = None
@@ -89,6 +90,7 @@ class TaskCreate(BaseModel):
     description: str | None = None
     priority: str = "medium"
     project_id: int | None = None
+    workspace_id: int | None = None
     start_date: date | None = None
     due_date: date | None = None
 
@@ -293,6 +295,14 @@ class TaskLabelUpdate(BaseModel):
 # ---------------------------------------------------------------------------
 
 
+class WorkspaceSummaryOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    name: str
+    workspace_type: str
+
+
 class TaskLabelOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
@@ -354,6 +364,7 @@ class TaskSummary(BaseModel):
     project_id: int | None = None
     created_at: datetime
     updated_at: datetime
+    workspaces: list[WorkspaceSummaryOut] = Field(default_factory=list)
 
 
 class TaskResponse(TaskSummary):

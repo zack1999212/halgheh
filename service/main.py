@@ -18,6 +18,8 @@ from .project.router import invitations_router as project_invitations_router
 from .project.router import router as project_router
 from .share.router import router as share_router
 from .task.router import router as task_router
+from .workspace.router import invitations_router as workspace_invitations_router
+from .workspace.router import router as workspace_router
 
 app = FastAPI(title="halgheh API", version="0.1.0")
 
@@ -51,6 +53,8 @@ app.include_router(project_router)
 app.include_router(project_invitations_router)
 app.include_router(task_router)
 app.include_router(share_router)
+app.include_router(workspace_router)
+app.include_router(workspace_invitations_router)
 
 
 @app.get("/health")
