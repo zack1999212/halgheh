@@ -1,0 +1,85 @@
+# ============================================================
+# .kilocodeignore — Kilo file-access exclusions
+# Goal: cut per-task upload/context WITHOUT reducing coding power.
+# NOTE: this blocks access entirely, not just indexing.
+# Only regenerable / heavy / non-source paths are listed.
+# Source, migrations (alembic/), configs, and docs stay readable.
+# ============================================================
+
+# ---- Python virtualenvs (regenerable from requirements.txt) ----
+.venv/
+venv/
+env/
+service/.venv/
+
+# ---- Python caches / compiled ----
+__pycache__/
+*.py[cod]
+*$py.class
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.hypothesis/
+
+# ---- Node / frontend dependencies (regenerable) ----
+node_modules/
+web/app/node_modules/
+
+# ---- Build outputs (regenerable via vite build) ----
+dist/
+build/
+web/app/dist/
+.next/
+out/
+.turbo/
+.parcel-cache/
+.eslintcache/
+
+# ---- Test / coverage artifacts ----
+coverage/
+htmlcov/
+.nyc_output/
+test-results/
+playwright-report/
+
+# ---- Caches / temp / logs ----
+.cache/
+*.log
+*.tmp
+*.temp
+npm-debug.log*
+yarn-debug.log*
+pnpm-debug.log*
+tmp/
+temp/
+
+# ---- Runtime / user-uploaded data (not source) ----
+service/uploads/
+uploads/
+media/
+storage/
+
+# ---- Tool / local state ----
+.cloud-attachments/
+.freebuff/
+
+# ---- Generated / scratch artifacts at repo root ----
+# Large loose files that are NOT app source. Remove a line here if you
+# want Kilo to be able to open that file.
+project_structure.txt
+screenshot-workspace.png
+screenshot-workspace2.png
+screenshot-workspace-light.png
+calendar-page.html
+workspace-redesign-3d.html
+
+# ---- Secrets (use .env.example instead) ----
+.env
+.env.*
+!.env.example
+
+# ---- OS / editor ----
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/

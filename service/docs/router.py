@@ -236,7 +236,8 @@ def create_document(
     current_user: User = Depends(get_current_user),
 ):
     document = document_service.create_document(db, current_user, data)
-    return _document_response(document, favorited=False)
+    response = _document_response(document, favorited=False)
+    return _attach_document_workspaces(db, current_user, [response])[0]
 
 
 # Declared before /documents/{document_id} so "favorites" is not captured
@@ -337,9 +338,10 @@ def update_document(
     document: Document = Depends(deps.writable_document),
 ):
     updated = document_service.update_document(db, current_user, document, data)
-    return _document_response(
+    response = _document_response(
         updated, _is_favorited(db, current_user, document.id)
     )
+    return _attach_document_workspaces(db, current_user, [response])[0]
 
 
 @router.delete("/documents/{document_id}", status_code=204)
