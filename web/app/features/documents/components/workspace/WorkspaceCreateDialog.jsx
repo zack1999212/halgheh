@@ -7,7 +7,7 @@ import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
 
 /**
- * Creates a workspace through POST /workspaces (name, optional description).
+ * Creates a vault through POST /workspaces (name, optional description).
  * Owns its busy/error state so the opener stays simple.
  */
 export default function WorkspaceCreateDialog({ open, onClose, onCreate }) {
@@ -44,7 +44,7 @@ export default function WorkspaceCreateDialog({ open, onClose, onCreate }) {
   return (
     <DialogShell
       open={open}
-      title="New workspace"
+      title="New vault"
       onClose={onClose}
       footer={
         <>
@@ -53,7 +53,7 @@ export default function WorkspaceCreateDialog({ open, onClose, onCreate }) {
           </Button>
           <Button
             type="submit"
-            form="create-workspace-form"
+            form="create-vault-form"
             className="h-9"
             disabled={busy || !trimmed}
           >
@@ -62,29 +62,29 @@ export default function WorkspaceCreateDialog({ open, onClose, onCreate }) {
         </>
       }
     >
-      <form id="create-workspace-form" className="grid gap-4" onSubmit={handleSubmit}>
+      <form id="create-vault-form" className="grid gap-4" onSubmit={handleSubmit}>
         <FormError>{error}</FormError>
-        <FormField id="create-workspace-name" label="Name">
+        <FormField id="create-vault-name" label="Vault name">
           {(props) => (
             <Input
               {...props}
               className={fieldInputClass}
               value={name}
               onChange={(event) => setName(event.target.value)}
-              placeholder="Personal notes"
+              placeholder="My vault"
               maxLength={128}
               autoFocus
             />
           )}
         </FormField>
-        <FormField id="create-workspace-description" label="Description" optional>
+        <FormField id="create-vault-description" label="Description" optional>
           {(props) => (
             <Textarea
               {...props}
               className="min-h-[76px] rounded-[var(--radius-md)] px-3 py-2 text-base md:text-[15px]"
               value={description}
               onChange={(event) => setDescription(event.target.value)}
-              placeholder="What is this workspace for?"
+              placeholder="Optional description"
             />
           )}
         </FormField>

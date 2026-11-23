@@ -37,6 +37,11 @@ from .schemas import (
     DocumentVersionListResponse,
     DocumentVersionResponse,
     DocumentVersionRestoreRequest,
+    DocumentAIAskRequest,
+    DocumentAIGenerateRequest,
+    DocumentAIImproveRequest,
+    DocumentAIResponse,
+    DocumentAISummaryRequest,
     FolderCreate,
     FolderListResponse,
     FolderNode,
@@ -53,6 +58,7 @@ from .schemas import (
     WorkspaceUpdate,
 )
 from .services import documents as document_service
+from .services import ai as ai_service
 from .services import favorites as favorite_service
 from .services import folders as folder_service
 from .services import links as link_service
@@ -597,6 +603,109 @@ def revoke_document_permission(
 ):
     permission_service.revoke(db, document, permission_id)
     return _no_content
+
+
+# ------------------------------------------------------------------------ AI
+
+
+def _ai_response(result) -> DocumentAIResponse:
+    return DocumentAIResponse(
+        kind=getattr(result, "kind", "summary"),
+        content=result.content,
+        provider=result.provider,
+        provider_label=result.provider_label,
+        model=result.model,
+        model_label=result.model_label,
+        truncated=result.truncated,
+        context_included=result.context_included,
+        related_documents_used=result.related_documents_used,
+        warning=result.warning,
+    )
+
+
+@router.post(
+    "/documents/{document_id}/ai/summary",
+    response_model=DocumentAIResponse,
+)
+def summarize_document_ai(
+    data: DocumentAISummaryRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+    document: Document = Depends(deps.readable_document),
+):
+    result = ai_service.summarize_document(
+        db, current_user, document, max_points=data.max_points
+    )
+    response = _ai_response(result)
+    response.kind = "summary"
+    return response
+
+
+@router.post(
+    "/documents/{document_id}/ai/ask",
+    response_model=DocumentAIResponse,
+)
+def ask_document_ai(
+    data: DocumentAIAskRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+    document: Document = Depends(deps.readable_document),
+):
+    result = ai_service.ask_document(
+        db,
+        current_user,
+        document,
+        question=data.question,
+        include_related=data.include_related,
+    )
+    response = _ai_response(result)
+    response.kind = "answer"
+    return response
+
+
+@router.post(
+    "/documents/{document_id}/ai/improve",
+    response_model=DocumentAIResponse,
+)
+def improve_document_ai(
+    data: DocumentAIImproveRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+    document: Document = Depends(deps.readable_document),
+):
+    result = ai_service.improve_document(
+        db,
+        current_user,
+        document,
+        action=data.action,
+        selected_text=data.selected_text,
+        instruction=data.instruction,
+    )
+    response = _ai_response(result)
+    response.kind = "improvement"
+    return response
+
+
+@router.post(
+    "/documents/{document_id}/ai/generate",
+    response_model=DocumentAIResponse,
+)
+def generate_document_ai(
+    data: DocumentAIGenerateRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+    document: Document = Depends(deps.readable_document),
+):
+    result = ai_service.generate_document_draft(
+        db,
+        current_user,
+        document,
+        instruction=data.instruction,
+        use_document_context=data.use_document_context,
+    )
+    response = _ai_response(result)
+    response.kind = "draft"
+    return response
 
 
 # ------------------------------------------------------------------- helpers

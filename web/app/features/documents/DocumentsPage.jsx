@@ -1,5 +1,5 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
-import { useNavigate, useParams } from 'react-router-dom'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { Library, PanelRight, X } from 'lucide-react'
 import { updateDocument as updateDocumentRequest } from './api/client.js'
 import { useDocument } from './hooks/useDocument.js'
@@ -13,6 +13,7 @@ import { Sheet, SheetContent } from '@/components/ui/sheet'
 import ConfirmDialog from '@/components/shared/ConfirmDialog.jsx'
 import ErrorState from '@/components/shared/ErrorState.jsx'
 import IconButton from '@/components/shared/IconButton.jsx'
+import { useToast } from '@/components/shared/ToastProvider.jsx'
 import LeftSidebar from './components/LeftSidebar.jsx'
 import DocumentList from './components/documents/DocumentList.jsx'
 import CreateDocumentDialog from './components/documents/CreateDocumentDialog.jsx'
@@ -90,29 +91,76 @@ function useMediaQuery(query) {
  *
  * Routes (see src/App.jsx): /documents and /documents/:documentId.
  */
+function parsePositiveInt(value) {
+  const n = Number(value)
+  return Number.isFinite(n) && n > 0 ? n : null
+}
+
+function parseTagIds(value) {
+  if (!value) return []
+  return String(value)
+    .split(',')
+    .map((part) => Number(part.trim()))
+    .filter((n) => Number.isFinite(n) && n > 0)
+}
+
 export default function DocumentsPage() {
   const { documentId } = useParams()
   const navigate = useNavigate()
+  const [searchParams, setSearchParams] = useSearchParams()
+  const toast = useToast()
   const activeDocumentId = documentId ? Number(documentId) : null
   const isDesktop = useMediaQuery('(min-width: 1024px)')
   const isWide = useMediaQuery('(min-width: 1280px)')
 
   // ------------------------------------------------------------- data hooks
   const workspaces = useWorkspaces()
-  const [activeWorkspaceId, setActiveWorkspaceId] = useState(null)
+  const [activeWorkspaceId, setActiveWorkspaceId] = useState(
+    () => parsePositiveInt(searchParams.get('vault')),
+  )
 
   useEffect(() => {
     if (workspaces.status !== 'ready') return
     const items = workspaces.data || []
     if (!items.length) return
     if (items.some((workspace) => workspace.id === activeWorkspaceId)) return
+    const urlVault = parsePositiveInt(searchParams.get('vault'))
+    if (urlVault && items.some((workspace) => workspace.id === urlVault)) {
+      setActiveWorkspaceId(urlVault)
+      return
+    }
     setActiveWorkspaceId(items[0].id)
-  }, [workspaces.status, workspaces.data, activeWorkspaceId])
+  }, [workspaces.status, workspaces.data, activeWorkspaceId, searchParams])
 
-  const [mode, setMode] = useState('documents')
-  const [activeFolderId, setActiveFolderId] = useState(null)
-  const [query, setQuery] = useState(null)
-  const [activeTagIds, setActiveTagIds] = useState([])
+  const VALID_MODES = new Set(['documents', 'favorites', 'trash', 'graph', 'archived'])
+  const initialMode = searchParams.get('mode')
+  const [mode, setMode] = useState(
+    VALID_MODES.has(initialMode) ? initialMode : 'documents',
+  )
+  const [activeFolderId, setActiveFolderId] = useState(
+    () => parsePositiveInt(searchParams.get('folder')),
+  )
+  const [query, setQuery] = useState(() => searchParams.get('q') || null)
+  const [activeTagIds, setActiveTagIds] = useState(
+    () => parseTagIds(searchParams.get('tags')),
+  )
+
+  // Keep URL as source of truth for refresh/deep links.
+  useEffect(() => {
+    const next = new URLSearchParams(searchParams)
+    const setOrDelete = (key, value) => {
+      if (value === null || value === undefined || value === '' || value === false) next.delete(key)
+      else next.set(key, String(value))
+    }
+    setOrDelete('vault', activeWorkspaceId)
+    setOrDelete('mode', mode !== 'documents' ? mode : null)
+    setOrDelete('folder', activeFolderId)
+    setOrDelete('tags', activeTagIds.length ? activeTagIds.join(',') : null)
+    setOrDelete('q', query?.trim() ? query.trim() : null)
+    if (next.toString() !== searchParams.toString()) {
+      setSearchParams(next, { replace: true })
+    }
+  }, [activeWorkspaceId, mode, activeFolderId, activeTagIds, query, searchParams, setSearchParams])
 
   const folderTree = useFolderTree(activeWorkspaceId)
   const tags = useTags(activeWorkspaceId)
@@ -156,8 +204,10 @@ export default function DocumentsPage() {
   const [actionNotice, setActionNotice] = useState('')
 
   const reportActionError = useCallback((caught, fallback) => {
-    setActionNotice(caught?.message || fallback || 'Something went wrong.')
-  }, [])
+    const message = caught?.message || fallback || 'Something went wrong.'
+    setActionNotice(message)
+    toast.error(message)
+  }, [toast])
 
   useEffect(() => {
     if (!actionNotice) return undefined
@@ -169,15 +219,17 @@ export default function DocumentsPage() {
   const openDocument = useCallback(
     (id) => {
       setActionNotice('')
-      navigate(`/documents/${id}`)
+      const search = searchParams.toString()
+      navigate(`/documents/${id}${search ? `?${search}` : ''}`)
       setLibraryOpen(false)
     },
-    [navigate],
+    [navigate, searchParams],
   )
   const closeDocument = useCallback(() => {
-    navigate('/documents')
+    const search = searchParams.toString()
+    navigate(`/documents${search ? `?${search}` : ''}`)
     setDetailsOpen(false)
-  }, [navigate])
+  }, [navigate, searchParams])
 
   function resetViewFilters() {
     setMode('documents')
@@ -235,6 +287,15 @@ export default function DocumentsPage() {
     setActiveFolderId(null)
   }, [activeFolderId, folderTree.status, folderTree.data])
 
+  const lastListErrorRef = useRef('')
+  useEffect(() => {
+    if (documentList.status !== 'error') { lastListErrorRef.current = ''; return }
+    const msg = documentList.error?.message || 'Could not load documents.'
+    if (lastListErrorRef.current === msg) return
+    lastListErrorRef.current = msg
+    toast.error(msg)
+  }, [documentList.status, documentList.error, toast])
+
   // ------------------------------------------------------ list heading text
   const listHeading = useMemo(() => {
     if (mode === 'favorites') return 'Favorites'
@@ -275,8 +336,11 @@ export default function DocumentsPage() {
       })
       setCreateOpen(false)
       openDocument(created.id)
+      toast.success('Document created')
     } catch (caught) {
-      setCreateError(caught.message || 'Something went wrong. Please try again.')
+      const msg = caught.message || 'Something went wrong. Please try again.'
+      setCreateError(msg)
+      toast.error(msg)
     } finally {
       setCreateBusy(false)
     }
@@ -299,8 +363,11 @@ export default function DocumentsPage() {
       if (activeDocumentId === renaming.id) {
         document.reload()
       }
+      toast.success('Document renamed')
     } catch (caught) {
-      setActionError(caught.message || 'Something went wrong. Please try again.')
+      const msg = caught.message || 'Something went wrong. Please try again.'
+      setActionError(msg)
+      toast.error(msg)
     } finally {
       setActionBusy(false)
     }
@@ -317,8 +384,11 @@ export default function DocumentsPage() {
       if (activeDocumentId === moving.id) {
         document.reload()
       }
+      toast.success('Document moved')
     } catch (caught) {
-      setActionError(caught.message || 'Something went wrong. Please try again.')
+      const msg = caught.message || 'Something went wrong. Please try again.'
+      setActionError(msg)
+      toast.error(msg)
     } finally {
       setActionBusy(false)
     }
@@ -334,8 +404,11 @@ export default function DocumentsPage() {
       if (activeDocumentId === trashing.id) {
         closeDocument()
       }
+      toast.success('Document moved to trash')
     } catch (caught) {
-      setActionError(caught.message || 'Something went wrong. Please try again.')
+      const msg = caught.message || 'Something went wrong. Please try again.'
+      setActionError(msg)
+      toast.error(msg)
     } finally {
       setActionBusy(false)
     }
@@ -351,6 +424,7 @@ export default function DocumentsPage() {
       if (activeDocumentId === target.id) {
         document.reload()
       }
+      toast.success('Document restored')
     } catch (caught) {
       reportActionError(caught, 'Could not restore the document.')
       throw caught
@@ -366,6 +440,11 @@ export default function DocumentsPage() {
 
   async function handleToggleFavorite(docOrItem) {
     setActionNotice('')
+    const wasFavorite = Boolean(
+      activeDocumentId && docOrItem?.id === activeDocumentId
+        ? document.data?.is_favorite
+        : docOrItem?.is_favorite,
+    )
     try {
       if (activeDocumentId && docOrItem?.id === activeDocumentId) {
         await document.toggleFavorite()
@@ -373,6 +452,7 @@ export default function DocumentsPage() {
       } else {
         await documentList.toggleFavorite(docOrItem)
       }
+      toast.success(wasFavorite ? 'Removed from favorites' : 'Added to favorites')
     } catch (caught) {
       reportActionError(caught, 'Could not update favorite status.')
     }
@@ -383,6 +463,7 @@ export default function DocumentsPage() {
     const workspace = await workspaces.create(payload)
     setActiveWorkspaceId(workspace.id)
     resetViewFilters()
+    toast.success('Vault created')
     return workspace
   }
 
@@ -403,7 +484,9 @@ export default function DocumentsPage() {
         setActiveFolderId(null)
       }
       documentList.reload()
+      toast.success('Folder deleted')
     } catch (caught) {
+      toast.error(caught?.message || 'Could not delete the folder.')
       throw caught
     }
   }
@@ -429,8 +512,16 @@ export default function DocumentsPage() {
     folderTree,
     activeFolderId,
     onFolderSelect: handleFolderSelect,
-    onFolderCreate: ({ parentId, name }) => folderTree.create({ parentId, name }),
-    onFolderRename: folderTree.rename,
+    onFolderCreate: async ({ parentId, name }) => {
+      const created = await folderTree.create({ parentId, name })
+      toast.success('Folder created')
+      return created
+    },
+    onFolderRename: async (id, name) => {
+      const renamed = await folderTree.rename(id, name)
+      toast.success('Folder renamed')
+      return renamed
+    },
     onFolderDelete: handleFolderDelete,
     onCreateDocument: () => {
       setLibraryOpen(false)
@@ -454,17 +545,18 @@ export default function DocumentsPage() {
         tags={tags}
         links={links}
         documents={documentList.documents}
-        onAttachTag={document.attachTag}
-        onDetachTag={document.detachTag}
-        onCreateTag={tags.create}
-        onUpdateTag={handleUpdateTag}
-        onDeleteTag={handleDeleteTag}
-        onCreateLink={links.createLink}
-        onRemoveLink={links.removeLink}
+        onAttachTag={async (tagId) => { await document.attachTag(tagId); toast.success('Tag attached') }}
+        onDetachTag={async (tagId) => { await document.detachTag(tagId); toast.success('Tag removed') }}
+        onCreateTag={async (payload) => { const t = await tags.create(payload); toast.success('Tag created'); return t }}
+        onUpdateTag={async (id, patch) => { await handleUpdateTag(id, patch); toast.success('Tag updated') }}
+        onDeleteTag={async (id) => { await handleDeleteTag(id); toast.success('Tag deleted') }}
+        onCreateLink={async (payload) => { const l = await links.createLink(payload); toast.success('Link created'); return l }}
+        onRemoveLink={async (id) => { await links.removeLink(id); toast.success('Link removed') }}
         onOpenDocument={openDocument}
         onRestoreVersion={async (versionNumber) => {
           await document.restoreVersion(versionNumber)
           documentList.reload()
+          toast.success('Version restored')
         }}
       />
     ) : (
@@ -494,19 +586,21 @@ export default function DocumentsPage() {
       {isDesktop && <LeftSidebar {...sidebarProps} />}
 
       <div className="flex min-w-0 flex-1 flex-col">
-        {!isDesktop && (
+        {(!isDesktop || (!isWide && activeDocumentId)) && (
           <div className="flex flex-none items-center justify-between gap-2 border-b border-border bg-background px-3 py-2">
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              className="h-8 gap-1.5"
-              onClick={() => setLibraryOpen(true)}
-            >
-              <Library size={14} aria-hidden="true" />
-              Library
-            </Button>
-            {activeDocumentId && (
+            {!isDesktop ? (
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                className="h-8 gap-1.5"
+                onClick={() => setLibraryOpen(true)}
+              >
+                <Library size={14} aria-hidden="true" />
+                Library
+              </Button>
+            ) : <span />}
+            {activeDocumentId && !isWide && (
               <Button
                 type="button"
                 variant="outline"

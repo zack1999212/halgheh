@@ -26,9 +26,11 @@ import ProjectDiscussionsPage from '../projects/pages/ProjectDiscussionsPage.jsx
 import ProjectActivityPage from '../projects/pages/ProjectActivityPage.jsx'
 import ProjectInvitationsPage from '../projects/pages/ProjectInvitationsPage.jsx'
 import ProjectSectionPlaceholder from '../projects/pages/ProjectSectionPlaceholder.jsx'
+import { ToastProvider } from './components/shared/ToastProvider.jsx'
 
 export default function App() {
   return (
+    <ToastProvider>
     <Routes>
       <Route path="/login" element={<Login />} />
       <Route path="/register" element={<Register />} />
@@ -78,5 +80,6 @@ export default function App() {
 
       <Route path="*" element={<Navigate to="/login" replace />} />
     </Routes>
+    </ToastProvider>
   )
 }

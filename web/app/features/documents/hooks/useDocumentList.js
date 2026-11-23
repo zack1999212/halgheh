@@ -135,7 +135,7 @@ export function useDocumentList({
   const create = useCallback(
     async ({ title, content, folderId: targetFolderId, workspaceId: targetWorkspaceId } = {}) => {
       const resolvedWorkspaceId = targetWorkspaceId ?? workspaceId
-      if (!resolvedWorkspaceId) throw new Error('No workspace selected')
+      if (!resolvedWorkspaceId) throw new Error('No vault selected')
       const document = await createDocumentRequest({
         workspaceId: resolvedWorkspaceId,
         folderId: targetFolderId ?? folderId ?? null,

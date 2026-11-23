@@ -85,10 +85,10 @@ export default function CreateDocumentDialog({
         <FormError>{error}</FormError>
         {needsWorkspace && (
           <div className="grid gap-2">
-            <Label htmlFor="create-document-workspace" className="text-[13px] font-medium">Workspace</Label>
+            <Label htmlFor="create-document-workspace" className="text-[13px] font-medium">Vault</Label>
             <Select value={workspaceId === '' || workspaceId == null ? '' : String(workspaceId)} onValueChange={onWorkspaceChange}>
               <SelectTrigger id="create-document-workspace" className={fieldInputClass}>
-                <SelectValue placeholder={workspaces.length ? 'Select a workspace' : 'No workspaces available'} />
+                <SelectValue placeholder={workspaces.length ? 'Select a vault' : 'No vaults available'} />
               </SelectTrigger>
               <SelectContent>
                 {workspaces.map((ws) => (
@@ -97,7 +97,7 @@ export default function CreateDocumentDialog({
               </SelectContent>
             </Select>
             {workspaces.length === 0 && (
-              <p className="text-[12px] text-muted-foreground">A workspace is required to create a document. Create a personal workspace first, then try again.</p>
+              <p className="text-[12px] text-muted-foreground">A vault is required to create a document. Create a vault first, then try again.</p>
             )}
           </div>
         )}
