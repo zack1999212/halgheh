@@ -25,7 +25,7 @@ export function useFolderTree(workspaceId) {
 
   const create = useCallback(
     async ({ parentId, name }) => {
-      if (!workspaceId) throw new Error('No workspace selected')
+      if (!workspaceId) throw new Error('No vault selected')
       const folder = await createFolderRequest({
         workspaceId,
         parentId: parentId ?? null,

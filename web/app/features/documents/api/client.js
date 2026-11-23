@@ -33,7 +33,7 @@ function queryString(params) {
 
 export function listWorkspaces({ limit = 200, offset = 0 } = {}) {
   return apiRequest(`${BASE}/workspaces${queryString({ limit, offset })}`, {
-    fallbackMessage: 'Could not load workspaces.',
+    fallbackMessage: 'Could not load vaults.',
   })
 }
 
@@ -41,7 +41,7 @@ export function createWorkspace({ name, description } = {}) {
   return apiRequest(`${BASE}/workspaces`, {
     method: 'POST',
     body: { name, description: description || null },
-    fallbackMessage: 'Could not create the workspace.',
+    fallbackMessage: 'Could not create the vault.',
   })
 }
 
@@ -290,4 +290,52 @@ export function restoreDocumentVersion(
       fallbackMessage: 'Could not restore the document version.',
     },
   )
+}
+
+// ----------------------------------------------------------------------- AI
+
+export function aiSummarizeDocument(documentId, { maxPoints = 6, signal } = {}) {
+  return apiRequest(`${BASE}/documents/${documentId}/ai/summary`, {
+    method: 'POST',
+    body: { max_points: maxPoints },
+    signal,
+    fallbackMessage: 'Could not generate the summary.',
+  })
+}
+
+export function aiAskDocument(documentId, { question, includeRelated = false, signal } = {}) {
+  return apiRequest(`${BASE}/documents/${documentId}/ai/ask`, {
+    method: 'POST',
+    body: { question, include_related: includeRelated },
+    signal,
+    fallbackMessage: 'Could not get an answer from the AI assistant.',
+  })
+}
+
+export function aiImproveDocument(
+  documentId,
+  { action, selectedText, instruction, signal } = {},
+) {
+  return apiRequest(`${BASE}/documents/${documentId}/ai/improve`, {
+    method: 'POST',
+    body: {
+      action,
+      selected_text: selectedText ?? null,
+      instruction: instruction ?? null,
+    },
+    signal,
+    fallbackMessage: 'Could not improve the document.',
+  })
+}
+
+export function aiGenerateDocument(
+  documentId,
+  { instruction, useDocumentContext = true, signal } = {},
+) {
+  return apiRequest(`${BASE}/documents/${documentId}/ai/generate`, {
+    method: 'POST',
+    body: { instruction, use_document_context: useDocumentContext },
+    signal,
+    fallbackMessage: 'Could not generate the draft.',
+  })
 }

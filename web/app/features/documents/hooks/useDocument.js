@@ -30,7 +30,13 @@ export function useDocument(documentId) {
     async (patch) => {
       if (!documentId) throw new Error('No document selected')
       const updated = await updateDocumentRequest(documentId, patch)
-      resource.reload()
+      // Merge into existing detail to avoid a full reload (which causes editor
+      // jank during autosave). Detail-only fields not present in the PATCH
+      // response are preserved.
+      resource.setData((current) => {
+        if (!current || current.id !== updated.id) return current
+        return { ...current, ...updated }
+      })
       return updated
     },
     [documentId, resource],

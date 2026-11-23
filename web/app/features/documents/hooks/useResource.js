@@ -43,5 +43,13 @@ export function useResource(loader, deps) {
 
   useEffect(() => load(), [load])
 
-  return { ...state, reload: load }
+  const setData = useCallback((updater) => {
+    setState((current) => {
+      const nextData =
+        typeof updater === 'function' ? updater(current.data) : updater
+      return { ...current, status: 'ready', data: nextData, error: null }
+    })
+  }, [])
+
+  return { ...state, reload: load, setData }
 }
