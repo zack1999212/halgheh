@@ -1,13 +1,46 @@
-# Local environment files (never commit secrets such as AI API keys)
-.env
-.env.*
-!.env.example
-!.env.*.example
-<<<<<<< Updated upstream
-__pycache__/
-alembic/__pycache__/
-alembic/versions/__pycache__/
->>>>>>> Stashed changes
 
-# Runtime uploads
-service/uploads/
+# Python environments
+.venv/
+venv/
+env/
+
+# Python cache and compiled files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Python tooling caches
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/    
+.hypothesis/
+
+# Frontend dependencies
+node_modules/
+
+# Build outputs
+dist/
+build/
+.next/
+out/
+.turbo/
+coverage/
+
+# Tool and application caches
+.cache/
+.parcel-cache/
+.eslintcache/
+
+# Logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+pnpm-debug.log*
+
+# OS-generated files
+.DS_Store
+Thumbs.db
+
+# IDE local files
+.idea/
+.vscode/

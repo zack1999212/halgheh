@@ -188,6 +188,23 @@ def get_resource_workspace_ids(db: Session, resource_type: str, resource_id: int
     return list(db.scalars(select(model.workspace_id).where(field == resource_id)).all())
 
 
+def list_resource_workspace_ids_batch(
+    db: Session, resource_type: str, resource_ids: list[int]
+) -> dict[int, list[int]]:
+    """Return raw association workspace ids for many resources in one query."""
+    if not resource_ids:
+        return {}
+    model = _assoc_model(resource_type)
+    field = getattr(model, _assoc_resource_field(resource_type))
+    rows = db.execute(
+        select(field, model.workspace_id).where(field.in_(resource_ids))
+    ).all()
+    out: dict[int, list[int]] = {rid: [] for rid in resource_ids}
+    for resource_id, workspace_id in rows:
+        out.setdefault(resource_id, []).append(workspace_id)
+    return out
+
+
 def has_resource_workspace(db: Session, resource_type: str, resource_id: int, workspace_id: int) -> bool:
     model = _assoc_model(resource_type)
     rfield = getattr(model, _assoc_resource_field(resource_type))

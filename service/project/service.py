@@ -265,13 +265,11 @@ def delete_project(db: Session, actor_id: int, project_id: int) -> None:
     project, role = _get_accessible_project(db, project_id, actor_id)
     if not permissions.can_archive_or_delete(role):
         raise _forbidden("Not allowed to delete this project")
-    ws = None
-    if project.workspace_id is not None:
-        ws = workspace_repository.get_workspace(db, project.workspace_id)
+    # Project deletion only removes the legacy project record. The linked
+    # shared workspace and its resource associations must survive: deleting
+    # the workspace would cascade-delete documents and orphan task/event
+    # workspace associations.
     repository.delete_project(db, project)
-    if ws is not None:
-        # Explicitly remove the linked shared workspace; project.workspace_id is SET NULL.
-        workspace_repository.delete_workspace(db, ws)
     _commit(db, conflict_detail="Could not delete project")
 
 

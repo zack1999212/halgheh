@@ -361,6 +361,60 @@ def _compute_local_date_bounds(
     return local_start_date, local_end_date
 
 
+def _accessible_event_ids(
+    db: Session,
+    calendar: Calendar,
+    events: list[Event],
+    user_id: int,
+    *,
+    project_id: int | None = None,
+    workspace_id: int | None = None,
+) -> set[int]:
+    """Resolve access for a batch of events with batched workspace queries.
+
+    Raw associations and the actor's accessible workspaces are fetched once
+    for the whole page; legacy project fallbacks reuse one role lookup per
+    distinct project.
+    """
+    if not events:
+        return set()
+    from ..workspace import repository as ws_repo
+
+    event_ids = list({event.id for event in events})
+    raw_ws_ids = ws_repo.list_resource_workspace_ids_batch(db, "event", event_ids)
+    accessible_ws = ws_repo.list_resource_workspaces_for_actor(
+        db, "event", event_ids, user_id
+    )
+
+    project_roles: dict[int, str] = {}
+
+    def _project_role(pid: int) -> str:
+        if pid not in project_roles:
+            project_roles[pid] = project_service.get_project_role(db, user_id, pid)
+        return project_roles[pid]
+
+    accessible: set[int] = set()
+    for event in events:
+        ws_ids = raw_ws_ids.get(event.id, [])
+        if workspace_id is not None:
+            if workspace_id in {w["id"] for w in accessible_ws.get(event.id, [])}:
+                accessible.add(event.id)
+            continue
+        if ws_ids:
+            if accessible_ws.get(event.id):
+                accessible.add(event.id)
+            continue
+        # Legacy fallback only when no workspace associations exist.
+        if project_id is None:
+            if event.project_id is None and calendar.user_id == user_id:
+                accessible.add(event.id)
+        elif event.project_id == project_id and project_permissions.can_view(
+            _project_role(event.project_id)
+        ):
+            accessible.add(event.id)
+    return accessible
+
+
 def list_events(
     db: Session,
     calendar_id: int,
@@ -425,28 +479,15 @@ def list_events(
             local_end_date=local_end_date,
         )
 
-    def _accessible(event: Event) -> bool:
-        from ..workspace import repository as ws_repo
-        from ..workspace import permissions as ws_permissions
-        from ..docs.models import Workspace
-
-        ws_ids = ws_repo.get_resource_workspace_ids(db, "event", event.id)
-        if workspace_id is not None:
-            return workspace_id in ws_ids and _event_workspace_role(db, event, user_id) not in (None, "none")
-        if ws_ids:
-            return _event_workspace_role(db, event, user_id) not in (None, "none")
-        # legacy fallback only when no workspace associations
-        if project_id is None:
-            return event.project_id is None and calendar.user_id == user_id
-        if event.project_id is None:
-            return False
-        if not project_permissions.can_view(
-            project_service.get_project_role(db, user_id, event.project_id)
-        ):
-            return False
-        return event.project_id == project_id
-
-    result = [e for e in events if _accessible(e)]
+    accessible_ids = _accessible_event_ids(
+        db,
+        calendar,
+        events,
+        user_id,
+        project_id=project_id,
+        workspace_id=workspace_id,
+    )
+    result = [e for e in events if e.id in accessible_ids]
     if not result and calendar.user_id != user_id and workspace_id is None and project_id is None:
         # Hide personal calendar when no workspace-associated events are accessible.
         raise _calendar_not_found()
@@ -962,28 +1003,29 @@ def _expand_calendar_occurrences(
 ) -> list[OccurrenceResponse]:
     calendar_id = calendar.id
 
-    def _event_in_scope(e: Event) -> bool:
-        return _accessible_event(db, calendar, e, user_id, project_id, workspace_id)
+    nonrec_timed_all = repository.list_nonrecurring_timed_overlapping(
+        db, calendar_id, start=start, end=end
+    )
+    nonrec_allday_all = repository.list_nonrecurring_allday_overlapping(
+        db, calendar_id, local_start_date=local_start_date, local_end_date=local_end_date
+    )
+    recurring_all = repository.list_recurring_events_for_calendar(db, calendar_id)
 
-    nonrec_timed = [
-        e
-        for e in repository.list_nonrecurring_timed_overlapping(
-            db, calendar_id, start=start, end=end
-        )
-        if _event_in_scope(e)
-    ]
-    nonrec_allday = [
-        e
-        for e in repository.list_nonrecurring_allday_overlapping(
-            db, calendar_id, local_start_date=local_start_date, local_end_date=local_end_date
-        )
-        if _event_in_scope(e)
-    ]
-    recurring_events = [
-        e
-        for e in repository.list_recurring_events_for_calendar(db, calendar_id)
-        if _event_in_scope(e)
-    ]
+    accessible_ids = _accessible_event_ids(
+        db,
+        calendar,
+        [*nonrec_timed_all, *nonrec_allday_all, *recurring_all],
+        user_id,
+        project_id=project_id,
+        workspace_id=workspace_id,
+    )
+
+    def _event_in_scope(e: Event) -> bool:
+        return e.id in accessible_ids
+
+    nonrec_timed = [e for e in nonrec_timed_all if _event_in_scope(e)]
+    nonrec_allday = [e for e in nonrec_allday_all if _event_in_scope(e)]
+    recurring_events = [e for e in recurring_all if _event_in_scope(e)]
 
     recurring_ids = [e.id for e in recurring_events]
     exceptions = repository.list_exceptions_for_events(db, recurring_ids)
@@ -1753,6 +1795,25 @@ def edit_occurrence(db, calendar_id, event_id, user_id, data):
         try:
             new_event = repository.create_event(db, calendar_id, **new_event_data)
             db.flush()
+            # A split creates a second event series. It must inherit the
+            # original series' workspace associations so it can never become
+            # an orphaned resource; fall back to the normal resolution path
+            # for legacy events that have no association yet.
+            from ..workspace import repository as ws_repo
+
+            inherited_ws_ids = ws_repo.get_resource_workspace_ids(db, "event", event.id)
+            if not inherited_ws_ids:
+                inherited_ws_ids = [
+                    _resolve_event_workspace_id(
+                        db,
+                        user_id,
+                        workspace_id=None,
+                        project_id=new_event.project_id,
+                    )
+                ]
+            for ws_id in inherited_ws_ids:
+                if not ws_repo.has_resource_workspace(db, "event", new_event.id, ws_id):
+                    ws_repo.add_resource_workspace(db, "event", new_event.id, ws_id)
             # Reminders are per-event rows, so the new series inherits the
             # original's settings; otherwise every future occurrence of the
             # following part would silently stop reminding.
