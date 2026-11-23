@@ -6,6 +6,8 @@ import EventDetailPanel from '../calendar/EventDetailPanel.jsx'
 import EventDialog from '../calendar/EventDialog.jsx'
 import { createException, deleteEvent } from '../calendar/api.js'
 import { clearSession } from '../auth/api.js'
+import { useActiveWorkspace } from './ActiveWorkspaceContext.jsx'
+import { ALL_WORKSPACES } from './constants.js'
 import useWorkspaceCalendarData from './hooks/useWorkspaceCalendarData.js'
 import useWorkspaceDocumentsData from './hooks/useWorkspaceDocumentsData.js'
 import useWorkspaceTasksData from './hooks/useWorkspaceTasksData.js'
@@ -23,15 +25,24 @@ import './workspace.css'
 export default function WorkspacePage() {
   const navigate = useNavigate()
   const { theme, toggleTheme } = useWorkspaceTheme()
+  const {
+    activeWorkspaceId,
+    workspaceScope,
+    isAllWorkspaces,
+    defaultWorkspaceId,
+    status: workspaceStatus,
+  } = useActiveWorkspace()
+  const workspaceReady = workspaceStatus === 'ready' && workspaceScope != null
+  const hookWorkspaceId = isAllWorkspaces ? ALL_WORKSPACES : activeWorkspaceId
 
   const handleUnauthorized = useCallback(() => {
     clearSession()
     navigate('/login', { replace: true })
   }, [navigate])
 
-  const calendar = useWorkspaceCalendarData({ onUnauthorized: handleUnauthorized })
-  const documents = useWorkspaceDocumentsData({ onUnauthorized: handleUnauthorized })
-  const tasks = useWorkspaceTasksData({ onUnauthorized: handleUnauthorized })
+  const calendar = useWorkspaceCalendarData({ onUnauthorized: handleUnauthorized, workspaceId: hookWorkspaceId })
+  const documents = useWorkspaceDocumentsData({ onUnauthorized: handleUnauthorized, workspaceId: hookWorkspaceId })
+  const tasks = useWorkspaceTasksData({ onUnauthorized: handleUnauthorized, workspaceId: hookWorkspaceId })
 
   const [selectedItem, setSelectedItem] = useState(null)
   const [detailsRefreshKey, setDetailsRefreshKey] = useState(0)
@@ -47,7 +58,14 @@ export default function WorkspacePage() {
   const [deleteBusy, setDeleteBusy] = useState(false)
   const [deleteError, setDeleteError] = useState('')
 
-  const canCreateEvent = !calendar.loading && calendar.calendars.length > 0
+  const workspacePending = !workspaceReady
+  const calendarLoading = workspacePending || calendar.loading
+  const documentsLoading = workspacePending || documents.loading
+  const tasksLoading = workspacePending || tasks.loading
+  const calendarError = calendar.error
+  const documentsError = documents.error
+  const tasksError = tasks.error
+  const canCreateEvent = workspaceReady && !calendar.loading && calendar.calendars.length > 0
 
   const openCreateEvent = useCallback(() => {
     if (!calendar.calendars.length) return
@@ -147,12 +165,12 @@ export default function WorkspacePage() {
         />
 
         <OverviewCards
-          calendarLoading={calendar.loading}
-          calendarError={calendar.error}
-          documentsLoading={documents.loading}
-          documentsError={documents.error}
-          tasksLoading={tasks.loading}
-          tasksError={tasks.error}
+          calendarLoading={calendarLoading}
+          calendarError={calendarError}
+          documentsLoading={documentsLoading}
+          documentsError={documentsError}
+          tasksLoading={tasksLoading}
+          tasksError={tasksError}
           timeZone={calendar.timeZone}
           todayCount={calendar.todayCount}
           nextTodayEvent={calendar.nextTodayEvent}
@@ -166,8 +184,8 @@ export default function WorkspacePage() {
         <div className="ws-grid">
           <div className="ws-col">
             <TodaySchedule
-              loading={calendar.loading}
-              error={calendar.error}
+              loading={calendarLoading}
+              error={calendarError}
               items={calendar.todayItems}
               timeZone={calendar.timeZone}
               onRetry={calendar.reload}
@@ -175,8 +193,8 @@ export default function WorkspacePage() {
               onCreateEvent={canCreateEvent ? openCreateEvent : undefined}
             />
             <UpcomingEvents
-              loading={calendar.loading}
-              error={calendar.error}
+              loading={calendarLoading}
+              error={calendarError}
               items={calendar.upcomingItems}
               timeZone={calendar.timeZone}
               onRetry={calendar.reload}
@@ -186,21 +204,21 @@ export default function WorkspacePage() {
           </div>
           <div className="ws-col">
             <TodayTasks
-              loading={tasks.loading}
-              error={tasks.error}
+              loading={tasksLoading}
+              error={tasksError}
               items={tasks.todayTasks}
               todayStr={tasks.todayStr}
               onRetry={tasks.reload}
             />
             <UpcomingTasks
-              loading={tasks.loading}
-              error={tasks.error}
+              loading={tasksLoading}
+              error={tasksError}
               items={tasks.upcomingTasks}
               onRetry={tasks.reload}
             />
             <RecentDocuments
-              loading={documents.loading}
-              error={documents.error}
+              loading={documentsLoading}
+              error={documentsError}
               documents={documents.documents}
               onRetry={documents.reload}
             />
@@ -217,6 +235,20 @@ export default function WorkspacePage() {
             onEdit={handleEdit}
             onDelete={openDelete}
             onUnauthorized={handleUnauthorized}
+            onWorkspaceChanged={(info) => {
+              refreshCalendar()
+              if (
+                info?.detachedWorkspaceId != null &&
+                !isAllWorkspaces &&
+                info.detachedWorkspaceId === activeWorkspaceId
+              ) {
+                setSelectedItem(null)
+              } else if (info?.detachedWorkspaceId != null) {
+                setSelectedItem((prev) => prev ? { ...prev, selection: { ...prev.selection, workspaces: Array.isArray(prev.selection?.workspaces) ? prev.selection.workspaces.filter((w) => w.id !== info.detachedWorkspaceId) : prev.selection?.workspaces } } : prev)
+              } else if (info?.attachedWorkspace) {
+                setSelectedItem((prev) => prev ? { ...prev, selection: { ...prev.selection, workspaces: Array.isArray(prev.selection?.workspaces) && !prev.selection.workspaces.some((w) => w.id === info.attachedWorkspace.id) ? [...prev.selection.workspaces, info.attachedWorkspace] : prev.selection?.workspaces } } : prev)
+              }
+            }}
           />
         )}
 
@@ -227,6 +259,7 @@ export default function WorkspacePage() {
           occurrence={editor.occurrence}
           calendarId={editor.calendarId}
           calendars={calendar.calendars}
+          workspaceId={defaultWorkspaceId}
           onClose={() => setEditor((s) => ({ ...s, open: false }))}
           onSaved={handleSaved}
         />

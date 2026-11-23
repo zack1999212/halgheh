@@ -12,7 +12,7 @@ const DEFAULT_FILTERS = {
 
 const DEFAULT_LIMIT = 20
 
-export default function useTaskFilters({ projectId = null, projectMode = false } = {}) {
+export default function useTaskFilters({ projectId = null, projectMode = false, workspaceScope = null } = {}) {
   const navItems = projectMode ? TASK_NAV_ITEMS.filter((i) => i.scope === 'visible') : TASK_NAV_ITEMS
   const defaultNavId = navItems[0]?.id || TASK_NAV_ITEMS[0].id
   const [activeNavId, setActiveNavId] = useState(defaultNavId)
@@ -69,8 +69,9 @@ export default function useTaskFilters({ projectId = null, projectMode = false }
     if (activeNav.due) q.due = activeNav.due
     else if (filters.due) q.due = filters.due
     if (projectId != null) q.project_id = projectId
+    if (workspaceScope && workspaceScope !== 'all') q.workspace_id = workspaceScope
     return q
-  }, [activeNav, filters, limit, offset, projectId])
+  }, [activeNav, filters, limit, offset, projectId, workspaceScope])
 
   return {
     activeNavId,

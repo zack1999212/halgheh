@@ -3,6 +3,7 @@ import { Separator } from '@/components/ui/separator'
 import NotificationMenu from '../../notifications/NotificationMenu.jsx'
 import ModuleSwitcher from './ModuleSwitcher.jsx'
 import ProfileMenu from './ProfileMenu.jsx'
+import WorkspaceSelector from './WorkspaceSelector.jsx'
 
 function BrandMark() {
   return (
@@ -21,8 +22,9 @@ function BrandMark() {
 /**
  * Shared application header for all authenticated modules.
  *
- * Brand is on the left. Actions are on the right: module switcher, then
- * notifications, then profile (switcher immediately left of notifications).
+ * Brand is on the left. Actions are on the right: workspace selector,
+ * module switcher, notifications, then profile. The module switcher remains
+ * immediately left of notifications.
  */
 export default function AppHeader({ user, onLogout, onUnauthorized, onUserUpdated }) {
   return (
@@ -39,6 +41,7 @@ export default function AppHeader({ user, onLogout, onUnauthorized, onUserUpdate
       </Link>
 
       <div className="flex min-w-0 items-center gap-1.5 sm:gap-2">
+        <WorkspaceSelector />
         <ModuleSwitcher />
         <NotificationMenu onUnauthorized={onUnauthorized} />
         <Separator orientation="vertical" className="mx-0.5 h-5" />

@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from 'react'
 import { Outlet, useNavigate } from 'react-router-dom'
 import { getCurrentUser, clearSession } from '../auth/api.js'
 import { TooltipProvider } from '@/components/ui/tooltip'
+import { ActiveWorkspaceProvider } from './ActiveWorkspaceContext.jsx'
 import AppHeader from './components/AppHeader.jsx'
 import './shell.css'
 
@@ -69,18 +70,20 @@ export default function AppLayout() {
 
   return (
     <TooltipProvider delayDuration={0}>
-      <div className="flex min-h-svh flex-col bg-background text-foreground">
-        <AppHeader
-          user={user}
-          onLogout={handleLogout}
-          onUnauthorized={handleUnauthorized}
-          onUserUpdated={handleUserUpdated}
-        />
+      <ActiveWorkspaceProvider user={user}>
+        <div className="flex min-h-svh flex-col bg-background text-foreground">
+          <AppHeader
+            user={user}
+            onLogout={handleLogout}
+            onUnauthorized={handleUnauthorized}
+            onUserUpdated={handleUserUpdated}
+          />
 
-        <main className="app-content flex min-h-0 flex-1 flex-col">
-          <Outlet />
-        </main>
-      </div>
+          <main className="app-content flex min-h-0 flex-1 flex-col">
+            <Outlet />
+          </main>
+        </div>
+      </ActiveWorkspaceProvider>
     </TooltipProvider>
   )
 }

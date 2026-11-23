@@ -9,6 +9,7 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
 import { cn } from '@/lib/utils'
+import WorkspaceBadges from '../workspace/components/WorkspaceBadges.jsx'
 import { TASK_STATUSES } from './utils/taskConstants.js'
 import { formatDate, isOverdue, priorityLabel, statusLabel } from './utils/taskFormat.js'
 
@@ -21,7 +22,7 @@ function MetaRow({ label, value }) {
   )
 }
 
-export default function TaskCard({ task, onStatusChange, onOpen, busy = false, compact = false, readOnly = false }) {
+export default function TaskCard({ task, onStatusChange, onOpen, busy = false, compact = false, readOnly = false, activeWorkspaceId = null }) {
   const overdue = isOverdue(task)
   const description = task.description
   const labels = Array.isArray(task.labels) ? task.labels : null
@@ -55,6 +56,7 @@ export default function TaskCard({ task, onStatusChange, onOpen, busy = false, c
         {overdue && <Badge variant="destructive" className="px-1.5 py-0 text-[10.5px] font-medium">Overdue</Badge>}
         {task.parent_task_id && <Badge variant="outline" className="px-1.5 py-0 text-[10.5px] font-medium">Subtask</Badge>}
       </div>
+      <WorkspaceBadges workspaces={task.workspaces} activeWorkspaceId={activeWorkspaceId} />
 
       <div className="grid gap-1.5">
         <div className="flex items-center gap-1.5 text-[12px] text-muted-foreground">

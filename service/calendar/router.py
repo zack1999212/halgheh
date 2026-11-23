@@ -51,6 +51,21 @@ def list_calendars(
     return service.list_calendars(db, current_user.id)
 
 
+@router.get("/occurrences", response_model=list[OccurrenceResponse])
+def list_accessible_occurrences(
+    start: datetime = Query(...),
+    end: datetime = Query(...),
+    timezone: str = Query(...),
+    workspace_id: int | None = Query(default=None),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    occ = service.list_accessible_occurrences(
+        db, current_user.id, start, end, timezone, workspace_id=workspace_id
+    )
+    return service.attach_occurrence_workspaces(db, current_user.id, occ)
+
+
 @router.get("/{calendar_id}", response_model=CalendarResponse)
 def get_calendar(
     calendar_id: int,

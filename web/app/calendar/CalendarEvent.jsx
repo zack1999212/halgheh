@@ -1,4 +1,5 @@
 import { categoryOf } from './categories.js'
+import WorkspaceBadges from '../workspace/components/WorkspaceBadges.jsx'
 
 /** Event chip content: time (when the view shows it) plus the event title. */
 export default function CalendarEvent({ arg }) {
@@ -10,6 +11,7 @@ export default function CalendarEvent({ arg }) {
   const isTimeGrid = viewType.startsWith('timeGrid')
   const isList = viewType.startsWith('list')
   const category = categoryOf(event.extendedProps?.category)
+  const workspaces = event.extendedProps?.raw?.workspaces
 
   // Week columns are narrow; the full "start - end" range clips there, so
   // show only the start time and let the block's height convey the duration.
@@ -49,6 +51,9 @@ export default function CalendarEvent({ arg }) {
           </span>
         )}
       </span>
+      {Array.isArray(workspaces) && workspaces.length > 0 && (
+        <WorkspaceBadges workspaces={workspaces} max={1} className="mt-0.5" />
+      )}
     </div>
   )
 }

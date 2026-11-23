@@ -7,25 +7,12 @@ import WorkspaceLayout from '../workspace/layouts/WorkspaceLayout.jsx'
 import CalendarLayout from '../workspace/layouts/CalendarLayout.jsx'
 import TasksLayout from '../workspace/layouts/TasksLayout.jsx'
 import DocumentsLayout from '../workspace/layouts/DocumentsLayout.jsx'
-import ProjectsLayout from '../workspace/layouts/ProjectsLayout.jsx'
 import HomePage from '../workspace/HomePage.jsx'
 import WorkspacePage from '../workspace/WorkspacePage.jsx'
 import CalendarPage from '../calendar/CalendarPage.jsx'
 import TasksPage from '../task/TasksPage.jsx'
 import DocumentsPage from '../features/documents/DocumentsPage.jsx'
 import AISettingsPage from '../ai/AISettingsPage.jsx'
-import ProjectsPage from '../projects/pages/ProjectsPage.jsx'
-import ProjectWorkspaceLayout from '../projects/pages/ProjectWorkspaceLayout.jsx'
-import ProjectOverviewPage from '../projects/pages/ProjectOverviewPage.jsx'
-import ProjectMembersPage from '../projects/pages/ProjectMembersPage.jsx'
-import ProjectTasksPage from '../projects/pages/ProjectTasksPage.jsx'
-import ProjectDocumentsPage from '../projects/pages/ProjectDocumentsPage.jsx'
-import ProjectCalendarPage from '../projects/pages/ProjectCalendarPage.jsx'
-import ProjectMilestonesPage from '../projects/pages/ProjectMilestonesPage.jsx'
-import ProjectDiscussionsPage from '../projects/pages/ProjectDiscussionsPage.jsx'
-import ProjectActivityPage from '../projects/pages/ProjectActivityPage.jsx'
-import ProjectInvitationsPage from '../projects/pages/ProjectInvitationsPage.jsx'
-import ProjectSectionPlaceholder from '../projects/pages/ProjectSectionPlaceholder.jsx'
 import { ToastProvider } from './components/shared/ToastProvider.jsx'
 
 export default function App() {
@@ -47,21 +34,7 @@ export default function App() {
         <Route path="workspace" element={<WorkspaceLayout />}>
           <Route index element={<WorkspacePage />} />
         </Route>
-        <Route path="projects" element={<ProjectsLayout />}>
-          <Route index element={<ProjectsPage />} />
-          <Route path="invitations" element={<ProjectInvitationsPage />} />
-          <Route path=":projectId" element={<ProjectWorkspaceLayout />}>
-            <Route index element={<Navigate to="overview" replace />} />
-            <Route path="overview" element={<ProjectOverviewPage />} />
-            <Route path="tasks" element={<ProjectTasksPage />} />
-            <Route path="documents" element={<ProjectDocumentsPage />} />
-            <Route path="calendar" element={<ProjectCalendarPage />} />
-            <Route path="milestones" element={<ProjectMilestonesPage />} />
-            <Route path="members" element={<ProjectMembersPage />} />
-            <Route path="discussions" element={<ProjectDiscussionsPage />} />
-            <Route path="activity" element={<ProjectActivityPage />} />
-          </Route>
-        </Route>
+        <Route path="projects/*" element={<Navigate to="/workspace" replace />} />
         <Route path="calendar" element={<CalendarLayout />}>
           <Route index element={<CalendarPage />} />
         </Route>

@@ -4,7 +4,6 @@ import {
   CalendarDays,
   Check,
   Files,
-  FolderKanban,
   LayoutDashboard,
   LayoutGrid,
   ListChecks,
@@ -27,7 +26,6 @@ import { cn } from '@/lib/utils'
 
 const MODULES = [
   { key: 'workspace', name: 'Workspace', to: '/workspace', icon: LayoutDashboard },
-  { key: 'projects', name: 'Projects', to: '/projects', icon: FolderKanban },
   { key: 'calendar', name: 'Calendar', to: '/calendar', icon: CalendarDays },
   { key: 'tasks', name: 'Tasks', to: '/tasks', icon: ListChecks },
   { key: 'documents', name: 'Documents', to: '/documents', icon: Files },

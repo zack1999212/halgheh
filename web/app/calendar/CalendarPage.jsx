@@ -24,6 +24,8 @@ import useCalendarEvents, { occurrenceToSelection } from './useCalendarEvents.js
 import { createException, deleteEvent, editOccurrence, updateEvent } from './api.js'
 import { getBrowserTimeZone } from './time.js'
 import { clearToken } from '../src/api.js'
+import { useActiveWorkspace } from '../workspace/ActiveWorkspaceContext.jsx'
+import { ALL_WORKSPACES } from '../workspace/constants.js'
 import { CALENDAR_VIEWS, DEFAULT_VIEW, fcViewType, periodName } from './views.js'
 import { categoryOf } from './categories.js'
 import CalendarAgent from './agent/CalendarAgent.jsx'
@@ -172,6 +174,9 @@ export default function CalendarPage() {
     navigate('/login', { replace: true })
   }, [navigate])
 
+  const { workspaceScope: globalWorkspaceScope, defaultWorkspaceId } = useActiveWorkspace()
+  const workspaceScope = globalWorkspaceScope ?? ALL_WORKSPACES
+
   const calendarsApi = useCalendars({ onUnauthorized: handleUnauthorized })
 
   // Guide lines for the Week/Day time grids: faint hairlines connecting each
@@ -225,6 +230,8 @@ export default function CalendarPage() {
   const eventsApi = useCalendarEvents({
     calendarId: selectedCalendarId,
     calendar: selectedCalendar,
+    calendars,
+    workspaceScope,
     onUnauthorized: handleUnauthorized,
   })
 
@@ -556,14 +563,41 @@ export default function CalendarPage() {
     setSelectedOccurrence(null)
   }
 
+  function handleWorkspaceChanged(info) {
+    eventsApi.reload()
+    setDetailsRefreshKey((current) => current + 1)
+    if (
+      info?.detachedWorkspaceId != null &&
+      workspaceScope !== ALL_WORKSPACES &&
+      info.detachedWorkspaceId === workspaceScope
+    ) {
+      setSelectedOccurrence(null)
+    } else if (selectedOccurrence) {
+      // Keep selection open; workspace badges/details will refresh via detailsRefreshKey.
+      // Update local selection workspaces for immediate badge feedback.
+      if (info?.detachedWorkspaceId != null) {
+        setSelectedOccurrence((prev) => prev ? { ...prev, workspaces: Array.isArray(prev.workspaces) ? prev.workspaces.filter((w) => w.id !== info.detachedWorkspaceId) : prev.workspaces } : prev)
+      } else if (info?.attachedWorkspace) {
+        setSelectedOccurrence((prev) => prev ? { ...prev, workspaces: Array.isArray(prev.workspaces) && !prev.workspaces.some((w) => w.id === info.attachedWorkspace.id) ? [...prev.workspaces, info.attachedWorkspace] : prev.workspaces } : prev)
+      }
+    }
+  }
+
+  function resolveCalendar(calendarId) {
+    if (calendarId == null) return selectedCalendar || null
+    return calendars.find((c) => c.id === calendarId) || selectedCalendar || { id: calendarId, name: `Calendar #${calendarId}`, color: null }
+  }
+
   function openDelete(event, occurrence) {
     setDeleteError('')
     setDeleteScope(event?.recurrence_rule ? 'occurrence' : 'series')
-    setDeleteTarget({ event, occurrence })
+    const calendarId = occurrence?.calendarId ?? selectedCalendarId
+    setDeleteTarget({ event, occurrence, calendarId })
   }
 
   async function confirmDelete() {
-    if (!deleteTarget?.event || !selectedCalendarId) {
+    const calendarId = deleteTarget?.calendarId ?? selectedCalendarId
+    if (!deleteTarget?.event || !calendarId) {
       return
     }
     setDeleteBusy(true)
@@ -571,14 +605,14 @@ export default function CalendarPage() {
     try {
       const isRecurring = Boolean(deleteTarget.event.recurrence_rule)
       if (isRecurring && deleteScope === 'occurrence') {
-        await createException(selectedCalendarId, deleteTarget.event.id, {
+        await createException(calendarId, deleteTarget.event.id, {
           original_start_at: deleteTarget.occurrence?.originalStartAt ?? null,
           original_start_date:
             deleteTarget.occurrence?.originalStartDate ?? null,
           is_cancelled: true,
         })
       } else {
-        await deleteEvent(selectedCalendarId, deleteTarget.event.id)
+        await deleteEvent(calendarId, deleteTarget.event.id)
       }
       setDeleteTarget(null)
       setSelectedOccurrence(null)
@@ -591,13 +625,16 @@ export default function CalendarPage() {
   }
 
   const hasCalendar = Boolean(selectedCalendarId)
+  const accessibleMode = workspaceScope != null
   const showCalendarPlaceholder =
-    !calendarsLoading && !calendarsError && calendars.length === 0
-  const showEventsLoading =
-    hasCalendar && eventsApi.loading
-  const showEventsError = hasCalendar && Boolean(eventsApi.error)
+    !accessibleMode && !calendarsLoading && !calendarsError && calendars.length === 0
+  const showEventsLoading = (accessibleMode || hasCalendar) && eventsApi.loading
+  const showEventsError = (accessibleMode || hasCalendar) && Boolean(eventsApi.error)
   const showNoEvents =
-    hasCalendar && !eventsApi.loading && eventsApi.events.length === 0
+    (accessibleMode || hasCalendar) &&
+    !eventsApi.loading &&
+    !eventsApi.error &&
+    eventsApi.events.length === 0
 
   return (
     <div
@@ -874,17 +911,24 @@ export default function CalendarPage() {
         />
       </div>
 
-        {selectedOccurrence && hasCalendar && (
+        {selectedOccurrence && (selectedOccurrence.calendarId || hasCalendar) && (
           <EventDetailPanel
             occurrence={selectedOccurrence}
-            calendar={selectedCalendar}
+            calendar={resolveCalendar(selectedOccurrence.calendarId)}
             refreshKey={detailsRefreshKey}
             onClose={() => setSelectedOccurrence(null)}
             onEdit={(event, occurrence) =>
-              setEditor({ open: true, mode: 'edit', event, occurrence })
+              setEditor({
+                open: true,
+                mode: 'edit',
+                event,
+                occurrence,
+                calendarId: occurrence?.calendarId ?? selectedCalendarId,
+              })
             }
             onDelete={openDelete}
             onUnauthorized={handleUnauthorized}
+            onWorkspaceChanged={handleWorkspaceChanged}
           />
         )}
 
@@ -895,6 +939,7 @@ export default function CalendarPage() {
           occurrence={editor.occurrence}
           calendarId={editor.calendarId || selectedCalendarId}
           calendars={calendars}
+          workspaceId={defaultWorkspaceId}
           initialAllDay={editor.initialAllDay}
           initialStartAt={editor.initialStartAt}
           initialEndAt={editor.initialEndAt}

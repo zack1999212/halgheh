@@ -26,6 +26,7 @@ export default function TaskDialog({
   allTasks = [],
   availableLabels = [],
   projectId = null,
+  workspaceId = null,
   onClose,
   onSaved,
 }) {
@@ -106,6 +107,7 @@ export default function TaskDialog({
           due_date: dueDate || null,
         }
         if (projectId != null) payload.project_id = Number(projectId)
+        if (workspaceId != null) payload.workspace_id = Number(workspaceId)
         // Status, assignees, labels, and parent-on-create are not part of TaskCreate schema.
         // Subtask creation/label attachment/assignment are separate supported endpoints and are surfaced in task details.
         await createTask(payload)

@@ -8,11 +8,18 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
+import WorkspaceScopeSelect from '../workspace/components/WorkspaceScopeSelect.jsx'
 import { DUE_FILTERS, ORDER_OPTIONS, SORT_OPTIONS, TASK_PRIORITIES, TASK_STATUSES } from './utils/taskConstants.js'
 
 const ALL = '__all__'
 
-export default function TasksFilters({ filters, onChange }) {
+export default function TasksFilters({
+  filters,
+  onChange,
+  workspaceScope,
+  onWorkspaceScopeChange,
+  workspaces = [],
+}) {
   function set(key, value) {
     onChange({ ...filters, [key]: value })
   }
@@ -25,6 +32,18 @@ export default function TasksFilters({ filters, onChange }) {
       </div>
 
       <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-6">
+        {onWorkspaceScopeChange ? (
+          <div className="grid gap-1.5">
+            <Label htmlFor="task-workspace-scope" className="text-[12.5px]">Workspace</Label>
+            <WorkspaceScopeSelect
+              value={workspaceScope}
+              onValueChange={onWorkspaceScopeChange}
+              workspaces={workspaces}
+              triggerClassName="h-9 w-full"
+              ariaLabel="Filter tasks by workspace"
+            />
+          </div>
+        ) : null}
         <div className="grid gap-1.5 xl:col-span-2">
           <Label htmlFor="task-search" className="text-[12.5px]">Search</Label>
           <div className="relative">
