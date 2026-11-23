@@ -4,6 +4,7 @@ import {
   Calendar,
   Clock,
   FileText,
+  Layers,
   MapPin,
   Pencil,
   Plus,
@@ -12,10 +13,13 @@ import {
   X,
 } from 'lucide-react'
 import useEventDetails from './useEventDetails.js'
+import { attachEventToWorkspace, detachEventFromWorkspace } from './api.js'
 import { describeRecurrence } from './recurrence.js'
 import { formatEventWhen, formatReminder } from './eventDetail.js'
 import { parseDateOnly } from './time.js'
 import { categoryOf } from './categories.js'
+import WorkspaceBadges from '../workspace/components/WorkspaceBadges.jsx'
+import { useActiveWorkspace } from '../workspace/ActiveWorkspaceContext.jsx'
 import ErrorState from '@/components/shared/ErrorState'
 import { FieldMessage } from '@/components/shared/FormField'
 import IconButton from '@/components/shared/IconButton'
@@ -91,6 +95,8 @@ function DetailRow({ icon: Icon, label, children }) {
  * comments, with edit/delete in a fixed footer. Selection, detail fetching and
  * reminder/comment mutations are the same hooks as before.
  */
+const MANAGE_ROLES = new Set(['owner', 'admin', 'editor'])
+
 export default function EventDetailPanel({
   occurrence,
   calendar,
@@ -100,6 +106,7 @@ export default function EventDetailPanel({
   onEdit,
   onDelete,
   onUnauthorized,
+  onWorkspaceChanged,
 }) {
   const resolvedCalendarId = calendar?.id ?? occurrence?.calendarId ?? occurrence?.calendar_id ?? null
   const details = useEventDetails({
@@ -108,14 +115,26 @@ export default function EventDetailPanel({
     refreshKey,
     onUnauthorized,
   })
+  const { workspaces: accessibleWorkspaces } = useActiveWorkspace()
 
   const [newReminder, setNewReminder] = useState(15)
   const [commentDraft, setCommentDraft] = useState('')
+  const [workspaceBusyId, setWorkspaceBusyId] = useState(null)
+  const [workspaceError, setWorkspaceError] = useState('')
+  const [eventWorkspaces, setEventWorkspaces] = useState([])
 
   useEffect(() => {
     setCommentDraft('')
     setNewReminder(15)
+    setWorkspaceError('')
+    setWorkspaceBusyId(null)
   }, [occurrence?.eventId, occurrence?.originalStartAt, occurrence?.originalStartDate])
+
+  useEffect(() => {
+    const fromOccurrence = Array.isArray(occurrence?.workspaces) ? occurrence.workspaces : []
+    const fromEvent = Array.isArray(details.event?.workspaces) ? details.event.workspaces : []
+    setEventWorkspaces(fromEvent.length > 0 ? fromEvent : fromOccurrence)
+  }, [occurrence?.workspaces, details.event?.workspaces, occurrence?.eventId])
 
   if (!occurrence) {
     return null
@@ -137,6 +156,59 @@ export default function EventDetailPanel({
   const reminderOptions = Array.from(
     new Set([...REMINDER_PRESETS, ...details.reminders.map((r) => r.minutes_before)]),
   ).sort((a, b) => a - b)
+
+  const workspaceRoleById = new Map(
+    (Array.isArray(accessibleWorkspaces) ? accessibleWorkspaces : []).map((w) => [w.id, w.current_user_role]),
+  )
+  const canManageWorkspace = (workspaceId) => MANAGE_ROLES.has(workspaceRoleById.get(workspaceId))
+  const eventWorkspaceIds = new Set(eventWorkspaces.map((w) => w.id))
+  const attachableWorkspaces = (Array.isArray(accessibleWorkspaces) ? accessibleWorkspaces : [])
+    .filter((w) => canManageWorkspace(w.id) && !eventWorkspaceIds.has(w.id))
+
+  async function handleAttachWorkspace(workspaceId) {
+    if (!resolvedCalendarId || !occurrence?.eventId || !workspaceId || workspaceBusyId) return
+    setWorkspaceBusyId(workspaceId)
+    setWorkspaceError('')
+    try {
+      await attachEventToWorkspace(resolvedCalendarId, occurrence.eventId, workspaceId)
+      const ws = (Array.isArray(accessibleWorkspaces) ? accessibleWorkspaces : []).find((w) => w.id === workspaceId)
+      if (ws) {
+        const attached = { id: ws.id, name: ws.name, workspace_type: ws.workspace_type }
+        setEventWorkspaces((prev) => (prev.some((p) => p.id === ws.id) ? prev : [...prev, attached]))
+        onWorkspaceChanged?.({ attachedWorkspace: attached })
+      } else {
+        onWorkspaceChanged?.()
+      }
+    } catch (err) {
+      if (err?.status === 401) {
+        onUnauthorized?.()
+        return
+      }
+      setWorkspaceError(err?.message || 'Could not add the event to the workspace.')
+    } finally {
+      setWorkspaceBusyId(null)
+    }
+  }
+
+  async function handleDetachWorkspace(workspaceId) {
+    if (!resolvedCalendarId || !occurrence?.eventId || !workspaceId || workspaceBusyId) return
+    if (eventWorkspaces.length <= 1) return
+    setWorkspaceBusyId(workspaceId)
+    setWorkspaceError('')
+    try {
+      await detachEventFromWorkspace(resolvedCalendarId, occurrence.eventId, workspaceId)
+      setEventWorkspaces((prev) => prev.filter((w) => w.id !== workspaceId))
+      onWorkspaceChanged?.({ detachedWorkspaceId: workspaceId })
+    } catch (err) {
+      if (err?.status === 401) {
+        onUnauthorized?.()
+        return
+      }
+      setWorkspaceError(err?.message || 'Could not remove the event from the workspace.')
+    } finally {
+      setWorkspaceBusyId(null)
+    }
+  }
 
   async function handleAddComment(formEvent) {
     formEvent.preventDefault()
@@ -253,6 +325,73 @@ export default function EventDetailPanel({
                     </span>
                   </DetailRow>
                 )}
+
+                <DetailRow icon={Layers} label="Workspaces">
+                  <div className="grid gap-2">
+                    {eventWorkspaces.length === 0 ? (
+                      <p className="text-[12px] text-muted-foreground">No workspace associations.</p>
+                    ) : (
+                      <ul className="grid gap-1.5">
+                        {eventWorkspaces.map((ws) => {
+                          const canDetach = !readOnly && canManageWorkspace(ws.id)
+                          const isLast = eventWorkspaces.length <= 1
+                          const busy = workspaceBusyId === ws.id
+                          return (
+                            <li key={ws.id} className="flex items-center gap-2">
+                              <span className="min-w-0 flex-1 truncate text-[13px]">{ws.name}</span>
+                              {ws.workspace_type === 'personal' && (
+                                <Badge variant="outline" className="px-1.5 py-0 text-[10px]">Personal</Badge>
+                              )}
+                              {canDetach && (
+                                <Button
+                                  type="button"
+                                  variant="ghost"
+                                  size="sm"
+                                  className="h-7 px-2 text-[12px] text-muted-foreground hover:text-destructive"
+                                  disabled={busy || isLast || workspaceBusyId != null}
+                                  title={isLast ? 'Cannot remove the last workspace association' : `Remove from ${ws.name}`}
+                                  onClick={() => handleDetachWorkspace(ws.id)}
+                                >
+                                  {busy ? 'Removing…' : 'Remove'}
+                                </Button>
+                              )}
+                            </li>
+                          )
+                        })}
+                      </ul>
+                    )}
+
+                    {!readOnly && eventWorkspaces.length <= 1 && eventWorkspaces.length > 0 && (
+                      <p className="text-[11px] text-muted-foreground">The last workspace association cannot be removed.</p>
+                    )}
+
+                    {!readOnly && attachableWorkspaces.length > 0 && (
+                      <div className="flex items-center gap-2">
+                        <Select
+                          value=""
+                          onValueChange={(value) => {
+                            const id = Number(value)
+                            if (Number.isFinite(id)) handleAttachWorkspace(id)
+                          }}
+                          disabled={workspaceBusyId != null}
+                        >
+                          <SelectTrigger className="h-8 flex-1 text-[12.5px]" aria-label="Add event to workspace">
+                            <SelectValue placeholder="Add to workspace…" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {attachableWorkspaces.map((ws) => (
+                              <SelectItem key={ws.id} value={String(ws.id)}>
+                                {ws.name}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                    )}
+
+                    <FieldMessage error={workspaceError} />
+                  </div>
+                </DetailRow>
 
                 {description && (
                   <DetailRow icon={FileText} label="Description">
@@ -457,9 +596,10 @@ export default function EventDetailPanel({
                 className="h-9 flex-1 gap-1.5 text-destructive hover:bg-destructive/10 hover:text-destructive"
                 onClick={() => onDelete?.(event, occurrence)}
                 disabled={!canEdit}
+                title="Permanently delete this event"
               >
                 <Trash2 size={14} aria-hidden="true" />
-                Delete
+                Delete everywhere
               </Button>
             </>
           ) : (

@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { listOccurrences, listProjectOccurrences } from './api.js'
+import { listAccessibleOccurrences, listOccurrences, listProjectOccurrences } from './api.js'
 
 /**
  * Maps a backend occurrence onto the camelCase descriptor used by the detail
@@ -26,6 +26,7 @@ export function occurrenceToSelection(occurrence) {
     isRecurring: Boolean(occurrence.is_recurring),
     isException: Boolean(occurrence.is_exception),
     category: occurrence.category || 'other',
+    workspaces: Array.isArray(occurrence.workspaces) ? occurrence.workspaces : [],
   }
 }
 
@@ -35,23 +36,13 @@ export function occurrenceToSelection(occurrence) {
  * Recurring occurrences keep the backend's original occurrence identifier so
  * edits and cancellations can be sent back with the exact identifier the
  * backend expects (a timestamp for timed events, a date for all-day events).
- *
- * **Important**: For recurring events, the FullCalendar `id` must be unique per
- * occurrence (not based on `original_start_at`/`original_start_date` which are
- * the same for all occurrences). The backend `event_id` is preserved in
- * `extendedProps.eventId` for editing/cancellation logic.
  */
 export function occurrenceToCalendarEvent(occurrence, calendar) {
-  const originalKey = occurrence.original_start_at ?? occurrence.original_start_date
-  
   // Use the occurrence's own start time/date for a unique ID per occurrence.
-  // original_start_at/date are the same for all occurrences in a series,
-  // FullCalendar to deduplicate them into one event.
   const occurrenceKey = occurrence.is_all_day
     ? occurrence.start_date
     : occurrence.start_at
-  
-  // Ensure a unique ID per occurrence by using event_id with a differentiator
+
   const id = occurrence.is_recurring
     ? `${occurrence.event_id}:${occurrenceKey || occurrence.event_id}`
     : String(occurrence.event_id)
@@ -73,8 +64,6 @@ export function occurrenceToCalendarEvent(occurrence, calendar) {
   }
 
   if (occurrence.is_all_day) {
-    // Backend dates are date-only with an exclusive end, exactly like
-    // FullCalendar's all-day representation: pass them through untouched.
     return {
       id,
       title: occurrence.title,
@@ -85,7 +74,6 @@ export function occurrenceToCalendarEvent(occurrence, calendar) {
     }
   }
 
-  // For timed events, ensure start/end are always present
   return {
     id,
     title: occurrence.title,
@@ -96,14 +84,31 @@ export function occurrenceToCalendarEvent(occurrence, calendar) {
   }
 }
 
+function calendarLookup(calendars) {
+  const map = new Map()
+  if (Array.isArray(calendars)) {
+    for (const c of calendars) {
+      if (c?.id != null) map.set(c.id, c)
+    }
+  }
+  return map
+}
+
 /**
  * Loads occurrences for the visible range. Newer requests abort older ones so
  * a slow response can never overwrite fresher data.
+ *
+ * Modes:
+ * - calendarId: list occurrences for a specific calendar (default)
+ * - projectId: list project occurrences
+ * - workspaceScope: 'all' or a workspace id - uses global accessible occurrences endpoint
  */
 export default function useCalendarEvents({
   calendarId,
   projectId,
   calendar,
+  calendars,
+  workspaceScope,
   onUnauthorized,
 }) {
   const unauthorizedRef = useRef(onUnauthorized)
@@ -118,10 +123,13 @@ export default function useCalendarEvents({
   const requestRef = useRef(0)
   const abortRef = useRef(null)
 
+  const useAccessible = workspaceScope != null
+  const workspaceId = workspaceScope === 'all' ? undefined : workspaceScope
+
   const load = useCallback(
     async (range) => {
       const sourceId = projectId ?? calendarId
-      if (!sourceId) {
+      if (!useAccessible && !sourceId) {
         requestRef.current += 1
         abortRef.current?.abort()
         setOccurrences([])
@@ -138,15 +146,24 @@ export default function useCalendarEvents({
       setLoading(true)
       setError('')
       try {
-        const data = projectId
-          ? await listProjectOccurrences(projectId, {
-              ...range,
-              signal: controller.signal,
-            })
-          : await listOccurrences(calendarId, {
-              ...range,
-              signal: controller.signal,
-            })
+        let data
+        if (useAccessible) {
+          data = await listAccessibleOccurrences({
+            ...range,
+            workspaceId,
+            signal: controller.signal,
+          })
+        } else if (projectId) {
+          data = await listProjectOccurrences(projectId, {
+            ...range,
+            signal: controller.signal,
+          })
+        } else {
+          data = await listOccurrences(calendarId, {
+            ...range,
+            signal: controller.signal,
+          })
+        }
         if (requestId !== requestRef.current) {
           return
         }
@@ -166,10 +183,9 @@ export default function useCalendarEvents({
         }
       }
     },
-    [calendarId, projectId],
+    [calendarId, projectId, useAccessible, workspaceId],
   )
 
-  /** Called from FullCalendar's datesSet; skips identical ranges. */
   const setRange = useCallback(
     (range) => {
       const current = rangeRef.current
@@ -193,24 +209,34 @@ export default function useCalendarEvents({
     }
   }, [load])
 
-  // Reload when the selected calendar changes (load's identity changes).
   useEffect(() => {
     if (rangeRef.current) {
       load(rangeRef.current)
     }
   }, [load])
 
-  // Switching calendars/projects must not leave another scope's events on screen.
+  // Switching scope/calendars/projects must not leave stale events on screen.
   useEffect(() => {
     setOccurrences([])
     setError('')
-  }, [calendarId, projectId])
+  }, [calendarId, projectId, useAccessible, workspaceId])
 
   useEffect(() => () => abortRef.current?.abort(), [])
 
+  const calendarById = useMemo(() => calendarLookup(calendars), [calendars])
+
   const events = useMemo(
-    () => occurrences.map((occurrence) => occurrenceToCalendarEvent(occurrence, calendar)),
-    [occurrences, calendar],
+    () =>
+      occurrences.map((occurrence) => {
+        const occCalendar =
+          calendarById.get(occurrence.calendar_id) ||
+          calendar ||
+          (occurrence.calendar_id != null
+            ? { id: occurrence.calendar_id, name: `Calendar #${occurrence.calendar_id}`, color: null }
+            : null)
+        return occurrenceToCalendarEvent(occurrence, occCalendar)
+      }),
+    [occurrences, calendar, calendarById],
   )
 
   return { events, occurrences, loading, error, setRange, reload }

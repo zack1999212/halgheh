@@ -1,5 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom'
+import { useActiveWorkspace } from '../../workspace/ActiveWorkspaceContext.jsx'
+import { ALL_WORKSPACES } from '../../workspace/constants.js'
 import { Library, PanelRight, X } from 'lucide-react'
 import { updateDocument as updateDocumentRequest } from './api/client.js'
 import { useDocument } from './hooks/useDocument.js'
@@ -115,22 +117,35 @@ export default function DocumentsPage() {
 
   // ------------------------------------------------------------- data hooks
   const workspaces = useWorkspaces()
+  const { workspaceScope: globalWorkspaceScope, defaultWorkspaceId } = useActiveWorkspace()
   const [activeWorkspaceId, setActiveWorkspaceId] = useState(
-    () => parsePositiveInt(searchParams.get('vault')),
+    () => {
+      const vault = searchParams.get('vault')
+      if (vault === 'all') return ALL_WORKSPACES
+      return parsePositiveInt(vault)
+    },
   )
 
   useEffect(() => {
+    if (globalWorkspaceScope != null) {
+      setActiveWorkspaceId(globalWorkspaceScope)
+    }
+  }, [globalWorkspaceScope])
+
+  useEffect(() => {
+    if (activeWorkspaceId === ALL_WORKSPACES) return
     if (workspaces.status !== 'ready') return
     const items = workspaces.data || []
     if (!items.length) return
     if (items.some((workspace) => workspace.id === activeWorkspaceId)) return
-    const urlVault = parsePositiveInt(searchParams.get('vault'))
-    if (urlVault && items.some((workspace) => workspace.id === urlVault)) {
-      setActiveWorkspaceId(urlVault)
-      return
-    }
-    setActiveWorkspaceId(items[0].id)
-  }, [workspaces.status, workspaces.data, activeWorkspaceId, searchParams])
+    const preferred =
+      (globalWorkspaceScope != null && globalWorkspaceScope !== ALL_WORKSPACES && items.some((w) => w.id === globalWorkspaceScope))
+        ? globalWorkspaceScope
+        : (defaultWorkspaceId != null && items.some((w) => w.id === defaultWorkspaceId))
+          ? defaultWorkspaceId
+          : items[0].id
+    setActiveWorkspaceId(preferred)
+  }, [workspaces.status, workspaces.data, activeWorkspaceId, globalWorkspaceScope, defaultWorkspaceId])
 
   const VALID_MODES = new Set(['documents', 'favorites', 'trash', 'graph', 'archived'])
   const initialMode = searchParams.get('mode')
@@ -145,6 +160,14 @@ export default function DocumentsPage() {
     () => parseTagIds(searchParams.get('tags')),
   )
 
+  useEffect(() => {
+    if (activeWorkspaceId === ALL_WORKSPACES) {
+      setActiveFolderId(null)
+      setActiveTagIds([])
+      if (mode === 'graph') setMode('documents')
+    }
+  }, [activeWorkspaceId, mode])
+
   // Keep URL as source of truth for refresh/deep links.
   useEffect(() => {
     const next = new URLSearchParams(searchParams)
@@ -152,7 +175,7 @@ export default function DocumentsPage() {
       if (value === null || value === undefined || value === '' || value === false) next.delete(key)
       else next.set(key, String(value))
     }
-    setOrDelete('vault', activeWorkspaceId)
+    setOrDelete('vault', activeWorkspaceId === ALL_WORKSPACES ? 'all' : activeWorkspaceId)
     setOrDelete('mode', mode !== 'documents' ? mode : null)
     setOrDelete('folder', activeFolderId)
     setOrDelete('tags', activeTagIds.length ? activeTagIds.join(',') : null)
@@ -162,14 +185,15 @@ export default function DocumentsPage() {
     }
   }, [activeWorkspaceId, mode, activeFolderId, activeTagIds, query, searchParams, setSearchParams])
 
-  const folderTree = useFolderTree(activeWorkspaceId)
-  const tags = useTags(activeWorkspaceId)
+  const selectedWorkspaceId = activeWorkspaceId === ALL_WORKSPACES ? null : activeWorkspaceId
+  const folderTree = useFolderTree(selectedWorkspaceId)
+  const tags = useTags(selectedWorkspaceId)
   const folderNameById = useMemo(
     () => buildFolderNameMap(folderTree.data?.items),
     [folderTree.data],
   )
   const documentList = useDocumentList({
-    workspaceId: activeWorkspaceId,
+    workspaceId: selectedWorkspaceId,
     folderId: activeFolderId,
     query,
     tagIds: activeTagIds,
@@ -333,6 +357,7 @@ export default function DocumentsPage() {
       const created = await documentList.create({
         title,
         folderId: mode === 'documents' ? activeFolderId : null,
+        workspaceId: activeWorkspaceId === ALL_WORKSPACES ? defaultWorkspaceId : activeWorkspaceId,
       })
       setCreateOpen(false)
       openDocument(created.id)
@@ -665,13 +690,13 @@ export default function DocumentsPage() {
                 onRestore={handleRestoreDocument}
                 onBack={closeDocument}
                 onOpenDocument={openDocument}
-                workspaceId={activeWorkspaceId}
+                workspaceId={selectedWorkspaceId}
                 folderNameById={folderNameById}
               />
             )
           ) : mode === 'graph' ? (
             <DocumentGraph
-              workspaceId={activeWorkspaceId}
+              workspaceId={selectedWorkspaceId}
               activeDocumentId={activeDocumentId}
               onOpenDocument={openDocument}
             />
@@ -681,6 +706,7 @@ export default function DocumentsPage() {
               heading={listHeading}
               documentList={documentList}
               searchActive={Boolean(query?.trim()) || activeTagIds.length > 0}
+              activeWorkspaceId={selectedWorkspaceId}
               onCreate={() => setCreateOpen(true)}
               onOpen={openDocument}
               onToggleFavorite={handleToggleFavorite}

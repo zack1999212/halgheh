@@ -3,7 +3,7 @@ import ErrorState from '@/components/shared/ErrorState'
 import EmptyState from '@/components/shared/EmptyState'
 import TaskCard from './TaskCard.jsx'
 
-export default function TaskListView({ items, loading, error, onRetry, onStatusChange, onOpen, isStatusPending, readOnly = false, emptyTitle = 'No tasks found', emptyDescription = 'Try adjusting filters or create a new task.' }) {
+export default function TaskListView({ items, loading, error, onRetry, onStatusChange, onOpen, isStatusPending, readOnly = false, emptyTitle = 'No tasks found', emptyDescription = 'Try adjusting filters or create a new task.', activeWorkspaceId = null }) {
   if (loading) {
     return <div className="p-2"><LoadingState label="Loading tasks…" /></div>
   }
@@ -30,6 +30,7 @@ export default function TaskListView({ items, loading, error, onRetry, onStatusC
           onOpen={onOpen}
           busy={typeof isStatusPending === 'function' ? isStatusPending(task.id) : false}
           readOnly={readOnly}
+          activeWorkspaceId={activeWorkspaceId}
         />
       ))}
     </div>

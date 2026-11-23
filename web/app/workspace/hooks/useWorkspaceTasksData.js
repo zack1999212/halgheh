@@ -1,6 +1,7 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { listTasks } from '../../features/tasks/api/client.js'
 import { getBrowserTimeZone } from '../../calendar/time.js'
+import { ALL_WORKSPACES } from '../constants.js'
 
 function toArray(value) {
   if (Array.isArray(value)) return value
@@ -39,7 +40,6 @@ function isActive(task) {
 
 function parseTaskDate(task) {
   if (!task || typeof task !== 'object') return null
-  // Prefer explicit date-only fields, then due/start timestamps.
   const dateOnly = task.due_date || task.date || task.start_date
   if (typeof dateOnly === 'string' && /^\d{4}-\d{2}-\d{2}/.test(dateOnly)) {
     return dateOnly.slice(0, 10)
@@ -63,35 +63,54 @@ function compareTasks(a, b) {
 }
 
 /**
- * Loads tasks for the workspace dashboard from the existing backend.
- * The current backend exposes GET /tasks/ -> { items: [] } with no task
- * model/fields; derivations are defensive and based only on returned data.
+ * Loads tasks for the selected workspace dashboard.
  */
-export default function useWorkspaceTasksData({ onUnauthorized } = {}) {
+export default function useWorkspaceTasksData({ onUnauthorized, workspaceId } = {}) {
   const [tasks, setTasks] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
+  const requestRef = useRef(0)
+  const unauthorizedRef = useRef(onUnauthorized)
+
+  useEffect(() => {
+    unauthorizedRef.current = onUnauthorized
+  }, [onUnauthorized])
 
   const timeZone = useMemo(() => getBrowserTimeZone(), [])
   const todayStr = useMemo(() => localDateString(new Date(), timeZone), [timeZone])
 
   const load = useCallback(async () => {
+    const requestId = ++requestRef.current
+
+    if (workspaceId == null) {
+      setTasks([])
+      setError('')
+      setLoading(false)
+      return
+    }
+
     setLoading(true)
     setError('')
+    setTasks([])
     try {
-      const data = await listTasks()
+      const params = workspaceId === ALL_WORKSPACES ? {} : { workspace_id: workspaceId }
+      const data = await listTasks(params)
+      if (requestId !== requestRef.current) return
       setTasks(toArray(data))
     } catch (err) {
+      if (requestId !== requestRef.current) return
       if (err?.status === 401) {
-        onUnauthorized?.()
+        unauthorizedRef.current?.()
         return
       }
       setError(err?.message || 'Could not load tasks.')
       setTasks([])
     } finally {
-      setLoading(false)
+      if (requestId === requestRef.current) {
+        setLoading(false)
+      }
     }
-  }, [onUnauthorized])
+  }, [workspaceId])
 
   useEffect(() => {
     load()
@@ -108,7 +127,6 @@ export default function useWorkspaceTasksData({ onUnauthorized } = {}) {
       })
       .sort(compareTasks)
 
-    // Overdue: active task with a due date before today (date-based).
     const overdueCount = active.filter((t) => {
       const d = parseTaskDate(t)
       return d && d < todayStr

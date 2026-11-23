@@ -7,6 +7,7 @@ import {
   Star,
   Trash2,
 } from 'lucide-react'
+import { ALL_WORKSPACES } from '../../../workspace/constants.js'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import {
@@ -73,6 +74,8 @@ export default function LeftSidebar({
   const [creatingWorkspace, setCreatingWorkspace] = useState(false)
   const [showAllTags, setShowAllTags] = useState(false)
   const [tagFilter, setTagFilter] = useState('')
+  const isAll = activeWorkspaceId === ALL_WORKSPACES
+  const visibleViews = isAll ? VIEWS.filter((v) => v.id !== 'graph') : VIEWS
 
   // Keep the input in sync when the view resets (workspace change etc.).
   useEffect(() => {
@@ -101,11 +104,11 @@ export default function LeftSidebar({
       {/* Vault selector */}
       <div className="flex flex-none items-center gap-1 px-3 py-3">
         <Select
-          value={activeWorkspaceId ? String(activeWorkspaceId) : ''}
-          onValueChange={(value) => onWorkspaceChange(Number(value))}
+          value={activeWorkspaceId === ALL_WORKSPACES ? ALL_WORKSPACES : (activeWorkspaceId ? String(activeWorkspaceId) : '')}
+          onValueChange={(value) => onWorkspaceChange(value === ALL_WORKSPACES ? ALL_WORKSPACES : Number(value))}
         >
           <SelectTrigger
-            aria-label="Active vault"
+            aria-label="Active workspace"
             className="h-8 flex-1 border-transparent bg-transparent px-2 text-[13px] font-semibold shadow-none hover:border-border hover:bg-card data-[state=open]:border-border"
           >
             <SelectValue
@@ -113,12 +116,13 @@ export default function LeftSidebar({
                 workspaces.status === 'loading'
                   ? 'Loading…'
                   : workspaces.status === 'error'
-                    ? 'Could not load vaults'
-                    : 'No vault'
+                    ? 'Could not load workspaces'
+                    : 'Select workspace'
               }
             />
           </SelectTrigger>
           <SelectContent>
+            <SelectItem value={ALL_WORKSPACES}>All Workspaces</SelectItem>
             {(workspaces.data || []).map((workspace) => (
               <SelectItem key={workspace.id} value={String(workspace.id)}>
                 {workspace.name}
@@ -167,7 +171,7 @@ export default function LeftSidebar({
         {/* Views */}
         <nav aria-label="Document views" className="px-2 py-2">
           <ul className="grid gap-0.5">
-            {VIEWS.map((view) => {
+            {visibleViews.map((view) => {
               const active = mode === view.id
               return (
                 <li key={view.id}>
@@ -191,111 +195,115 @@ export default function LeftSidebar({
           </ul>
         </nav>
 
-        {/* Tags */}
-        <section aria-label="Filter by tag" className="px-3 py-2">
-          <div className="mb-1.5 flex items-center justify-between gap-2">
-            <h3 className="text-[11px] font-bold uppercase tracking-[0.08em] text-muted-foreground">
-              Tags
-            </h3>
-            {tags.data?.length ? (
-              <span className="text-[11px] text-muted-foreground">{tags.data.length}</span>
-            ) : null}
-          </div>
-          {tags.status === 'loading' ? (
-            <div className="grid gap-2 py-1" role="status" aria-label="Loading tags">
-              <div className="h-2.5 w-2/3 animate-pulse rounded-md bg-primary/10" />
-              <div className="h-2.5 w-1/2 animate-pulse rounded-md bg-primary/10" />
-            </div>
-          ) : tags.status === 'error' ? (
-            <ErrorState
-              message="Tags could not be loaded."
-              onRetry={tags.reload}
-              className="py-1 text-[12px]"
-            />
-          ) : tags.data?.length ? (
-            (() => {
-              const normalizedFilter = tagFilter.trim().toLowerCase()
-              const sorted = [...tags.data].sort((a, b) => a.name.localeCompare(b.name))
-              const filtered = normalizedFilter
-                ? sorted.filter((t) => t.name.toLowerCase().includes(normalizedFilter))
-                : sorted
-              const visible = showAllTags || normalizedFilter ? filtered : filtered.slice(0, TAG_VISIBLE_LIMIT)
-              const hiddenCount = Math.max(0, filtered.length - visible.length)
-              return (
-                <div className="grid gap-1">
-                  {sorted.length > TAG_VISIBLE_LIMIT && (
-                    <Input
-                      value={tagFilter}
-                      onChange={(e) => setTagFilter(e.target.value)}
-                      placeholder="Filter tags…"
-                      aria-label="Filter tags"
-                      className="h-7 bg-card text-[12px]"
-                    />
-                  )}
-                  {filtered.length ? (
-                    <ul className="grid gap-0.5">
-                      {visible.map((tag) => {
-                        const active = activeTagIds.includes(tag.id)
-                        return (
-                          <li key={tag.id}>
-                            <button
-                              type="button"
-                              className={cn(
-                                'flex w-full items-center gap-2 rounded-md px-2 py-1 text-left text-[13px] transition-colors hover:bg-accent focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring',
-                                active
-                                  ? 'bg-accent font-medium text-foreground'
-                                  : 'text-muted-foreground hover:text-foreground',
-                              )}
-                              aria-pressed={active}
-                              onClick={() =>
-                                onTagFilterChange(
-                                  active
-                                    ? activeTagIds.filter((id) => id !== tag.id)
-                                    : [...activeTagIds, tag.id],
-                                )
-                              }
-                            >
-                              <TagDot color={tag.color} />
-                              <span className="truncate">{tag.name}</span>
-                            </button>
-                          </li>
-                        )
-                      })}
-                    </ul>
-                  ) : (
-                    <p className="py-1 text-[12px] text-muted-foreground">No tags match this filter.</p>
-                  )}
-                  {!normalizedFilter && filtered.length > TAG_VISIBLE_LIMIT && (
-                    <button
-                      type="button"
-                      className="px-2 py-1 text-left text-[12px] text-muted-foreground hover:text-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring rounded-md"
-                      onClick={() => setShowAllTags((v) => !v)}
-                    >
-                      {showAllTags ? 'Show less' : `Show more (${hiddenCount})`}
-                    </button>
-                  )}
+        {!isAll && (
+          <>
+            {/* Tags */}
+            <section aria-label="Filter by tag" className="px-3 py-2">
+              <div className="mb-1.5 flex items-center justify-between gap-2">
+                <h3 className="text-[11px] font-bold uppercase tracking-[0.08em] text-muted-foreground">
+                  Tags
+                </h3>
+                {tags.data?.length ? (
+                  <span className="text-[11px] text-muted-foreground">{tags.data.length}</span>
+                ) : null}
+              </div>
+              {tags.status === 'loading' ? (
+                <div className="grid gap-2 py-1" role="status" aria-label="Loading tags">
+                  <div className="h-2.5 w-2/3 animate-pulse rounded-md bg-primary/10" />
+                  <div className="h-2.5 w-1/2 animate-pulse rounded-md bg-primary/10" />
                 </div>
-              )
-            })()
-          ) : (
-            <p className="py-1 text-[12px] text-muted-foreground">No tags in this vault yet.</p>
-          )}
-        </section>
+              ) : tags.status === 'error' ? (
+                <ErrorState
+                  message="Tags could not be loaded."
+                  onRetry={tags.reload}
+                  className="py-1 text-[12px]"
+                />
+              ) : tags.data?.length ? (
+                (() => {
+                  const normalizedFilter = tagFilter.trim().toLowerCase()
+                  const sorted = [...tags.data].sort((a, b) => a.name.localeCompare(b.name))
+                  const filtered = normalizedFilter
+                    ? sorted.filter((t) => t.name.toLowerCase().includes(normalizedFilter))
+                    : sorted
+                  const visible = showAllTags || normalizedFilter ? filtered : filtered.slice(0, TAG_VISIBLE_LIMIT)
+                  const hiddenCount = Math.max(0, filtered.length - visible.length)
+                  return (
+                    <div className="grid gap-1">
+                      {sorted.length > TAG_VISIBLE_LIMIT && (
+                        <Input
+                          value={tagFilter}
+                          onChange={(e) => setTagFilter(e.target.value)}
+                          placeholder="Filter tags…"
+                          aria-label="Filter tags"
+                          className="h-7 bg-card text-[12px]"
+                        />
+                      )}
+                      {filtered.length ? (
+                        <ul className="grid gap-0.5">
+                          {visible.map((tag) => {
+                            const active = activeTagIds.includes(tag.id)
+                            return (
+                              <li key={tag.id}>
+                                <button
+                                  type="button"
+                                  className={cn(
+                                    'flex w-full items-center gap-2 rounded-md px-2 py-1 text-left text-[13px] transition-colors hover:bg-accent focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring',
+                                    active
+                                      ? 'bg-accent font-medium text-foreground'
+                                      : 'text-muted-foreground hover:text-foreground',
+                                  )}
+                                  aria-pressed={active}
+                                  onClick={() =>
+                                    onTagFilterChange(
+                                      active
+                                        ? activeTagIds.filter((id) => id !== tag.id)
+                                        : [...activeTagIds, tag.id],
+                                    )
+                                  }
+                                >
+                                  <TagDot color={tag.color} />
+                                  <span className="truncate">{tag.name}</span>
+                                </button>
+                              </li>
+                            )
+                          })}
+                        </ul>
+                      ) : (
+                        <p className="py-1 text-[12px] text-muted-foreground">No tags match this filter.</p>
+                      )}
+                      {!normalizedFilter && filtered.length > TAG_VISIBLE_LIMIT && (
+                        <button
+                          type="button"
+                          className="px-2 py-1 text-left text-[12px] text-muted-foreground hover:text-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring rounded-md"
+                          onClick={() => setShowAllTags((v) => !v)}
+                        >
+                          {showAllTags ? 'Show less' : `Show more (${hiddenCount})`}
+                        </button>
+                      )}
+                    </div>
+                  )
+                })()
+              ) : (
+                <p className="py-1 text-[12px] text-muted-foreground">No tags in this vault yet.</p>
+              )}
+            </section>
 
-        {/* Folders */}
-        <section aria-label="Folders" className="px-2 py-2">
-          <h3 className="mb-1 px-1 text-[11px] font-bold uppercase tracking-[0.08em] text-muted-foreground">
-            Folders
-          </h3>
-          <FolderTree
-            tree={folderTree}
-            activeFolderId={activeFolderId}
-            onSelect={onFolderSelect}
-            onCreate={onFolderCreate}
-            onRename={onFolderRename}
-            onDelete={onFolderDelete}
-          />
-        </section>
+            {/* Folders */}
+            <section aria-label="Folders" className="px-2 py-2">
+              <h3 className="mb-1 px-1 text-[11px] font-bold uppercase tracking-[0.08em] text-muted-foreground">
+                Folders
+              </h3>
+              <FolderTree
+                tree={folderTree}
+                activeFolderId={activeFolderId}
+                onSelect={onFolderSelect}
+                onCreate={onFolderCreate}
+                onRename={onFolderRename}
+                onDelete={onFolderDelete}
+              />
+            </section>
+          </>
+        )}
       </div>
 
       <div className="flex-none border-t border-border p-3">

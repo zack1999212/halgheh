@@ -21,7 +21,6 @@ export default {
     './calendar/**/*.{js,jsx}',
     './ai/**/*.{js,jsx}',
     './features/**/*.{js,jsx}',
-    './projects/**/*.{js,jsx}',
     './task/**/*.{js,jsx}',
     './notifications/**/*.{js,jsx}',
     './workspace/**/*.{js,jsx}',

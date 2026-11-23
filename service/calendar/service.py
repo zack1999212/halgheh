@@ -938,6 +938,88 @@ def list_occurrences(
     return results
 
 
+def list_accessible_occurrences(
+    db: Session,
+    user_id: int,
+    start: datetime,
+    end: datetime,
+    timezone_name: str,
+    workspace_id: int | None = None,
+) -> list[OccurrenceResponse]:
+    """Expanded occurrences for all events accessible to the user.
+
+    Discovery is based on authorized workspace associations (and legacy
+    owner/project fallback inside expansion access checks), not on calendar
+    ownership enumeration alone.
+    """
+    if workspace_id is not None:
+        from ..workspace import service as ws_service
+
+        ws_service.get_accessible_workspace(db, workspace_id, user_id)
+
+    tz, local_start_date, local_end_date = _validate_occurrence_window(
+        start, end, timezone_name
+    )
+
+    from sqlalchemy import select
+    from ..workspace import repository as ws_repo
+
+    accessible_ws_ids = ws_repo.list_accessible_workspace_ids(db, user_id)
+    candidate_calendar_ids: set[int] = {
+        cal.id for cal in repository.list_for_user(db, user_id)
+    }
+    candidate_calendar_ids.update(
+        repository.list_calendar_ids_for_workspace_ids(db, list(accessible_ws_ids))
+    )
+
+    if not candidate_calendar_ids:
+        return []
+
+    calendars = list(
+        db.scalars(select(Calendar).where(Calendar.id.in_(candidate_calendar_ids))).all()
+    )
+    calendars_by_id = {cal.id: cal for cal in calendars}
+
+    merged: list[OccurrenceResponse] = []
+    seen: set[tuple] = set()
+    for calendar_id in sorted(candidate_calendar_ids):
+        calendar = calendars_by_id.get(calendar_id)
+        if calendar is None:
+            continue
+        expanded = _expand_calendar_occurrences(
+            db,
+            calendar,
+            user_id,
+            start=start,
+            end=end,
+            tz=tz,
+            local_start_date=local_start_date,
+            local_end_date=local_end_date,
+            workspace_id=workspace_id,
+        )
+        for occ in expanded:
+            key = (
+                occ.event_id,
+                occ.original_start_at,
+                occ.original_start_date,
+                occ.start_at,
+                occ.start_date,
+                occ.end_at,
+                occ.end_date,
+            )
+            if key in seen:
+                continue
+            seen.add(key)
+            merged.append(occ)
+            if len(merged) > recurrence.MAX_OCCURRENCES:
+                raise HTTPException(
+                    status_code=422,
+                    detail="Occurrence expansion exceeded the maximum of 5000",
+                )
+
+    return _sort_occurrences(merged, tz)
+
+
 def list_project_occurrences(
     db: Session,
     project_id: int,

@@ -46,12 +46,12 @@ export default function NotificationItem({
       <div className="notification-item-actions">
         {notification.type === 'project_invitation' && (
           <Link
-            to="/projects/invitations"
+            to="/workspace"
             className="notification-item-action"
-            aria-label="View project invitations"
+            aria-label="View workspace"
           >
             <Mail size={13} aria-hidden="true" />
-            <span>View invitations</span>
+            <span>View workspace</span>
           </Link>
         )}
         <button

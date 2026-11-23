@@ -33,10 +33,24 @@ export function deleteCalendar(calendarId) {
 
 export function listOccurrences(
   calendarId,
-  { start, end, timezone, signal } = {},
+  { start, end, timezone, workspaceId, signal } = {},
 ) {
   const params = new URLSearchParams({ start, end, timezone })
+  if (workspaceId !== undefined && workspaceId !== null && workspaceId !== '') {
+    params.set('workspace_id', String(workspaceId))
+  }
   return apiRequest(`/calendars/${calendarId}/occurrences?${params}`, {
+    fallbackMessage: 'Could not load events.',
+    signal,
+  })
+}
+
+export function listAccessibleOccurrences({ start, end, timezone, workspaceId, signal } = {}) {
+  const params = new URLSearchParams({ start, end, timezone })
+  if (workspaceId !== undefined && workspaceId !== null && workspaceId !== '') {
+    params.set('workspace_id', String(workspaceId))
+  }
+  return apiRequest(`/calendars/occurrences?${params}`, {
     fallbackMessage: 'Could not load events.',
     signal,
   })
@@ -175,6 +189,32 @@ export function deleteComment(calendarId, eventId, commentId) {
     {
       method: 'DELETE',
       fallbackMessage: 'Could not delete the comment.',
+    },
+  )
+}
+
+export function listEventWorkspaces(calendarId, eventId) {
+  return apiRequest(`/calendars/${calendarId}/events/${eventId}/workspaces`, {
+    fallbackMessage: 'Could not load event workspaces.',
+  })
+}
+
+export function attachEventToWorkspace(calendarId, eventId, workspaceId) {
+  return apiRequest(
+    `/calendars/${calendarId}/events/${eventId}/workspaces/${workspaceId}`,
+    {
+      method: 'POST',
+      fallbackMessage: 'Could not add the event to the workspace.',
+    },
+  )
+}
+
+export function detachEventFromWorkspace(calendarId, eventId, workspaceId) {
+  return apiRequest(
+    `/calendars/${calendarId}/events/${eventId}/workspaces/${workspaceId}`,
+    {
+      method: 'DELETE',
+      fallbackMessage: 'Could not remove the event from the workspace.',
     },
   )
 }

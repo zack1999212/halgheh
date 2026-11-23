@@ -125,6 +125,7 @@ export default function EventDialog({
   calendarId,
   calendars = [],
   projectId = null,
+  workspaceId = null,
   initialAllDay,
   initialStartAt,
   initialEndAt,
@@ -400,6 +401,7 @@ export default function EventDialog({
             category,
           }
       if (projectId != null) payload.project_id = Number(projectId)
+      if (workspaceId != null) payload.workspace_id = Number(workspaceId)
       await submit(() => createEvent(targetId, payload))
       return
     }

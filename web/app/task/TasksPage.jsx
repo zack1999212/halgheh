@@ -5,6 +5,8 @@ import FormError from '@/components/shared/FormError'
 import { Button } from '@/components/ui/button'
 import { getCurrentUser } from '../auth/api.js'
 import { clearToken } from '../src/api.js'
+import { useActiveWorkspace } from '../workspace/ActiveWorkspaceContext.jsx'
+import { ALL_WORKSPACES } from '../workspace/constants.js'
 import TasksToolbar from './TasksToolbar.jsx'
 import TasksSidebar from './TasksSidebar.jsx'
 import TasksFilters from './TasksFilters.jsx'
@@ -29,6 +31,14 @@ export default function TasksPage() {
   const [currentUser, setCurrentUser] = useState(null)
   const [labelOptions, setLabelOptions] = useState([])
   const [parentOptions, setParentOptions] = useState([])
+  const { workspaceScope: globalWorkspaceScope, defaultWorkspaceId, workspaces } = useActiveWorkspace()
+  const [workspaceScope, setWorkspaceScope] = useState(globalWorkspaceScope ?? ALL_WORKSPACES)
+
+  useEffect(() => {
+    if (globalWorkspaceScope != null) {
+      setWorkspaceScope(globalWorkspaceScope)
+    }
+  }, [globalWorkspaceScope])
 
   const handleUnauthorized = useCallback(() => {
     clearToken()
@@ -46,7 +56,12 @@ export default function TasksPage() {
     selectNav,
     nextPage,
     prevPage,
-  } = useTaskFilters()
+    resetPagination,
+  } = useTaskFilters({ workspaceScope })
+
+  useEffect(() => {
+    resetPagination()
+  }, [workspaceScope, resetPagination])
 
   const { items, total, statistics, loading, statsLoading, error, statsError, reload, replaceItem } = useTasks({
     query,
@@ -87,6 +102,7 @@ export default function TasksPage() {
   const pageEnd = Math.min(offset + items.length, total)
   const canPrev = offset > 0
   const canNext = offset + limit < total
+  const createWorkspaceId = workspaceScope !== ALL_WORKSPACES ? workspaceScope : defaultWorkspaceId
 
   async function handleStatusChange(task, status) {
     if (!task?.id || !status || task.status === status) return
@@ -160,7 +176,13 @@ export default function TasksPage() {
               onRetry={reload}
             />
 
-            <TasksFilters filters={filters} onChange={setFilters} />
+            <TasksFilters
+              filters={filters}
+              onChange={setFilters}
+              workspaceScope={workspaceScope}
+              onWorkspaceScopeChange={setWorkspaceScope}
+              workspaces={workspaces}
+            />
 
             <FormError>{actionError}</FormError>
 
@@ -174,6 +196,7 @@ export default function TasksPage() {
                 onOpen={(id) => setSelectedTaskId(id)}
                 statusBusyId={null}
                 isStatusPending={isStatusPending}
+                activeWorkspaceId={workspaceScope !== ALL_WORKSPACES ? workspaceScope : null}
               />
             ) : (
               <TaskBoardView
@@ -185,6 +208,7 @@ export default function TasksPage() {
                 onOpen={(id) => setSelectedTaskId(id)}
                 statusBusyId={null}
                 isStatusPending={isStatusPending}
+                activeWorkspaceId={workspaceScope !== ALL_WORKSPACES ? workspaceScope : null}
               />
             )}
 
@@ -199,6 +223,7 @@ export default function TasksPage() {
         task={dialog.task}
         allTasks={parentOptions}
         availableLabels={labelOptions}
+        workspaceId={createWorkspaceId}
         onClose={() => setDialog({ open: false, mode: 'create', task: null })}
         onSaved={handleSaved}
       />

@@ -20,6 +20,7 @@ import { Skeleton } from '@/components/ui/skeleton'
 import IconButton from '@/components/shared/IconButton.jsx'
 import EmptyState from '@/components/shared/EmptyState.jsx'
 import ErrorState from '@/components/shared/ErrorState.jsx'
+import WorkspaceBadges from '../../../../workspace/components/WorkspaceBadges.jsx'
 import { formatRelativeTime } from '../../utils/formatTime.js'
 
 const EMPTY_COPY = {
@@ -37,7 +38,7 @@ const EMPTY_COPY = {
   },
 }
 
-function DocumentRow({ document, mode, onOpen, actions, readOnly = false }) {
+function DocumentRow({ document, mode, onOpen, actions, readOnly = false, activeWorkspaceId = null }) {
   return (
     <li>
       <div className="group/row flex items-center gap-2 rounded-md px-2 py-2 transition-colors hover:bg-accent">
@@ -51,9 +52,12 @@ function DocumentRow({ document, mode, onOpen, actions, readOnly = false }) {
             aria-hidden="true"
             className="shrink-0 text-muted-foreground"
           />
-          <span className="min-w-0 flex-1 truncate text-[13.5px] font-medium">
-            {document.title}
-          </span>
+          <div className="min-w-0 flex-1">
+            <span className="block truncate text-[13.5px] font-medium">
+              {document.title}
+            </span>
+            <WorkspaceBadges workspaces={document.workspaces} activeWorkspaceId={activeWorkspaceId} className="mt-0.5" />
+          </div>
           <span className="hidden shrink-0 text-[12px] text-muted-foreground sm:block">
             {formatRelativeTime(document.updated_at)}
           </span>
@@ -154,6 +158,7 @@ export default function DocumentList({
   onRestore,
   readOnly = false,
   searchActive = false,
+  activeWorkspaceId = null,
 }) {
   const documents = documentList.documents
 
@@ -207,6 +212,7 @@ export default function DocumentList({
                   document={document}
                   mode={mode}
                   readOnly={readOnly}
+                  activeWorkspaceId={activeWorkspaceId}
                   onOpen={onOpen}
                   actions={{
                     onToggleFavorite,

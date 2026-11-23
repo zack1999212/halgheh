@@ -137,6 +137,21 @@ def list_project_ids_for_calendar(db: Session, calendar_id: int) -> list[int]:
     return [project_id for project_id in db.scalars(stmt).all() if project_id is not None]
 
 
+def list_calendar_ids_for_workspace_ids(db: Session, workspace_ids: list[int]) -> list[int]:
+    """Distinct calendars containing events associated with any of the workspaces."""
+    if not workspace_ids:
+        return []
+    from ..workspace.models import EventWorkspace
+
+    stmt = (
+        select(Event.calendar_id)
+        .join(EventWorkspace, EventWorkspace.event_id == Event.id)
+        .where(EventWorkspace.workspace_id.in_(workspace_ids))
+        .distinct()
+    )
+    return [calendar_id for calendar_id in db.scalars(stmt).all() if calendar_id is not None]
+
+
 def list_events_for_project(
     db: Session, project_id: int
 ) -> list[Event]:
