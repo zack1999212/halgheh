@@ -184,9 +184,12 @@ def _related_context(db: Session, user: User, document: Document) -> tuple[str, 
 
 
 def summarize_document(
-    db: Session, user: User, document: Document, *, max_points: int = 6
+    db: Session, user: User, document: Document, *, max_points: int = 6, include_related: bool = False
 ) -> AIResult:
     doc_context, truncated = _document_context(document)
+    related_text, related_used, related_truncated = ("", 0, False)
+    if include_related:
+        related_text, related_used, related_truncated = _related_context(db, user, document)
     system = (
         "You are an assistant inside Halgheh Document Management. "
         "Summarize the document for the user. "
@@ -198,9 +201,14 @@ def summarize_document(
         f"Create a concise summary with up to {max_points} key points.\n\n"
         f"{doc_context}"
     )
+    if related_text:
+        prompt += "\n\nRelated document context (only accessible linked/backlinked docs):\n" + related_text
     result = _provider_request(db, user, system=system, user_prompt=prompt)
-    result.truncated = truncated
-    result.warning = "Document content was truncated before AI processing." if truncated else None
+    result.truncated = truncated or related_truncated
+    result.context_included = bool(related_text)
+    result.related_documents_used = related_used
+    if result.truncated:
+        result.warning = "Some content was truncated before AI processing."
     return result
 
 
@@ -244,10 +252,14 @@ def improve_document(
     action: str,
     selected_text: str | None = None,
     instruction: str | None = None,
+    include_related: bool = False,
 ) -> AIResult:
     doc_context, truncated = _document_context(document)
     target, target_truncated = _truncate(selected_text, 12000) if selected_text else ("", False)
     truncated = truncated or target_truncated
+    related_text, related_used, related_truncated = ("", 0, False)
+    if include_related:
+        related_text, related_used, related_truncated = _related_context(db, user, document)
     action_map = {
         "rewrite": "Rewrite the text to be clearer and more polished while preserving meaning.",
         "clarify": "Clarify the text, making it easier to understand while preserving meaning.",
@@ -266,11 +278,16 @@ def improve_document(
         prompt += f"User instruction: {instruction}\n"
     if target:
         prompt += f"\nText to improve:\n{target}\n"
+        prompt += f"\nCurrent document context:\n{doc_context}\n"
     else:
         prompt += f"\nImprove the document content below.\n\n{doc_context}\n"
+    if related_text:
+        prompt += "\n\nRelated document context (only accessible linked/backlinked docs):\n" + related_text
     result = _provider_request(db, user, system=system, user_prompt=prompt)
-    result.truncated = truncated
-    if truncated:
+    result.truncated = truncated or related_truncated
+    result.context_included = bool(related_text)
+    result.related_documents_used = related_used
+    if result.truncated:
         result.warning = "Some content was truncated before AI processing."
     return result
 
@@ -282,10 +299,14 @@ def generate_document_draft(
     *,
     instruction: str,
     use_document_context: bool = True,
+    include_related: bool = False,
 ) -> AIResult:
     doc_context, truncated = ("", False)
     if use_document_context:
         doc_context, truncated = _document_context(document)
+    related_text, related_used, related_truncated = ("", 0, False)
+    if include_related:
+        related_text, related_used, related_truncated = _related_context(db, user, document)
     system = (
         "You are an assistant inside Halgheh Document Management. "
         "Generate a document draft or section based on the user's instruction. "
@@ -296,9 +317,12 @@ def generate_document_draft(
     prompt = f"User instruction:\n{instruction}\n"
     if use_document_context:
         prompt += f"\nCurrent document context:\n{doc_context}\n"
+    if related_text:
+        prompt += "\n\nRelated document context (only accessible linked/backlinked docs):\n" + related_text
     result = _provider_request(db, user, system=system, user_prompt=prompt)
-    result.truncated = truncated
-    result.context_included = bool(use_document_context)
-    if truncated:
-        result.warning = "Document content was truncated before AI processing."
+    result.truncated = truncated or related_truncated
+    result.context_included = bool(use_document_context or related_text)
+    result.related_documents_used = related_used
+    if result.truncated:
+        result.warning = "Some content was truncated before AI processing."
     return result

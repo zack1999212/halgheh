@@ -47,6 +47,8 @@ function ResultBlock({ title, result, onCopy }) {
         <span>AI-generated</span>
         {result.model_label || result.model ? <span>Model: {result.model_label || result.model}</span> : null}
         {result.provider_label || result.provider ? <span>Provider: {result.provider_label || result.provider}</span> : null}
+        {result.context_included ? <span>Related context included</span> : null}
+        {result.related_documents_used ? <span>{result.related_documents_used} related doc(s) used</span> : null}
         {result.truncated ? <span>Context truncated</span> : null}
       </div>
       {result.warning ? <p className="text-[12px] text-muted-foreground">{result.warning}</p> : null}
@@ -68,6 +70,7 @@ export default function DocumentAIAssistant({
   const [improveAction, setImproveAction] = useState('rewrite')
   const [selectedText, setSelectedText] = useState('')
   const [useContext, setUseContext] = useState(true)
+  const [includeRelated, setIncludeRelated] = useState(false)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
   const [result, setResult] = useState(null)
@@ -193,10 +196,18 @@ export default function DocumentAIAssistant({
             </div>
           )}
 
+          <label className="flex items-start gap-2 rounded-md border border-border px-3 py-2 text-[13px] text-muted-foreground">
+            <input type="checkbox" className="mt-0.5" checked={includeRelated} onChange={(e) => setIncludeRelated(e.target.checked)} />
+            <span>
+              <span className="font-medium text-foreground">Include related documents</span>
+              <span className="block text-[12px]">Adds accessible linked documents and backlinks as context. Private/inaccessible docs are never included.</span>
+            </span>
+          </label>
+
           {action === 'summary' && (
             <div className="grid gap-2">
               <p className="text-[13px] text-muted-foreground">Generate a concise summary of the current document.</p>
-              <Button type="button" onClick={() => run((signal) => aiSummarizeDocument(doc.id, { maxPoints: 6, signal }), { action: 'summary' })} disabled={!canRun}>
+              <Button type="button" onClick={() => run((signal) => aiSummarizeDocument(doc.id, { maxPoints: 6, includeRelated, signal }), { action: 'summary' })} disabled={!canRun}>
                 {loading ? <><LoaderCircle size={14} className="mr-2 animate-spin" />Generating...</> : 'Generate summary'}
               </Button>
             </div>
@@ -206,7 +217,7 @@ export default function DocumentAIAssistant({
             <div className="grid gap-2">
               <label className="text-[13px] font-medium" htmlFor="ai-question">Question about this document</label>
               <Textarea id="ai-question" value={question} onChange={(e) => setQuestion(e.target.value)} placeholder="Ask a question about the document..." className="min-h-[96px]" />
-              <Button type="button" onClick={() => run((signal) => aiAskDocument(doc.id, { question: question.trim(), includeRelated: false, signal }), { action: 'ask' })} disabled={!askReady}>
+              <Button type="button" onClick={() => run((signal) => aiAskDocument(doc.id, { question: question.trim(), includeRelated, signal }), { action: 'ask' })} disabled={!askReady}>
                 {loading ? <><LoaderCircle size={14} className="mr-2 animate-spin" />Asking...</> : 'Ask AI'}
               </Button>
             </div>
@@ -222,7 +233,7 @@ export default function DocumentAIAssistant({
               <Textarea id="ai-selected-text" value={selectedText} onChange={(e) => setSelectedText(e.target.value)} placeholder="Paste text to improve, or leave empty to improve the whole document." className="min-h-[96px]" />
               <label className="text-[13px] font-medium" htmlFor="ai-improve-instruction">Instruction (optional)</label>
               <Input id="ai-improve-instruction" value={instruction} onChange={(e) => setInstruction(e.target.value)} placeholder="e.g. Make it more concise" />
-              <Button type="button" onClick={() => run((signal) => aiImproveDocument(doc.id, { action: improveAction, selectedText: selectedText.trim() || null, instruction: instruction.trim() || null, signal }), { action: 'improve', improveAction, selectedText: selectedText.trim() || null })} disabled={!improveReady}>
+              <Button type="button" onClick={() => run((signal) => aiImproveDocument(doc.id, { action: improveAction, selectedText: selectedText.trim() || null, instruction: instruction.trim() || null, includeRelated, signal }), { action: 'improve', improveAction, selectedText: selectedText.trim() || null })} disabled={!improveReady}>
                 {loading ? <><LoaderCircle size={14} className="mr-2 animate-spin" />Improving...</> : 'Generate improvement'}
               </Button>
             </div>
@@ -236,7 +247,7 @@ export default function DocumentAIAssistant({
                 <input type="checkbox" checked={useContext} onChange={(e) => setUseContext(e.target.checked)} />
                 Use current document as context
               </label>
-              <Button type="button" onClick={() => run((signal) => aiGenerateDocument(doc.id, { instruction: instruction.trim(), useDocumentContext: useContext, signal }), { action: 'generate' })} disabled={!generateReady}>
+              <Button type="button" onClick={() => run((signal) => aiGenerateDocument(doc.id, { instruction: instruction.trim(), useDocumentContext: useContext, includeRelated, signal }), { action: 'generate' })} disabled={!generateReady}>
                 {loading ? <><LoaderCircle size={14} className="mr-2 animate-spin" />Generating...</> : 'Generate draft'}
               </Button>
             </div>
