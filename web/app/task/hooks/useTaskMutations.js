@@ -1,5 +1,5 @@
 import { useCallback, useRef, useState } from 'react'
-import { updateTaskStatus } from '../api.js'
+import { updateTask, updateTaskPosition, updateTaskStatus } from '../api.js'
 
 export default function useTaskMutations({ onUnauthorized, onError, onSettled }) {
   const unauthorizedRef = useRef(onUnauthorized)
@@ -61,10 +61,64 @@ export default function useTaskMutations({ onUnauthorized, onError, onSettled })
     }
   }, [report])
 
+  const changePriority = useCallback(async (task, nextPriority, { optimistic } = {}) => {
+    if (!task?.id || !nextPriority || task.priority === nextPriority) return { ok: false, skipped: true }
+    const key = `priority:${task.id}`
+    if (inflight.current.has(key)) return { ok: false, skipped: true }
+
+    inflight.current.add(key)
+    setPendingStatusIds((prev) => new Set(prev).add(task.id))
+    const rollback = typeof optimistic === 'function' ? optimistic(task, nextPriority) : null
+    try {
+      const result = await updateTask(task.id, { priority: nextPriority })
+      return { ok: true, result }
+    } catch (err) {
+      if (typeof rollback === 'function') rollback(err)
+      report(err, 'Could not update task priority.')
+      return { ok: false, err }
+    } finally {
+      inflight.current.delete(key)
+      setPendingStatusIds((prev) => {
+        const next = new Set(prev)
+        next.delete(task.id)
+        return next
+      })
+      settledRef.current?.()
+    }
+  }, [report])
+
+  const moveTask = useCallback(async (task, payload, { optimistic } = {}) => {
+    if (!task?.id) return { ok: false, skipped: true }
+    const key = `move:${task.id}`
+    if (inflight.current.has(key)) return { ok: false, skipped: true }
+
+    inflight.current.add(key)
+    setPendingStatusIds((prev) => new Set(prev).add(task.id))
+    const rollback = typeof optimistic === 'function' ? optimistic(task, payload) : null
+    try {
+      const result = await updateTaskPosition(task.id, payload)
+      return { ok: true, result }
+    } catch (err) {
+      if (typeof rollback === 'function') rollback(err)
+      report(err, 'Could not reorder the task.')
+      return { ok: false, err }
+    } finally {
+      inflight.current.delete(key)
+      setPendingStatusIds((prev) => {
+        const next = new Set(prev)
+        next.delete(task.id)
+        return next
+      })
+      settledRef.current?.()
+    }
+  }, [report])
+
   return {
     pendingStatusIds,
     isStatusPending: (id) => pendingStatusIds.has(id),
     runExclusive,
     changeStatus,
+    changePriority,
+    moveTask,
   }
 }

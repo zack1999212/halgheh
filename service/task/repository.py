@@ -29,6 +29,7 @@ from .models import (
     Task,
     TaskActivity,
     TaskAssignment,
+    TaskChecklistItem,
     TaskComment,
     TaskLabel,
     TaskLabelAssignment,
@@ -41,6 +42,8 @@ _SORT_COLUMNS = {
     "due_date": Task.due_date,
     "created_at": Task.created_at,
     "updated_at": Task.updated_at,
+    "position": Task.position,
+    "priority_position": Task.priority_position,
 }
 
 # Default ordering: open work first, then nearest deadline (missing deadline
@@ -136,6 +139,9 @@ def _order_clause(sort: str | None, order: str) -> tuple:
     key = column.desc() if order == "desc" else column.asc()
     if sort == "due_date" and order == "asc":
         key = key.nulls_last()
+    if sort == "position":
+        # Deterministic tie-breaker for equal positions.
+        return (key, Task.id.asc())
     return (key, Task.id.asc())
 
 
@@ -193,6 +199,30 @@ def _apply_filters(stmt: Select, flt: TaskFilter) -> Select:
     return stmt
 
 
+def _checklist_counts_for_tasks(db: Session, task_ids: list[int]) -> dict[int, tuple[int, int]]:
+    if not task_ids:
+        return {}
+    rows = db.execute(
+        select(
+            TaskChecklistItem.task_id,
+            func.count(TaskChecklistItem.id),
+            func.coalesce(func.sum(case((TaskChecklistItem.is_completed.is_(True), 1), else_=0)), 0),
+        )
+        .where(TaskChecklistItem.task_id.in_(task_ids))
+        .group_by(TaskChecklistItem.task_id)
+    ).all()
+    return {int(task_id): (int(total), int(completed)) for task_id, total, completed in rows}
+
+
+def populate_checklist_counts(db: Session, tasks: list[Task]) -> list[Task]:
+    counts = _checklist_counts_for_tasks(db, [t.id for t in tasks])
+    for task in tasks:
+        total, completed = counts.get(task.id, (0, 0))
+        task.checklist_total = total
+        task.checklist_completed = completed
+    return tasks
+
+
 def _list_with_filters(
     db: Session, condition, flt: TaskFilter
 ) -> tuple[list[Task], int]:
@@ -200,6 +230,7 @@ def _list_with_filters(
     stmt = stmt.order_by(*_order_clause(flt.sort, flt.order))
     total = db.scalar(select(func.count()).select_from(stmt.subquery()))
     items = list(db.scalars(stmt.limit(flt.limit).offset(flt.offset)))
+    populate_checklist_counts(db, items)
     return items, int(total or 0)
 
 
@@ -226,7 +257,10 @@ def get_task(db: Session, task_id: int, *, eager: bool = True) -> Task | None:
                 TaskLabelAssignment.label
             ),
         )
-    return db.scalars(stmt).first()
+    task = db.scalars(stmt).first()
+    if task is not None:
+        populate_checklist_counts(db, [task])
+    return task
 
 
 def list_visible(db: Session, user_id: int, flt: TaskFilter):
@@ -538,3 +572,121 @@ def attach_label(db: Session, *, task_id: int, label_id: int) -> TaskLabelAssign
 
 def detach_label(db: Session, link: TaskLabelAssignment) -> None:
     db.delete(link)
+
+
+# ---------------------------------------------------------------------------
+# Ordering / positioning
+# ---------------------------------------------------------------------------
+
+
+def get_task_for_update(db: Session, task_id: int) -> Task | None:
+    stmt = (
+        select(Task)
+        .where(Task.id == task_id)
+        .with_for_update()
+    )
+    return db.scalars(stmt).first()
+
+
+def list_status_task_ids_for_update(db: Session, status: str) -> list[int]:
+    stmt = (
+        select(Task.id)
+        .where(Task.status == status)
+        .order_by(Task.position.asc(), Task.id.asc())
+        .with_for_update()
+    )
+    return list(db.scalars(stmt).all())
+
+
+def get_status_position_neighbors(
+    db: Session,
+    *,
+    status: str,
+    exclude_task_id: int | None = None,
+) -> list[tuple[int, int]]:
+    stmt = select(Task.id, Task.position).where(Task.status == status)
+    if exclude_task_id is not None:
+        stmt = stmt.where(Task.id != exclude_task_id)
+    stmt = stmt.order_by(Task.position.asc(), Task.id.asc())
+    return [(int(row[0]), int(row[1])) for row in db.execute(stmt).all()]
+
+
+def list_priority_task_ids_for_update(db: Session, priority: str) -> list[int]:
+    stmt = (
+        select(Task.id)
+        .where(Task.priority == priority)
+        .order_by(Task.priority_position.asc(), Task.id.asc())
+        .with_for_update()
+    )
+    return list(db.scalars(stmt).all())
+
+
+def get_priority_position_neighbors(
+    db: Session,
+    *,
+    priority: str,
+    exclude_task_id: int | None = None,
+) -> list[tuple[int, int]]:
+    stmt = select(Task.id, Task.priority_position).where(Task.priority == priority)
+    if exclude_task_id is not None:
+        stmt = stmt.where(Task.id != exclude_task_id)
+    stmt = stmt.order_by(Task.priority_position.asc(), Task.id.asc())
+    return [(int(row[0]), int(row[1])) for row in db.execute(stmt).all()]
+
+
+# ---------------------------------------------------------------------------
+# Checklist
+# ---------------------------------------------------------------------------
+
+
+def list_checklist_items(db: Session, task_id: int) -> list[TaskChecklistItem]:
+    stmt = (
+        select(TaskChecklistItem)
+        .where(TaskChecklistItem.task_id == task_id)
+        .order_by(TaskChecklistItem.position.asc(), TaskChecklistItem.id.asc())
+    )
+    return list(db.scalars(stmt))
+
+
+def get_checklist_item(db: Session, task_id: int, item_id: int) -> TaskChecklistItem | None:
+    stmt = select(TaskChecklistItem).where(
+        TaskChecklistItem.task_id == task_id,
+        TaskChecklistItem.id == item_id,
+    )
+    return db.scalars(stmt).first()
+
+
+def get_checklist_item_for_update(db: Session, task_id: int, item_id: int) -> TaskChecklistItem | None:
+    stmt = (
+        select(TaskChecklistItem)
+        .where(TaskChecklistItem.task_id == task_id, TaskChecklistItem.id == item_id)
+        .with_for_update()
+    )
+    return db.scalars(stmt).first()
+
+
+def get_max_checklist_position(db: Session, task_id: int) -> int | None:
+    return db.scalar(
+        select(func.max(TaskChecklistItem.position)).where(TaskChecklistItem.task_id == task_id)
+    )
+
+
+def create_checklist_item(db: Session, *, task_id: int, title: str, position: int) -> TaskChecklistItem:
+    item = TaskChecklistItem(task_id=task_id, title=title, position=position)
+    db.add(item)
+    db.flush()
+    return item
+
+
+def delete_checklist_item(db: Session, item: TaskChecklistItem) -> None:
+    db.delete(item)
+
+
+def list_checklist_item_ids_for_update(db: Session, task_id: int) -> list[int]:
+    stmt = (
+        select(TaskChecklistItem.id)
+        .where(TaskChecklistItem.task_id == task_id)
+        .order_by(TaskChecklistItem.position.asc(), TaskChecklistItem.id.asc())
+        .with_for_update()
+    )
+    return list(db.scalars(stmt).all())

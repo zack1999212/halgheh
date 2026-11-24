@@ -1,17 +1,14 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import {
+  attachLabel,
   createComment,
-  createSubtask,
   deleteComment,
   detachLabel,
   getTask,
-  getTaskParent,
   listActivities,
   listComments,
   listLabels,
-  listSubtasks,
   removeAssignment,
-  attachLabel,
 } from '../api.js'
 
 export default function useTaskDetails({ taskId, onUnauthorized, refreshKey = 0 }) {
@@ -21,21 +18,16 @@ export default function useTaskDetails({ taskId, onUnauthorized, refreshKey = 0 
   }, [onUnauthorized])
 
   const [task, setTask] = useState(null)
-  const [parentTask, setParentTask] = useState(null)
-  const [subtasks, setSubtasks] = useState([])
-  const [subtasksTotal, setSubtasksTotal] = useState(0)
   const [comments, setComments] = useState([])
   const [activities, setActivities] = useState([])
   const [availableLabels, setAvailableLabels] = useState([])
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
-  const [subtasksError, setSubtasksError] = useState('')
   const [commentsError, setCommentsError] = useState('')
   const [activitiesError, setActivitiesError] = useState('')
   const [labelsError, setLabelsError] = useState('')
   const [actionError, setActionError] = useState('')
   const [commentsBusy, setCommentsBusy] = useState(false)
-  const [subtasksBusy, setSubtasksBusy] = useState(false)
   const [labelsBusy, setLabelsBusy] = useState(false)
   const [assignmentsBusy, setAssignmentsBusy] = useState(false)
 
@@ -52,31 +44,18 @@ export default function useTaskDetails({ taskId, onUnauthorized, refreshKey = 0 
     if (!taskId) return
     setLoading(true)
     setError('')
-    setSubtasksError('')
     setCommentsError('')
     setActivitiesError('')
     setLabelsError('')
     setActionError('')
     try {
-      const [taskData, subtaskData, commentData, activityData, labelsData, parentData] = await Promise.all([
+      const [taskData, commentData, activityData, labelsData] = await Promise.all([
         getTask(taskId),
-        listSubtasks(taskId, { limit: 100 }).catch((err) => ({ __error: err })),
         listComments(taskId, { limit: 100 }).catch((err) => ({ __error: err })),
         listActivities(taskId, { limit: 100 }).catch((err) => ({ __error: err })),
         listLabels({ limit: 100 }).catch((err) => ({ __error: err })),
-        getTaskParent(taskId).catch((err) => ({ __error: err })),
       ])
       setTask(taskData)
-      setParentTask(parentData?.__error ? null : (parentData ?? null))
-      if (subtaskData?.__error) {
-        setSubtasks([])
-        setSubtasksTotal(0)
-        if (subtaskData.__error.status !== 401) setSubtasksError(subtaskData.__error.message || 'Could not load subtasks.')
-        else unauthorizedRef.current?.()
-      } else {
-        setSubtasks(Array.isArray(subtaskData?.items) ? subtaskData.items : [])
-        setSubtasksTotal(Number.isFinite(subtaskData?.total) ? subtaskData.total : 0)
-      }
       if (commentData?.__error) {
         setComments([])
         if (commentData.__error.status !== 401) setCommentsError(commentData.__error.message || 'Could not load comments.')
@@ -112,12 +91,8 @@ export default function useTaskDetails({ taskId, onUnauthorized, refreshKey = 0 
   async function refreshTaskOnly() {
     if (!taskId) return
     try {
-      const [taskData, parentData] = await Promise.all([
-        getTask(taskId),
-        getTaskParent(taskId).catch(() => null),
-      ])
+      const taskData = await getTask(taskId)
       setTask(taskData)
-      setParentTask(parentData ?? null)
     } catch (err) {
       report(err, setActionError)
     }
@@ -153,25 +128,6 @@ export default function useTaskDetails({ taskId, onUnauthorized, refreshKey = 0 
     }
   }, [taskId, report])
 
-  const addSubtask = useCallback(async (payload) => {
-    if (!taskId) return false
-    setSubtasksBusy(true)
-    setSubtasksError('')
-    try {
-      await createSubtask(taskId, { ...payload, parent_task_id: taskId })
-      const subtaskData = await listSubtasks(taskId, { limit: 100 })
-      setSubtasks(Array.isArray(subtaskData?.items) ? subtaskData.items : [])
-      setSubtasksTotal(Number.isFinite(subtaskData?.total) ? subtaskData.total : 0)
-      await refreshTaskOnly()
-      return true
-    } catch (err) {
-      report(err, setSubtasksError)
-      return false
-    } finally {
-      setSubtasksBusy(false)
-    }
-  }, [taskId, report])
-
   const toggleLabel = useCallback(async (labelId, attached) => {
     if (!taskId) return
     setLabelsBusy(true)
@@ -203,28 +159,22 @@ export default function useTaskDetails({ taskId, onUnauthorized, refreshKey = 0 
 
   return {
     task,
-    parentTask,
-    subtasks,
-    subtasksTotal,
     comments,
     activities,
     availableLabels,
     loading,
     error,
-    subtasksError,
     commentsError,
     activitiesError,
     labelsError,
     actionError,
     commentsBusy,
-    subtasksBusy,
     labelsBusy,
     assignmentsBusy,
     reload: load,
     refreshTaskOnly,
     addComment,
     removeComment,
-    addSubtask,
     toggleLabel,
     removeAssignee,
   }

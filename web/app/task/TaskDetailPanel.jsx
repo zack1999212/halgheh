@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
-import { Calendar, Clock, FileText, Flag, Link2, Pencil, Tag, Trash2, User, Users, X } from 'lucide-react'
+import { useToast } from '@/components/ui/toast.jsx'
+import { Calendar, Check, Clock, FileText, Flag, Pencil, Tag, Trash2, User, Users, X } from 'lucide-react'
 import ConfirmDialog from '@/components/shared/ConfirmDialog'
 import ErrorState from '@/components/shared/ErrorState'
 import IconButton from '@/components/shared/IconButton'
@@ -16,8 +17,9 @@ import {
 } from '@/components/ui/sheet'
 import { deleteTask, updateTaskStatus } from './api.js'
 import TaskActivitySection from './TaskActivitySection.jsx'
-import TaskCommentsSection from './TaskCommentsSection.jsx'
+import TaskChecklistSection from './TaskChecklistSection.jsx'
 import TaskSubtasksSection from './TaskSubtasksSection.jsx'
+import TaskCommentsSection from './TaskCommentsSection.jsx'
 import useTaskDetails from './hooks/useTaskDetails.js'
 import { TASK_STATUSES } from './utils/taskConstants.js'
 import { formatDate, formatDateTime, priorityLabel, statusLabel } from './utils/taskFormat.js'
@@ -72,11 +74,12 @@ export default function TaskDetailPanel({
   const assignments = Array.isArray(task?.assignments) ? task.assignments : []
   const labels = Array.isArray(task?.labels) ? task.labels : []
 
-  const progress = useMemo(() => {
-    if (!details.subtasks.length) return null
-    const done = details.subtasks.filter((s) => s.status === 'done').length
-    return { done, total: details.subtasks.length, pct: Math.round((done / details.subtasks.length) * 100) }
-  }, [details.subtasks])
+  const checklistProgress = useMemo(() => {
+    const total = Number(task?.checklist_total || 0)
+    const completed = Number(task?.checklist_completed || 0)
+    if (!total) return null
+    return { done: completed, total, pct: Math.round((completed / total) * 100) }
+  }, [task?.checklist_total, task?.checklist_completed])
 
   if (!taskId) return null
 
@@ -88,9 +91,14 @@ export default function TaskDetailPanel({
       setDeleteOpen(false)
       onDeleted?.()
       onClose()
+      toast({ title: 'Task deleted successfully' })
     } catch (err) {
       if (err?.status === 401) onUnauthorized?.()
-      else setDeleteError(err?.message || 'Could not delete the task.')
+      else {
+        const msg = err?.message || 'Could not delete the task.'
+        setDeleteError(msg)
+        toast({ title: 'Task deletion failed', description: msg, variant: 'destructive' })
+      }
     } finally {
       setDeleteBusy(false)
     }
@@ -104,9 +112,14 @@ export default function TaskDetailPanel({
       await updateTaskStatus(task.id, nextStatus)
       await details.refreshTaskOnly()
       onChanged?.()
+      toast({ title: 'Task updated successfully' })
     } catch (err) {
       if (err?.status === 401) onUnauthorized?.()
-      else setStatusError(err?.message || 'Could not update task status.')
+      else {
+        const msg = err?.message || 'Could not update task status.'
+        setStatusError(msg)
+        toast({ title: 'Task update failed', description: msg, variant: 'destructive' })
+      }
     } finally {
       setStatusBusy(false)
     }
@@ -135,7 +148,6 @@ export default function TaskDetailPanel({
                     <div className="flex flex-wrap gap-1.5">
                       <Badge variant="secondary" className="font-medium">{statusLabel(task.status)}</Badge>
                       <Badge variant="outline" className="font-medium">Priority: {priorityLabel(task.priority)}</Badge>
-                      {task.parent_task_id && <Badge variant="outline" className="font-medium">Subtask of #{task.parent_task_id}</Badge>}
                     </div>
                   </div>
 
@@ -213,13 +225,12 @@ export default function TaskDetailPanel({
                     <DetailRow icon={FileText} label="Description">
                       {task.description ? <p className="whitespace-pre-wrap">{task.description}</p> : <p className="text-[12.5px] text-muted-foreground">No description.</p>}
                     </DetailRow>
-                    <DetailRow icon={Link2} label="Hierarchy">
-                      <p>Parent: {details.parentTask ? (
-                        <button type="button" className="font-medium underline-offset-2 hover:underline" onClick={() => onOpenTask?.(details.parentTask.id)}>
-                          #{details.parentTask.id} {details.parentTask.title}
-                        </button>
-                      ) : (task.parent_task_id ? `#${task.parent_task_id}` : 'None')}</p>
-                      {progress && <p className="text-muted-foreground">Subtask progress: {progress.done}/{progress.total} done ({progress.pct}%)</p>}
+                    <DetailRow icon={Check} label="Checklist">
+                      {checklistProgress ? (
+                        <p>{checklistProgress.done}/{checklistProgress.total} completed ({checklistProgress.pct}%)</p>
+                      ) : (
+                        <p className="text-[12.5px] text-muted-foreground">No checklist items.</p>
+                      )}
                     </DetailRow>
                     <DetailRow icon={Clock} label="Timestamps">
                       <p>Created: {formatDateTime(task.created_at)}</p>
@@ -230,6 +241,17 @@ export default function TaskDetailPanel({
                       <p className="text-[12.5px] text-muted-foreground">Related calendar references: not available (no task-calendar reference API found in current backend contract).</p>
                     </DetailRow>
                   </dl>
+
+                  <Separator />
+
+                  <TaskChecklistSection
+                    taskId={task.id}
+                    canEdit={isOwner}
+                    onChanged={() => {
+                      details.reload()
+                      onChanged?.()
+                    }}
+                  />
 
                   <Separator />
 

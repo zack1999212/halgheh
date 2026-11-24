@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from 'react'
 import { Outlet, useNavigate } from 'react-router-dom'
 import { getCurrentUser, clearSession } from '../auth/api.js'
 import { TooltipProvider } from '@/components/ui/tooltip'
+import { ToastProvider } from '@/components/ui/toast.jsx'
 import { WorkspaceThemeProvider } from './WorkspaceThemeProvider.jsx'
 import { ActiveWorkspaceProvider, useActiveWorkspace } from './ActiveWorkspaceContext.jsx'
 import useReceivedInvitations from './hooks/useReceivedInvitations.js'
@@ -74,14 +75,16 @@ export default function AppLayout() {
   return (
     <WorkspaceThemeProvider>
       <TooltipProvider delayDuration={0}>
-        <ActiveWorkspaceProvider user={user}>
-          <AppShell
-            user={user}
-            onLogout={handleLogout}
-            onUnauthorized={handleUnauthorized}
-            onUserUpdated={handleUserUpdated}
-          />
-        </ActiveWorkspaceProvider>
+        <ToastProvider>
+          <ActiveWorkspaceProvider user={user}>
+            <AppShell
+              user={user}
+              onLogout={handleLogout}
+              onUnauthorized={handleUnauthorized}
+              onUserUpdated={handleUserUpdated}
+            />
+          </ActiveWorkspaceProvider>
+        </ToastProvider>
       </TooltipProvider>
     </WorkspaceThemeProvider>
   )

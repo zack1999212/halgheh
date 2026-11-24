@@ -32,6 +32,11 @@ from .schemas import (
     SubtaskCreate,
     TaskActivityListResponse,
     TaskAssignmentCreate,
+    TaskChecklistItemCreate,
+    TaskChecklistItemOut,
+    TaskChecklistItemUpdate,
+    TaskChecklistListResponse,
+    TaskChecklistReorder,
     TaskCommentCreate,
     TaskCommentListResponse,
     TaskCommentOut,
@@ -43,6 +48,7 @@ from .schemas import (
     TaskLabelUpdate,
     TaskListResponse,
     TaskParentUpdate,
+    TaskPositionUpdate,
     TaskResponse,
     TaskStatisticsOut,
     TaskStatusUpdate,
@@ -334,6 +340,37 @@ def set_task_status(
     return service.serialize_task(task, actor_id=current_user.id, db=db)
 
 
+@router.patch(
+    "/{task_id}/position",
+    response_model=TaskResponse,
+    summary="Reorder a task within or across Kanban columns",
+    description=(
+        "The backend computes the final position. Status mode (target_status): "
+        "moves/reorders with the same status transition rules as PUT /{task_id}/status. "
+        "Priority mode (target_priority): updates priority and priority ordering; "
+        "never changes status. Provide exactly one target. "
+        "before_task_id/after_task_id identify neighbors in the destination column; "
+        "omit both to append to the end."
+    ),
+)
+def set_task_position(
+    task_id: int,
+    data: TaskPositionUpdate,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    task = service.set_task_position(
+        db,
+        current_user.id,
+        task_id,
+        target_status=data.target_status,
+        target_priority=data.target_priority,
+        before_task_id=data.before_task_id,
+        after_task_id=data.after_task_id,
+    )
+    return service.serialize_task(task)
+
+
 @router.put(
     "/{task_id}/parent",
     response_model=TaskResponse,
@@ -603,4 +640,84 @@ def detach_task_from_workspace(
     current_user: User = Depends(get_current_user),
 ):
     service.detach_task_from_workspace(db, current_user.id, task_id, workspace_id)
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+
+# ---------------------------------------------------------------------------
+# Checklist
+# ---------------------------------------------------------------------------
+
+
+@router.get(
+    "/{task_id}/checklist",
+    response_model=TaskChecklistListResponse,
+    summary="List checklist items for a task",
+)
+def list_checklist_items(
+    task_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    items = service.list_checklist_items(db, current_user.id, task_id)
+    return {"items": items, "total": len(items)}
+
+
+@router.post(
+    "/{task_id}/checklist",
+    response_model=TaskChecklistItemOut,
+    status_code=status.HTTP_201_CREATED,
+    summary="Create a checklist item",
+)
+def create_checklist_item(
+    task_id: int,
+    data: TaskChecklistItemCreate,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    return service.create_checklist_item(db, current_user.id, task_id, title=data.title)
+
+
+@router.patch(
+    "/{task_id}/checklist/reorder",
+    response_model=TaskChecklistListResponse,
+    summary="Reorder checklist items",
+)
+def reorder_checklist_items(
+    task_id: int,
+    data: TaskChecklistReorder,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    items = service.reorder_checklist_items(db, current_user.id, task_id, item_ids=data.item_ids)
+    return {"items": items, "total": len(items)}
+
+
+@router.patch(
+    "/{task_id}/checklist/{item_id}",
+    response_model=TaskChecklistItemOut,
+    summary="Update a checklist item",
+)
+def update_checklist_item(
+    task_id: int,
+    item_id: int,
+    data: TaskChecklistItemUpdate,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    return service.update_checklist_item(db, current_user.id, task_id, item_id, data=data)
+
+
+@router.delete(
+    "/{task_id}/checklist/{item_id}",
+    status_code=status.HTTP_204_NO_CONTENT,
+    summary="Delete a checklist item",
+)
+def delete_checklist_item(
+    task_id: int,
+    item_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    service.delete_checklist_item(db, current_user.id, task_id, item_id)
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
     return Response(status_code=status.HTTP_204_NO_CONTENT)

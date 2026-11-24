@@ -13,6 +13,7 @@ if TYPE_CHECKING:
     from ...calendar.models.event import Event
     from ...calendar.models.reminder import Reminder
     from ...calendar.models.scheduled_reminder import ScheduledReminder
+    from ...task.models.task import Task
 
 
 class Notification(Base):
@@ -56,6 +57,9 @@ class Notification(Base):
     invitation_id: Mapped[int | None] = mapped_column(
         ForeignKey("workspace_invitations.id", ondelete="SET NULL"), nullable=True
     )
+    task_id: Mapped[int | None] = mapped_column(
+        ForeignKey("tasks.id", ondelete="SET NULL"), nullable=True
+    )
     occurrence_start_at: Mapped[datetime | None] = mapped_column(
         DateTime(timezone=True), nullable=True
     )
@@ -76,3 +80,4 @@ class Notification(Base):
     scheduled_reminder: Mapped["ScheduledReminder | None"] = relationship(
         "ScheduledReminder", back_populates="notification"
     )
+    task: Mapped["Task | None"] = relationship("Task")
