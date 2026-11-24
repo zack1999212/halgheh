@@ -1,8 +1,9 @@
-import { Calendar, FileText, LayoutGrid, ListChecks, Settings } from 'lucide-react'
+import { Activity, Calendar, FileText, LayoutGrid, ListChecks, Settings } from 'lucide-react'
 
 /** Primary application sections rendered in the sidebar. */
 export const NAV_ITEMS = [
-  { to: '/workspace', label: 'Workspace', icon: LayoutGrid },
+  { to: '/workspace', label: 'Workspace', icon: LayoutGrid, exact: true },
+  { to: '/workspace/activity', label: 'Activity', icon: Activity },
   { to: '/calendar', label: 'Calendar', icon: Calendar },
   { to: '/tasks', label: 'Tasks', icon: ListChecks },
   { to: '/documents', label: 'Documents', icon: FileText },
@@ -17,7 +18,7 @@ export function isNavItemActive(item, pathname) {
   if (!item) {
     return false
   }
-  return pathname === item.to || pathname.startsWith(`${item.to}/`)
+  return pathname === item.to || (!item.exact && pathname.startsWith(`${item.to}/`))
 }
 
 /** Resolves the navigation entry for a pathname, for the header title. */

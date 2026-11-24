@@ -26,7 +26,7 @@ function BrandMark() {
  * module switcher, notifications, then profile. The module switcher remains
  * immediately left of notifications.
  */
-export default function AppHeader({ user, onLogout, onUnauthorized, onUserUpdated }) {
+export default function AppHeader({ user, received, onLogout, onUnauthorized, onUserUpdated }) {
   return (
     <header className="sticky top-0 z-30 flex h-[var(--header-height)] shrink-0 items-center justify-between gap-4 border-b border-border bg-card px-6 max-lg:px-4">
       <Link
@@ -41,9 +41,9 @@ export default function AppHeader({ user, onLogout, onUnauthorized, onUserUpdate
       </Link>
 
       <div className="flex min-w-0 items-center gap-1.5 sm:gap-2">
-        <WorkspaceSelector />
+        <WorkspaceSelector received={received} onUnauthorized={onUnauthorized} />
         <ModuleSwitcher />
-        <NotificationMenu onUnauthorized={onUnauthorized} />
+        <NotificationMenu received={received} onUnauthorized={onUnauthorized} />
         <Separator orientation="vertical" className="mx-0.5 h-5" />
         <ProfileMenu user={user} onLogout={onLogout} onUserUpdated={onUserUpdated} />
       </div>

@@ -111,3 +111,42 @@
     transition: none !important;
   }
 }
+
+/*
+ * The workspace page toggle sets `data-theme` on the app shell too, so the
+ * global top bar, notifications and module pages follow the same choice.
+ * These are the dashboard's warm-black tokens rather than the generic bluish
+ * `.dark` set, keeping the header consistent with the workspace surface.
+ */
+.app-shell[data-theme='dark'] {
+  --background: 30 8% 5%;
+  --foreground: 45 20% 96%;
+  --card: 30 8% 11%;
+  --card-foreground: 45 20% 96%;
+  --popover: 30 8% 11%;
+  --popover-foreground: 45 20% 96%;
+  --primary: 45 20% 96%;
+  --primary-foreground: 30 8% 5%;
+  --secondary: 30 8% 14%;
+  --secondary-foreground: 45 20% 96%;
+  --muted: 30 8% 14%;
+  --muted-foreground: 45 8% 64%;
+  --accent: 30 8% 14%;
+  --accent-foreground: 45 20% 96%;
+  --destructive: 4 70% 45%;
+  --destructive-foreground: 0 0% 100%;
+  --border: 30 8% 16%;
+  --input: 30 8% 20%;
+  --ring: 45 8% 55%;
+
+  /* Legacy tokens used by the shell's custom CSS and notification panel. */
+  --color-bg: #0D0C0B;
+  --color-surface: #1A1916;
+  --color-surface-muted: #26241F;
+  --color-surface-inset: #2E2B26;
+  --color-border: #2E2B26;
+  --color-border-input: #33302A;
+  --color-text: #F2F0EA;
+  --color-text-muted: #A8A499;
+  --color-text-subtle: #7B776D;
+}

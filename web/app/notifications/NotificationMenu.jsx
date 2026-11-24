@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import {
   Bell,
   CheckCheck,
@@ -12,7 +12,7 @@ import NotificationItem from './NotificationItem.jsx'
 import NotificationPreferences from './NotificationPreferences.jsx'
 import './notifications.css'
 
-export default function NotificationMenu({ onUnauthorized }) {
+export default function NotificationMenu({ received, onUnauthorized }) {
   const {
     items,
     unreadCount,
@@ -32,6 +32,22 @@ export default function NotificationMenu({ onUnauthorized }) {
     loadPreferences,
     setCalendarReminders,
   } = useNotifications({ onUnauthorized })
+
+  // Shared received-invitations store (owned by the app shell). `refresh` is
+  // stable; the accept/decline handlers and items are read for rendering.
+  const refreshInvitations = received?.refresh
+  const invitationItems = received?.items
+  const invitationBusyId = received?.busyId
+  const acceptInvitation = received?.accept
+  const declineInvitation = received?.decline
+
+  const invitationsById = useMemo(() => {
+    const map = new Map()
+    for (const invitation of invitationItems || []) {
+      map.set(invitation.id, invitation)
+    }
+    return map
+  }, [invitationItems])
 
   const [open, setOpen] = useState(false)
   const [confirmingDeleteAll, setConfirmingDeleteAll] = useState(false)
@@ -69,7 +85,8 @@ export default function NotificationMenu({ onUnauthorized }) {
     }
     refresh()
     loadPreferences()
-  }, [open, refresh, loadPreferences])
+    refreshInvitations?.()
+  }, [open, refresh, loadPreferences, refreshInvitations])
 
   const hasUnread = unreadCount > 0
   const badgeLabel = unreadCount > 99 ? '99+' : String(unreadCount)
@@ -209,6 +226,15 @@ export default function NotificationMenu({ onUnauthorized }) {
                     busy={busyId === notification.id || bulkBusy}
                     onToggleRead={toggleRead}
                     onDelete={removeOne}
+                    invitation={
+                      notification.type === 'workspace_invitation' && notification.invitation_id != null
+                        ? invitationsById.get(notification.invitation_id)
+                        : undefined
+                    }
+                    invitationBusy={invitationBusyId != null}
+                    invitationBusyId={invitationBusyId}
+                    onAcceptInvitation={acceptInvitation}
+                    onDeclineInvitation={declineInvitation}
                   />
                 ))}
               </ul>

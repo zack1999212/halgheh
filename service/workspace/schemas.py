@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from datetime import datetime
+from typing import Any
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
@@ -152,3 +153,33 @@ class ReceivedWorkspaceInvitationResponse(WorkspaceInvitationResponse):
     workspace_name: str | None = None
     inviter_username: str | None = None
     inviter_name: str | None = None
+
+
+class WorkspaceActivityActor(BaseModel):
+    id: int
+    username: str | None = None
+    name: str | None = None
+    avatar_url: str | None = None
+
+
+class WorkspaceActivityResponse(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    workspace_id: int | None = None
+    workspace_name: str | None = None
+    project_id: int | None = None
+    actor: WorkspaceActivityActor | None = None
+    event_type: str
+    category: str
+    entity_type: str
+    entity_id: int | None = None
+    metadata: dict[str, Any] = Field(default_factory=dict)
+    created_at: datetime
+
+
+class WorkspaceActivityListResponse(BaseModel):
+    items: list[WorkspaceActivityResponse]
+    total: int
+    limit: int
+    offset: int

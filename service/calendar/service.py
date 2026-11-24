@@ -327,6 +327,18 @@ def create_event(db: Session, calendar_id: int, user_id: int, data: EventCreate)
                 "event_title": event.title,
             },
         )
+    else:
+        # Workspace-only events never reach the project activity bridge.
+        from ..workspace import activity as ws_activity
+        ws_activity.record(
+            db,
+            workspace_ids=ws_repo.list_resource_workspace_ids(db, "event", event.id),
+            actor_id=user_id,
+            event_type=ws_activity.EVENT_CREATED,
+            entity_type="event",
+            entity_id=event.id,
+            metadata={"resource_name": event.title},
+        )
     try:
         db.commit()
     except IntegrityError:
@@ -721,6 +733,17 @@ def delete_event(db: Session, calendar_id: int, event_id: int, user_id: int) -> 
     from ..workspace import service as ws_service
     if not ws_service.can_delete_resource_everywhere(db, user_id, "event", event):
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not allowed to delete this event everywhere")
+    from ..workspace import activity as ws_activity
+    from ..workspace import repository as ws_repository
+    ws_activity.record(
+        db,
+        workspace_ids=ws_repository.list_resource_workspace_ids(db, "event", event.id),
+        actor_id=user_id,
+        event_type=ws_activity.EVENT_DELETED,
+        entity_type="event",
+        entity_id=event.id,
+        metadata={"resource_name": getattr(event, "title", None)},
+    )
     try:
         repository.delete_event(db, event)
         db.commit()

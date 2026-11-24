@@ -1,15 +1,17 @@
 from __future__ import annotations
 
-from fastapi import APIRouter, Depends, Query, Response, status
+from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
 from sqlalchemy.orm import Session
 
 from ..auth.dependencies import get_current_user
 from ..auth.models import User
 from ..core.database import get_db
+from . import activity as activity_service
 from . import service
 from .schemas import (
     ReceivedWorkspaceInvitationResponse,
     WorkspaceCreate,
+    WorkspaceActivityListResponse,
     WorkspaceInvitationCreate,
     WorkspaceInvitationResponse,
     WorkspaceListResponse,
@@ -43,6 +45,33 @@ def list_workspaces(
 ):
     items, total = service.list_workspaces(db, current_user.id, limit=limit, offset=offset)
     return {"items": items, "total": total, "limit": limit, "offset": offset}
+
+
+@router.get(
+    "/activity",
+    response_model=WorkspaceActivityListResponse,
+    response_model_exclude_none=True,
+)
+def list_all_workspace_activity(
+    category: str | None = Query(default=None),
+    actor_id: int | None = Query(default=None),
+    limit: int = Query(default=20, ge=1, le=100),
+    offset: int = Query(default=0, ge=0),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    try:
+        items, total = activity_service.list_activity(
+            db,
+            current_user.id,
+            category=category,
+            actor_filter=actor_id,
+            limit=limit,
+            offset=offset,
+        )
+        return {"items": items, "total": total, "limit": limit, "offset": offset}
+    except ValueError as err:
+        raise HTTPException(status_code=400, detail=str(err))
 
 
 @router.get("/{workspace_id}", response_model=WorkspaceResponse)
@@ -89,6 +118,35 @@ def list_workspace_members(
     current_user: User = Depends(get_current_user),
 ):
     return service.list_members(db, current_user.id, workspace_id)
+
+
+@router.get(
+    "/{workspace_id}/activity",
+    response_model=WorkspaceActivityListResponse,
+    response_model_exclude_none=True,
+)
+def list_workspace_activity(
+    workspace_id: int,
+    category: str | None = Query(default=None),
+    actor_id: int | None = Query(default=None),
+    limit: int = Query(default=20, ge=1, le=100),
+    offset: int = Query(default=0, ge=0),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    try:
+        items, total = activity_service.list_activity(
+            db,
+            current_user.id,
+            workspace_id=workspace_id,
+            category=category,
+            actor_filter=actor_id,
+            limit=limit,
+            offset=offset,
+        )
+        return {"items": items, "total": total, "limit": limit, "offset": offset}
+    except ValueError as err:
+        raise HTTPException(status_code=400, detail=str(err))
 
 
 # --- Invitations (workspace owner) ---
@@ -163,6 +221,16 @@ def remove_member(
     current_user: User = Depends(get_current_user),
 ):
     service.remove_workspace_member(db, current_user.id, workspace_id, member_id)
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+
+@router.post("/{workspace_id}/leave", status_code=status.HTTP_204_NO_CONTENT)
+def leave_workspace(
+    workspace_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    service.leave_workspace(db, current_user.id, workspace_id)
     return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 

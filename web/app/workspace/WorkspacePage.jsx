@@ -9,6 +9,7 @@ import { clearSession } from '../auth/api.js'
 import { useActiveWorkspace } from './ActiveWorkspaceContext.jsx'
 import { ALL_WORKSPACES } from './constants.js'
 import useWorkspaceCalendarData from './hooks/useWorkspaceCalendarData.js'
+import useWorkspaceActivityData from './hooks/useWorkspaceActivityData.js'
 import useWorkspaceDocumentsData from './hooks/useWorkspaceDocumentsData.js'
 import useWorkspaceTasksData from './hooks/useWorkspaceTasksData.js'
 import { useWorkspaceTheme } from './hooks/useWorkspaceTheme.js'
@@ -20,6 +21,7 @@ import TodayTasks from './components/sections/TodayTasks.jsx'
 import UpcomingEvents from './components/sections/UpcomingEvents.jsx'
 import UpcomingTasks from './components/sections/UpcomingTasks.jsx'
 import RecentDocuments from './components/sections/RecentDocuments.jsx'
+import RecentActivity from './components/sections/RecentActivity.jsx'
 import './workspace.css'
 
 export default function WorkspacePage() {
@@ -43,6 +45,15 @@ export default function WorkspacePage() {
   const calendar = useWorkspaceCalendarData({ onUnauthorized: handleUnauthorized, workspaceId: hookWorkspaceId })
   const documents = useWorkspaceDocumentsData({ onUnauthorized: handleUnauthorized, workspaceId: hookWorkspaceId })
   const tasks = useWorkspaceTasksData({ onUnauthorized: handleUnauthorized, workspaceId: hookWorkspaceId })
+  const activity = useWorkspaceActivityData({
+    workspaceId: !workspaceReady
+      ? undefined
+      : isAllWorkspaces
+        ? null
+        : activeWorkspaceId,
+    limit: 5,
+    onUnauthorized: handleUnauthorized,
+  })
 
   const [selectedItem, setSelectedItem] = useState(null)
   const [detailsRefreshKey, setDetailsRefreshKey] = useState(0)
@@ -200,6 +211,13 @@ export default function WorkspacePage() {
               onRetry={calendar.reload}
               onOpenEvent={openEvent}
               onCreateEvent={canCreateEvent ? openCreateEvent : undefined}
+            />
+            <RecentActivity
+              loading={activity.loading}
+              error={activity.error}
+              items={activity.items}
+              showWorkspace={isAllWorkspaces}
+              onRetry={activity.reload}
             />
           </div>
           <div className="ws-col">

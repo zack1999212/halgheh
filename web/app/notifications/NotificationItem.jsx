@@ -1,4 +1,4 @@
-import { Check, Mail, MailOpen, Trash2 } from 'lucide-react'
+import { Check, Mail, MailOpen, Trash2, X } from 'lucide-react'
 import { Link } from 'react-router-dom'
 import {
   formatDateTime,
@@ -7,14 +7,29 @@ import {
   formatRelativeTime,
 } from './format.js'
 
+function statusLabel(status) {
+  if (!status) return ''
+  return status.charAt(0).toUpperCase() + status.slice(1)
+}
+
 export default function NotificationItem({
   notification,
   busy,
   onToggleRead,
   onDelete,
+  invitation,
+  invitationBusy,
+  invitationBusyId,
+  onAcceptInvitation,
+  onDeclineInvitation,
 }) {
   const eventContext = formatEventContext(notification)
   const typeLabel = formatNotificationType(notification.type)
+
+  const isWorkspaceInvite = notification.type === 'workspace_invitation'
+  const invitePending = isWorkspaceInvite && invitation?.status === 'pending'
+  const inviteResponded = isWorkspaceInvite && invitation && invitation.status !== 'pending'
+  const thisInviteBusy = invitation != null && invitationBusyId === invitation.id
 
   return (
     <li
@@ -44,7 +59,8 @@ export default function NotificationItem({
       )}
 
       <div className="notification-item-actions">
-        {notification.type === 'project_invitation' && (
+        {(notification.type === 'project_invitation' ||
+          notification.type === 'workspace_invitation_accepted') && (
           <Link
             to="/workspace"
             className="notification-item-action"
@@ -54,6 +70,38 @@ export default function NotificationItem({
             <span>View workspace</span>
           </Link>
         )}
+
+        {invitePending && (
+          <>
+            <button
+              type="button"
+              className="notification-item-action"
+              onClick={() => onAcceptInvitation?.(invitation)}
+              disabled={invitationBusy}
+              aria-label={`Accept invitation to ${invitation.workspace_name || 'workspace'}`}
+            >
+              <Check size={13} aria-hidden="true" />
+              <span>{thisInviteBusy ? 'Accepting…' : 'Accept'}</span>
+            </button>
+            <button
+              type="button"
+              className="notification-item-action notification-item-action--danger"
+              onClick={() => onDeclineInvitation?.(invitation)}
+              disabled={invitationBusy}
+              aria-label={`Decline invitation to ${invitation.workspace_name || 'workspace'}`}
+            >
+              <X size={13} aria-hidden="true" />
+              <span>{thisInviteBusy ? 'Declining…' : 'Decline'}</span>
+            </button>
+          </>
+        )}
+
+        {inviteResponded && (
+          <span className="notification-item-status" role="status">
+            {statusLabel(invitation.status)}
+          </span>
+        )}
+
         <button
           type="button"
           className="notification-item-action"

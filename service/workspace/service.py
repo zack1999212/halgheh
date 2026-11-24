@@ -10,6 +10,7 @@ from ..auth.models import User
 from ..docs.models import PERSONAL_WORKSPACE, SHARED_WORKSPACE, Workspace
 from ..notifications.service import add_notification
 from . import permissions, repository
+from . import activity as workspace_activity
 from .models import WORKSPACE_INVITABLE_ROLES
 
 
@@ -120,6 +121,15 @@ def create_shared_workspace(db: Session, actor_id: int, *, name: str, descriptio
         description=description,
         workspace_type=SHARED_WORKSPACE,
     )
+    workspace_activity.record(
+        db,
+        workspace_ids=[workspace.id],
+        actor_id=actor_id,
+        event_type=workspace_activity.WORKSPACE_CREATED,
+        entity_type="workspace",
+        entity_id=workspace.id,
+        metadata={"workspace_name": workspace.name},
+    )
     _commit(db, conflict_detail="Could not create workspace")
     db.refresh(workspace)
     _ = workspace.owner
@@ -133,10 +143,31 @@ def update_workspace(db: Session, actor_id: int, workspace_id: int, *, name: str
     if workspace.workspace_type == PERSONAL_WORKSPACE:
         # Personal workspace details are editable only by owner (role already owner).
         pass
+    old_name = workspace.name
+    old_description = workspace.description
     if name is not None:
         workspace.name = name
     if description_set:
         workspace.description = description
+    if name is not None and name != old_name:
+        workspace_activity.record(
+            db,
+            workspace_ids=[workspace.id],
+            actor_id=actor_id,
+            event_type=workspace_activity.WORKSPACE_RENAMED,
+            entity_type="workspace",
+            entity_id=workspace.id,
+            metadata={"old_name": old_name, "new_name": workspace.name},
+        )
+    if description_set and description != old_description:
+        workspace_activity.record(
+            db,
+            workspace_ids=[workspace.id],
+            actor_id=actor_id,
+            event_type=workspace_activity.WORKSPACE_DESCRIPTION_CHANGED,
+            entity_type="workspace",
+            entity_id=workspace.id,
+        )
 
     # Keep project-backed shared workspaces in sync with their legacy project record.
     if workspace.workspace_type == SHARED_WORKSPACE:
@@ -387,6 +418,21 @@ def create_workspace_invitation(db: Session, actor_id: int, workspace_id: int, *
         type="workspace_invitation",
         title="Workspace invitation",
         message=f'{inviter_name} invited {invitee.username} to join workspace "{workspace.name}" as {role}.',
+        invitation_id=inv.id,
+    )
+
+    workspace_activity.record(
+        db,
+        workspace_ids=[workspace.id],
+        actor_id=actor_id,
+        event_type=workspace_activity.MEMBER_INVITED,
+        entity_type="invitation",
+        entity_id=inv.id,
+        metadata={
+            "invitee_username": invitee.username,
+            "role": role,
+            "workspace_name": workspace.name,
+        },
     )
 
     _commit(db, conflict_detail="Could not create invitation")
@@ -453,6 +499,15 @@ def revoke_workspace_invitation(db: Session, actor_id: int, workspace_id: int, i
     project = _get_linked_project(db, workspace.id)
     if project is not None:
         _sync_project_invitation_from_workspace(db, inv, project_id=project.id)
+    workspace_activity.record(
+        db,
+        workspace_ids=[workspace.id],
+        actor_id=actor_id,
+        event_type=workspace_activity.INVITATION_REVOKED,
+        entity_type="invitation",
+        entity_id=inv.id,
+        metadata={"invitee_username": inv.invitee_username},
+    )
     _commit(db, conflict_detail="Could not revoke invitation")
     db.refresh(inv)
     return _serialize_invitation(inv)
@@ -494,6 +549,30 @@ def accept_workspace_invitation(db: Session, actor_id: int, invitation_id: int) 
     if project is not None:
         _sync_project_invitation_from_workspace(db, inv, project_id=project.id)
 
+    invitee = db.get(User, actor_id)
+    invitee_name = getattr(invitee, "name", None) or getattr(invitee, "username", "Someone")
+    workspace_activity.record(
+        db,
+        workspace_ids=[workspace.id],
+        actor_id=actor_id,
+        event_type=workspace_activity.INVITATION_ACCEPTED,
+        entity_type="invitation",
+        entity_id=inv.id,
+        metadata={
+            "invitee_username": invitee.username,
+            "role": inv.role,
+            "workspace_name": workspace.name,
+        },
+    )
+    add_notification(
+        db,
+        user_id=inv.inviter_id,
+        type="workspace_invitation_accepted",
+        title="Invitation accepted",
+        message=f'{invitee_name} accepted your invitation to join workspace "{workspace.name}" as {inv.role}.',
+        invitation_id=inv.id,
+    )
+
     _commit(db, conflict_detail="Could not accept invitation")
     db.refresh(inv)
     return _serialize_invitation(inv)
@@ -511,6 +590,16 @@ def decline_workspace_invitation(db: Session, actor_id: int, invitation_id: int)
     project = _get_linked_project(db, inv.workspace_id)
     if project is not None:
         _sync_project_invitation_from_workspace(db, inv, project_id=project.id)
+    invitee = db.get(User, actor_id)
+    workspace_activity.record(
+        db,
+        workspace_ids=[inv.workspace_id],
+        actor_id=actor_id,
+        event_type=workspace_activity.INVITATION_DECLINED,
+        entity_type="invitation",
+        entity_id=inv.id,
+        metadata={"invitee_username": getattr(invitee, "username", None)},
+    )
     _commit(db, conflict_detail="Could not decline invitation")
     db.refresh(inv)
     return _serialize_invitation(inv)
@@ -556,6 +645,15 @@ def update_workspace_member_role(
         pm = project_repository.get_member(db, project.id, member.user_id)
         if pm is not None:
             pm.role = new_role
+    workspace_activity.record(
+        db,
+        workspace_ids=[workspace.id],
+        actor_id=actor_id,
+        event_type=workspace_activity.MEMBER_ROLE_CHANGED,
+        entity_type="member",
+        entity_id=member.id,
+        metadata={"user_id": member.user_id, "role": member.role},
+    )
     _commit(db, conflict_detail="Could not update member role")
     db.refresh(member)
     _ = member.user
@@ -579,8 +677,48 @@ def remove_workspace_member(db: Session, actor_id: int, workspace_id: int, membe
         pm = project_repository.get_member(db, project.id, member.user_id)
         if pm is not None:
             project_repository.delete_member(db, pm)
+    workspace_activity.record(
+        db,
+        workspace_ids=[workspace.id],
+        actor_id=actor_id,
+        event_type=workspace_activity.MEMBER_REMOVED,
+        entity_type="member",
+        entity_id=member.id,
+        metadata={"user_id": member.user_id},
+    )
     repository.delete_member(db, member)
     _commit(db, conflict_detail="Could not remove member")
+
+
+def leave_workspace(db: Session, actor_id: int, workspace_id: int) -> None:
+    """Let an accepted member leave a shared workspace by removing their own
+    membership. Owners cannot leave their own workspace, and personal
+    workspaces have no membership to leave."""
+    workspace, actor_role = get_accessible_workspace(db, workspace_id, actor_id)
+    if actor_role == permissions.ROLE_OWNER:
+        raise _bad_request("Workspace owner cannot leave their own workspace")
+    if workspace.workspace_type != SHARED_WORKSPACE:
+        raise _bad_request("Personal workspaces cannot be left")
+    member = repository.get_member(db, workspace.id, actor_id)
+    if member is None:
+        raise _bad_request("You are not a member of this workspace")
+
+    project = _get_linked_project(db, workspace.id)
+    if project is not None:
+        from ..project import repository as project_repository
+        pm = project_repository.get_member(db, project.id, actor_id)
+        if pm is not None:
+            project_repository.delete_member(db, pm)
+    workspace_activity.record(
+        db,
+        workspace_ids=[workspace.id],
+        actor_id=actor_id,
+        event_type=workspace_activity.MEMBER_LEFT,
+        entity_type="member",
+        entity_id=member.id,
+    )
+    repository.delete_member(db, member)
+    _commit(db, conflict_detail="Could not leave workspace")
 
 
 # ---------------------------------------------------------------------------
@@ -711,6 +849,20 @@ def attach_resource_to_workspace(
     if resource_type == "document":
         # keep legacy primary workspace populated
         _sync_document_primary_workspace(db, resource, preferred_workspace_id=resource.workspace_id)
+    _attach_event = {
+        "task": workspace_activity.TASK_ATTACHED,
+        "document": workspace_activity.DOCUMENT_ATTACHED,
+        "event": workspace_activity.EVENT_ATTACHED,
+    }[resource_type]
+    workspace_activity.record(
+        db,
+        workspace_ids=[workspace_id],
+        actor_id=actor_id,
+        event_type=_attach_event,
+        entity_type=resource_type,
+        entity_id=resource_id,
+        metadata={"resource_name": getattr(resource, "title", None) or getattr(resource, "name", None)},
+    )
     _commit(db, conflict_detail="Could not attach resource to workspace")
     return {
         "resource_type": resource_type,
@@ -739,6 +891,20 @@ def detach_resource_from_workspace(
 
     if resource_type == "document":
         _sync_document_primary_workspace(db, resource, preferred_workspace_id=None)
+    _detach_event = {
+        "task": workspace_activity.TASK_DETACHED,
+        "document": workspace_activity.DOCUMENT_DETACHED,
+        "event": workspace_activity.EVENT_DETACHED,
+    }[resource_type]
+    workspace_activity.record(
+        db,
+        workspace_ids=[workspace_id],
+        actor_id=actor_id,
+        event_type=_detach_event,
+        entity_type=resource_type,
+        entity_id=resource_id,
+        metadata={"resource_name": getattr(resource, "title", None) or getattr(resource, "name", None)},
+    )
     _commit(db, conflict_detail="Could not detach resource from workspace")
     return {
         "resource_type": resource_type,

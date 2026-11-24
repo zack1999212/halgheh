@@ -53,6 +53,9 @@ class Notification(Base):
     scheduled_reminder_id: Mapped[int | None] = mapped_column(
         ForeignKey("scheduled_reminders.id", ondelete="SET NULL"), nullable=True
     )
+    invitation_id: Mapped[int | None] = mapped_column(
+        ForeignKey("workspace_invitations.id", ondelete="SET NULL"), nullable=True
+    )
     occurrence_start_at: Mapped[datetime | None] = mapped_column(
         DateTime(timezone=True), nullable=True
     )

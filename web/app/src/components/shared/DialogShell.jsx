@@ -27,6 +27,7 @@ export default function DialogShell({
   footer,
   wide = false,
   contentClassName = '',
+  theme,
 }) {
   return (
     <Dialog
@@ -38,6 +39,7 @@ export default function DialogShell({
       }}
     >
       <DialogContent
+        data-theme={theme}
         className={cn(
           'flex max-h-[calc(100dvh-2rem)] w-[calc(100vw-1.5rem)] flex-col gap-0 overflow-hidden rounded-[var(--radius-lg)] border-border p-0 shadow-[var(--shadow-card)] sm:max-w-[560px]',
           wide && 'sm:max-w-[720px]',
