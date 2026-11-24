@@ -1,4 +1,4 @@
-import { Check, Mail, MailOpen, Trash2, X } from 'lucide-react'
+import { Check, ExternalLink, Mail, MailOpen, Trash2, X } from 'lucide-react' 
 import { Link } from 'react-router-dom'
 import {
   formatDateTime,
@@ -71,6 +71,17 @@ export default function NotificationItem({
           </Link>
         )}
 
+        {notification.task_id ? (
+          <Link
+            to={`/tasks?task=${notification.task_id}`}
+            className="notification-item-action"
+            aria-label={`View task for "${notification.title}"`}
+          >
+            <ExternalLink size={13} aria-hidden="true" />
+            <span>View task</span>
+          </Link>
+        ) : null}
+
         {invitePending && (
           <>
             <button
@@ -101,7 +112,6 @@ export default function NotificationItem({
             {statusLabel(invitation.status)}
           </span>
         )}
-
         <button
           type="button"
           className="notification-item-action"

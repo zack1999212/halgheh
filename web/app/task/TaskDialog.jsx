@@ -1,7 +1,9 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import DialogShell from '@/components/shared/DialogShell'
+import ErrorState from '@/components/shared/ErrorState'
 import FormError from '@/components/shared/FormError'
 import FormField, { fieldInputClass } from '@/components/shared/FormField'
+import LoadingState from '@/components/shared/LoadingState'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -14,21 +16,56 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { Textarea } from '@/components/ui/textarea'
-import { attachLabel, createTask, detachLabel, setTaskParent, updateTask, updateTaskStatus } from './api.js'
+import { attachLabel, createChecklistItem, createTask, detachLabel, updateTask, updateTaskStatus } from './api.js'
+import TaskChecklistSection from './TaskChecklistSection.jsx'
 import { TASK_PRIORITIES, TASK_STATUSES } from './utils/taskConstants.js'
+const DRAFT_KEY_CREATE = 'tasks:draft:create'
 
-const NO_PARENT = '__none__'
+function draftKey(mode, taskId) {
+  return mode === 'edit' && taskId ? `tasks:draft:edit:${taskId}` : DRAFT_KEY_CREATE
+}
+
+function readDraft(mode, taskId) {
+  try {
+    const raw = sessionStorage.getItem(draftKey(mode, taskId))
+    if (!raw) return null
+    const parsed = JSON.parse(raw)
+    if (!parsed || typeof parsed !== 'object') return null
+    return parsed
+  } catch {
+    return null
+  }
+}
+
+function writeDraft(mode, taskId, payload) {
+  try {
+    sessionStorage.setItem(draftKey(mode, taskId), JSON.stringify(payload))
+  } catch {
+    // Ignore storage quota/private mode failures.
+  }
+}
+
+function clearDraft(mode, taskId) {
+  try {
+    sessionStorage.removeItem(draftKey(mode, taskId))
+  } catch {
+    // Ignore storage failures.
+  }
+}
 
 export default function TaskDialog({
   open,
   mode = 'create',
   task = null,
-  allTasks = [],
   availableLabels = [],
+  allTasks = [],
   projectId = null,
   workspaceId = null,
   onClose,
   onSaved,
+  onChanged,
+  loading = false,
+  loadError = '',
 }) {
   const isEdit = mode === 'edit' && Boolean(task)
   const [title, setTitle] = useState('')
@@ -37,35 +74,15 @@ export default function TaskDialog({
   const [statusValue, setStatusValue] = useState('todo')
   const [startDate, setStartDate] = useState('')
   const [dueDate, setDueDate] = useState('')
-  const [parentId, setParentId] = useState(NO_PARENT)
   const [selectedLabelIds, setSelectedLabelIds] = useState([])
+  const [draftChecklist, setDraftChecklist] = useState([])
+  const [createdTaskId, setCreatedTaskId] = useState(null)
+  const [checklistSubmitError, setChecklistSubmitError] = useState('')
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
-
-  useEffect(() => {
-    if (!open) return
-    setError('')
-    setSaving(false)
-    if (isEdit && task) {
-      setTitle(task.title || '')
-      setDescription(task.description || '')
-      setPriority(task.priority || 'medium')
-      setStatusValue(task.status || 'todo')
-      setStartDate(task.start_date || '')
-      setDueDate(task.due_date || '')
-      setParentId(task.parent_task_id ? String(task.parent_task_id) : NO_PARENT)
-      setSelectedLabelIds(Array.isArray(task.labels) ? task.labels.map((l) => l.id) : [])
-    } else {
-      setTitle('')
-      setDescription('')
-      setPriority('medium')
-      setStatusValue('todo')
-      setStartDate('')
-      setDueDate('')
-      setParentId(NO_PARENT)
-      setSelectedLabelIds([])
-    }
-  }, [open, isEdit, task])
+  const [draftConflict, setDraftConflict] = useState('')
+  const [draftRestored, setDraftRestored] = useState(false)
+  const initKeyRef = useRef('')
 
   const parentOptions = useMemo(() => {
     const selfId = task?.id
@@ -75,6 +92,105 @@ export default function TaskDialog({
       return true
     })
   }, [allTasks, task?.id, projectId])
+
+  useEffect(() => {
+    if (!open) {
+      initKeyRef.current = ''
+      return
+    }
+    const mode = isEdit ? 'edit' : 'create'
+    const keyTaskId = isEdit ? task?.id : 'new'
+    const initKey = `${mode}:${keyTaskId ?? 'none'}:${task?.updated_at ?? ''}:${loading ? 'loading' : 'ready'}`
+    if (loading) return
+    if (initKeyRef.current === initKey) return
+    initKeyRef.current = initKey
+
+    setError('')
+    setChecklistSubmitError('')
+    setCreatedTaskId(null)
+    setSaving(false)
+    setDraftConflict('')
+    setDraftRestored(false)
+
+    const base = isEdit && task ? {
+      title: task.title || '',
+      description: task.description || '',
+      priority: task.priority || 'medium',
+      statusValue: task.status || 'todo',
+      startDate: task.start_date || '',
+      dueDate: task.due_date || '',
+      selectedLabelIds: Array.isArray(task.labels) ? task.labels.map((l) => l.id) : [],
+      draftChecklist: [],
+    } : {
+      title: '',
+      description: '',
+      priority: 'medium',
+      statusValue: 'todo',
+      startDate: '',
+      dueDate: '',
+      selectedLabelIds: [],
+      draftChecklist: [],
+    }
+
+    const draft = readDraft(mode, isEdit ? task?.id : null)
+    let next = base
+    if (draft && typeof draft === 'object') {
+      if (isEdit) {
+        const sameTask = Number(draft.taskId) === Number(task?.id)
+        const sameVersion = !draft.taskUpdatedAt || !task?.updated_at || draft.taskUpdatedAt === task.updated_at
+        if (sameTask && sameVersion && draft.fields && typeof draft.fields === 'object') {
+          next = { ...base, ...draft.fields, selectedLabelIds: Array.isArray(draft.fields.selectedLabelIds) ? draft.fields.selectedLabelIds : base.selectedLabelIds }
+          setDraftRestored(true)
+        } else if (sameTask && !sameVersion) {
+          setDraftConflict('A saved draft was found for this task, but the task changed on the server. Draft was not auto-restored.')
+        }
+      } else if (draft.fields && typeof draft.fields === 'object') {
+        next = {
+          ...base,
+          ...draft.fields,
+          selectedLabelIds: Array.isArray(draft.fields.selectedLabelIds) ? draft.fields.selectedLabelIds : base.selectedLabelIds,
+          draftChecklist: Array.isArray(draft.fields.draftChecklist) ? draft.fields.draftChecklist : [],
+        }
+        if (draft.createdTaskId) setCreatedTaskId(draft.createdTaskId)
+        setDraftRestored(true)
+      }
+    }
+
+    setTitle(next.title || '')
+    setDescription(next.description || '')
+    setPriority(next.priority || 'medium')
+    setStatusValue(next.statusValue || 'todo')
+    setStartDate(next.startDate || '')
+    setDueDate(next.dueDate || '')
+    setSelectedLabelIds(Array.isArray(next.selectedLabelIds) ? next.selectedLabelIds : [])
+    setDraftChecklist(Array.isArray(next.draftChecklist) ? next.draftChecklist : [])
+  }, [open, isEdit, loading, task])
+
+  useEffect(() => {
+    if (!open || loading) return
+    if (!initKeyRef.current) return
+    const mode = isEdit ? 'edit' : 'create'
+    const keyTaskId = isEdit ? task?.id : null
+    if (isEdit && !keyTaskId) return
+    const payload = {
+      taskId: keyTaskId,
+      taskUpdatedAt: isEdit ? (task?.updated_at ?? null) : null,
+      createdTaskId: !isEdit ? createdTaskId : null,
+      savedAt: Date.now(),
+      fields: {
+        title,
+        description,
+        priority,
+        statusValue,
+        startDate,
+        dueDate,
+        selectedLabelIds,
+        draftChecklist: !isEdit ? draftChecklist : [],
+      },
+    }
+    writeDraft(mode, keyTaskId, payload)
+  }, [open, loading, isEdit, task?.id, task?.updated_at, createdTaskId, title, description, priority, statusValue, startDate, dueDate, selectedLabelIds, draftChecklist])
+>>>>>>> 9c1e503 (fix and edit task)
 
   const attachedLabels = Array.isArray(task?.labels) ? task.labels : []
   const assignments = Array.isArray(task?.assignments) ? task.assignments : []
@@ -97,8 +213,10 @@ export default function TaskDialog({
     }
 
     setSaving(true)
+    setChecklistSubmitError('')
     try {
-      if (!isEdit) {
+      let taskIdForChecklist = isEdit ? task?.id : createdTaskId
+      if (!isEdit && !taskIdForChecklist) {
         const payload = {
           title: trimmed,
           priority,
@@ -108,10 +226,13 @@ export default function TaskDialog({
         }
         if (projectId != null) payload.project_id = Number(projectId)
         if (workspaceId != null) payload.workspace_id = Number(workspaceId)
-        // Status, assignees, labels, and parent-on-create are not part of TaskCreate schema.
-        // Subtask creation/label attachment/assignment are separate supported endpoints and are surfaced in task details.
-        await createTask(payload)
-      } else {
+        const created = await createTask(payload)
+        taskIdForChecklist = created?.id ?? null
+        setCreatedTaskId(taskIdForChecklist)
+        onChanged?.()
+      }
+
+      if (isEdit) {
         const patch = {}
         if (trimmed !== (task.title || '')) patch.title = trimmed
         const nextDesc = description.trim() ? description.trim() : null
@@ -129,12 +250,6 @@ export default function TaskDialog({
           await updateTaskStatus(task.id, statusValue)
         }
 
-        const nextParent = parentId === NO_PARENT ? null : Number(parentId)
-        const prevParent = task.parent_task_id ?? null
-        if (nextParent !== prevParent) {
-          await setTaskParent(task.id, nextParent)
-        }
-
         // Apply label attachment diffs (owner-only; backend enforces permissions).
         const prevIds = new Set(attachedLabels.map((l) => l.id))
         const nextIds = new Set(selectedLabelIds)
@@ -144,9 +259,39 @@ export default function TaskDialog({
         for (const id of prevIds) {
           if (!nextIds.has(id)) await detachLabel(task.id, id)
         }
+      } else if (taskIdForChecklist) {
+        // Submit draft checklist items after task exists. Do not duplicate items on retry.
+        const pending = (Array.isArray(draftChecklist) ? draftChecklist : [])
+          .filter((item) => item && !item.createdId)
+          .filter((item) => typeof item.title === 'string' && item.title.trim())
+        if (pending.length > 0) {
+          const nextDraft = draftChecklist.map((item) => ({ ...item }))
+          const failures = []
+          for (const item of pending) {
+            const idx = nextDraft.findIndex((d) => d.id === item.id)
+            try {
+              const createdItem = await createChecklistItem(taskIdForChecklist, { title: item.title.trim() })
+              if (idx >= 0) nextDraft[idx] = { ...nextDraft[idx], createdId: createdItem?.id ?? true, title: item.title.trim() }
+            } catch (err) {
+              if (idx >= 0) nextDraft[idx] = { ...nextDraft[idx], submitError: err?.message || 'Could not create checklist item.' }
+              failures.push(item.title.trim())
+            }
+          }
+          setDraftChecklist(nextDraft)
+          if (failures.length > 0) {
+            setChecklistSubmitError(`Task was created, but ${failures.length} checklist item${failures.length === 1 ? '' : 's'} could not be saved. You can retry without creating another task.`)
+            setError('Some checklist items were not saved. Review the checklist below and retry.')
+            onChanged?.()
+            return
+          }
+        }
       }
 
-      onSaved?.()
+      clearDraft(isEdit ? 'edit' : 'create', isEdit ? task?.id : null)
+      setCreatedTaskId(null)
+      setDraftChecklist([])
+      setChecklistSubmitError('')
+      onSaved?.({ mode: isEdit ? 'edit' : 'create' })
       onClose()
     } catch (err) {
       setError(err?.message || 'Could not save the task.')
@@ -155,25 +300,74 @@ export default function TaskDialog({
     }
   }
 
+  function handleRestoreConflictDraft() {
+    const draft = readDraft('edit', task?.id)
+    if (!draft?.fields || Number(draft.taskId) !== Number(task?.id)) return
+    const f = draft.fields
+    setTitle(f.title || '')
+    setDescription(f.description || '')
+    setPriority(f.priority || 'medium')
+    setStatusValue(f.statusValue || 'todo')
+    setStartDate(f.startDate || '')
+    setDueDate(f.dueDate || '')
+    setSelectedLabelIds(Array.isArray(f.selectedLabelIds) ? f.selectedLabelIds : [])
+    setDraftConflict('')
+    setDraftRestored(true)
+  }
+
+  function handleDiscardConflictDraft() {
+    clearDraft('edit', task?.id)
+    setDraftConflict('')
+  }
+
+  function handleDialogClose() {
+    if (saving) return
+    clearDraft(isEdit ? 'edit' : 'create', isEdit ? task?.id : null)
+    onClose()
+  }
+
   return (
     <DialogShell
       open={open}
       wide
       title={isEdit ? 'Edit task' : 'New task'}
       description={isEdit ? 'Update task details using supported task operations.' : 'Create a task. Advanced assignment/label attachment can be managed from task details where supported.'}
-      onClose={saving ? () => {} : onClose}
+      onClose={handleDialogClose}
       contentClassName="tasks-dialog"
       footer={
-        <>
-          <Button type="button" variant="outline" className="h-9" onClick={onClose} disabled={saving}>Cancel</Button>
-          <Button type="submit" form="task-dialog-form" className="h-9" disabled={saving}>
-            {saving ? 'Saving…' : isEdit ? 'Save changes' : 'Create task'}
-          </Button>
-        </>
+        loading || loadError ? (
+          <Button type="button" variant="outline" className="h-9" onClick={handleDialogClose}>Close</Button>
+        ) : (
+          <>
+            <Button type="button" variant="outline" className="h-9" onClick={handleDialogClose} disabled={saving}>Cancel</Button>
+            <Button type="submit" form="task-dialog-form" className="h-9" disabled={saving}>
+              {saving ? 'Saving…' : isEdit ? 'Save changes' : createdTaskId ? 'Retry checklist save' : 'Create task'}
+            </Button>
+          </>
+        )
       }
     >
+      {loading ? (
+        <div className="py-6"><LoadingState label="Loading task…" /></div>
+      ) : loadError ? (
+        <ErrorState title="Could not load task" message={loadError} />
+      ) : (
       <form id="task-dialog-form" className="grid gap-4" onSubmit={handleSubmit}>
         <FormError>{error}</FormError>
+        {draftRestored && !draftConflict && (
+          <p className="rounded-[var(--radius-md)] border border-border bg-muted/30 px-3 py-2 text-[12.5px] text-muted-foreground">
+            Unsaved draft restored for this session.
+          </p>
+        )}
+        {draftConflict && (
+          <div className="grid gap-2 rounded-[var(--radius-md)] border border-destructive/30 bg-destructive/5 px-3 py-2">
+            <p className="text-[12.5px] text-destructive" role="alert">{draftConflict}</p>
+            <div className="flex gap-2">
+              <Button type="button" size="sm" variant="outline" className="h-8" onClick={handleRestoreConflictDraft}>Restore draft</Button>
+              <Button type="button" size="sm" variant="ghost" className="h-8" onClick={handleDiscardConflictDraft}>Discard draft</Button>
+            </div>
+          </div>
+        )}
 
         <FormField id="task-title" label="Title">
           {(field) => (
@@ -220,18 +414,24 @@ export default function TaskDialog({
         </div>
 
         <div className="grid gap-2">
-          <Label htmlFor="task-parent" className="text-[13px] font-medium">Parent task</Label>
-          <Select value={parentId} onValueChange={setParentId} disabled={saving || !isEdit}>
-            <SelectTrigger id="task-parent"><SelectValue placeholder="No parent" /></SelectTrigger>
-            <SelectContent>
-              <SelectItem value={NO_PARENT}>No parent</SelectItem>
-              {parentOptions.map((t) => (
-                <SelectItem key={t.id} value={String(t.id)}>#{t.id} — {t.title}</SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-          {!isEdit && <p className="text-[12px] text-muted-foreground">Parent assignment on creation is handled via subtask creation flows (supported separately). Use task details/subtask actions for hierarchy creation.</p>}
-          {isEdit && <p className="text-[12px] text-muted-foreground">Parent changes use the supported hierarchy endpoint (owner-only; backend validates cycles).</p>}
+          {checklistSubmitError ? (
+            <p className="rounded-[var(--radius-md)] border border-destructive/30 bg-destructive/5 px-3 py-2 text-[12.5px] text-destructive" role="alert">
+              {checklistSubmitError}
+            </p>
+          ) : null}
+          {createdTaskId && !isEdit ? (
+            <p className="rounded-[var(--radius-md)] border border-border bg-muted/30 px-3 py-2 text-[12.5px] text-muted-foreground">
+              Task was created. Retry to save the remaining checklist items.
+            </p>
+          ) : null}
+          <TaskChecklistSection
+            taskId={isEdit ? task?.id : null}
+            canEdit
+            draftMode={!isEdit}
+            draftItems={!isEdit ? draftChecklist : []}
+            onDraftItemsChange={!isEdit ? setDraftChecklist : undefined}
+            onChanged={() => onChanged?.()}
+          />
         </div>
 
         <div className="grid gap-2">
@@ -283,6 +483,7 @@ export default function TaskDialog({
           )}
         </div>
       </form>
+      )}
     </DialogShell>
   )
 }
