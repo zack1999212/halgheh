@@ -19,6 +19,7 @@ from ...core.database import Base
 
 if TYPE_CHECKING:
     from ...auth.models import User
+    from ...docs.models import Workspace
     from .project import Project
 
 
@@ -31,14 +32,25 @@ class ProjectActivity(Base):
             "created_at",
             "id",
         ),
+        Index(
+            "ix_project_activities_workspace_created_id",
+            "workspace_id",
+            "created_at",
+            "id",
+        ),
         Index("ix_project_activities_project_id", "project_id"),
         Index("ix_project_activities_actor_id", "actor_id"),
         Index("ix_project_activities_event_type", "event_type"),
     )
 
     id: Mapped[int] = mapped_column(primary_key=True)
-    project_id: Mapped[int] = mapped_column(
-        ForeignKey("projects.id", ondelete="CASCADE"), nullable=False
+    # Nullable so workspace-only activity can be stored in the same immutable
+    # table; legacy project rows keep their project_id.
+    project_id: Mapped[int | None] = mapped_column(
+        ForeignKey("projects.id", ondelete="CASCADE"), nullable=True
+    )
+    workspace_id: Mapped[int | None] = mapped_column(
+        ForeignKey("workspaces.id", ondelete="SET NULL"), nullable=True
     )
     actor_id: Mapped[int | None] = mapped_column(
         ForeignKey("users.id", ondelete="SET NULL"), nullable=True
@@ -53,5 +65,6 @@ class ProjectActivity(Base):
         DateTime(timezone=True), nullable=False, server_default=func.now()
     )
 
-    project: Mapped["Project"] = relationship("Project")
+    project: Mapped["Project | None"] = relationship("Project")
+    workspace: Mapped["Workspace | None"] = relationship("Workspace")
     actor: Mapped["User | None"] = relationship("User")

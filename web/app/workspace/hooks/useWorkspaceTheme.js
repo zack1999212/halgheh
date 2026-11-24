@@ -1,35 +1,15 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useContext } from 'react'
+import { WorkspaceThemeContext } from '../WorkspaceThemeProvider.jsx'
 
-const STORAGE_KEY = 'halgheh:workspace-theme'
-
-function getInitialTheme() {
-  try {
-    const stored = window.localStorage.getItem(STORAGE_KEY)
-    if (stored === 'light' || stored === 'dark') return stored
-  } catch {
-    // Storage can be unavailable (private mode); fall through to the
-    // system preference.
-  }
-  if (window.matchMedia?.('(prefers-color-scheme: dark)').matches) {
-    return 'dark'
-  }
-  return 'light'
-}
-
+/**
+ * Reads the app-wide theme owned by WorkspaceThemeProvider. Every consumer
+ * (workspace page toggle, global header, portaled workspace dialogs) shares
+ * the same state, so one toggle recolours all of them.
+ */
 export function useWorkspaceTheme() {
-  const [theme, setTheme] = useState(getInitialTheme)
-
-  useEffect(() => {
-    try {
-      window.localStorage.setItem(STORAGE_KEY, theme)
-    } catch {
-      // Persisting is best-effort only.
-    }
-  }, [theme])
-
-  const toggleTheme = useCallback(() => {
-    setTheme((current) => (current === 'dark' ? 'light' : 'dark'))
-  }, [])
-
-  return { theme, setTheme, toggleTheme }
+  const ctx = useContext(WorkspaceThemeContext)
+  if (!ctx) {
+    throw new Error('useWorkspaceTheme must be used within WorkspaceThemeProvider')
+  }
+  return ctx
 }

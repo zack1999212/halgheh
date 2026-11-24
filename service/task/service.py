@@ -308,6 +308,19 @@ def create_task(db: Session, actor_id: int, data: TaskCreate) -> Task:
             entity_id=task.id,
             metadata={"task_id": task.id, "task_title": task.title},
         )
+    else:
+        # Workspace-only tasks never reach the project activity bridge.
+        from ..workspace import activity as ws_activity
+        from ..workspace import repository as ws_repository
+        ws_activity.record(
+            db,
+            workspace_ids=ws_repository.list_resource_workspace_ids(db, "task", task.id),
+            actor_id=actor_id,
+            event_type=ws_activity.TASK_CREATED,
+            entity_type="task",
+            entity_id=task.id,
+            metadata={"resource_name": task.title},
+        )
     _commit(
         db,
         conflict_detail="Could not create the task",
@@ -468,6 +481,32 @@ def update_task(db: Session, actor_id: int, task_id: int, data: TaskUpdate) -> T
             old_value=old_value,
             new_value=new_value,
         )
+    if changed:
+        from ..workspace import activity as ws_activity
+        from ..workspace import repository as ws_repository
+        field_actions = {field: action for field, action, _old, _new in changed}
+        if "title" in field_actions:
+            event_type = ws_activity.TASK_TITLE_CHANGED
+        elif "description" in field_actions:
+            event_type = ws_activity.TASK_DESCRIPTION_CHANGED
+        elif "due_date" in field_actions:
+            event_type = ws_activity.TASK_DUE_DATE_CHANGED
+        elif "priority" in field_actions:
+            event_type = ws_activity.TASK_PRIORITY_CHANGED
+        else:
+            event_type = ws_activity.TASK_UPDATED
+        ws_activity.record(
+            db,
+            workspace_ids=ws_repository.list_resource_workspace_ids(db, "task", task.id),
+            actor_id=actor_id,
+            event_type=event_type,
+            entity_type="task",
+            entity_id=task.id,
+            metadata={
+                "resource_name": task.title,
+                "fields": [field for field, _action, _old, _new in changed],
+            },
+        )
     _commit(
         db,
         conflict_detail="Could not update the task",
@@ -493,6 +532,17 @@ def delete_task(db: Session, actor_id: int, task_id: int) -> None:
         action="task_deleted",
         old_value=None,
         new_value=_snap({"id": task.id, "title": task.title}),
+    )
+    from ..workspace import activity as ws_activity
+    from ..workspace import repository as ws_repository
+    ws_activity.record(
+        db,
+        workspace_ids=ws_repository.list_resource_workspace_ids(db, "task", task.id),
+        actor_id=actor_id,
+        event_type=ws_activity.TASK_DELETED,
+        entity_type="task",
+        entity_id=task.id,
+        metadata={"resource_name": task.title},
     )
     repository.delete_task(db, task)
     _commit(
@@ -553,6 +603,18 @@ def set_task_status(
             entity_type="task",
             entity_id=task.id,
             metadata={"task_id": task.id, "task_title": task.title},
+        )
+    if old_status == DONE_STATUS and new_status != DONE_STATUS:
+        from ..workspace import activity as ws_activity
+        from ..workspace import repository as ws_repository
+        ws_activity.record(
+            db,
+            workspace_ids=ws_repository.list_resource_workspace_ids(db, "task", task.id),
+            actor_id=actor_id,
+            event_type=ws_activity.TASK_REOPENED,
+            entity_type="task",
+            entity_id=task.id,
+            metadata={"resource_name": task.title},
         )
     _commit(
         db,

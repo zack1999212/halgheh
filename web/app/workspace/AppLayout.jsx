@@ -2,7 +2,10 @@ import { useCallback, useEffect, useState } from 'react'
 import { Outlet, useNavigate } from 'react-router-dom'
 import { getCurrentUser, clearSession } from '../auth/api.js'
 import { TooltipProvider } from '@/components/ui/tooltip'
-import { ActiveWorkspaceProvider } from './ActiveWorkspaceContext.jsx'
+import { WorkspaceThemeProvider } from './WorkspaceThemeProvider.jsx'
+import { ActiveWorkspaceProvider, useActiveWorkspace } from './ActiveWorkspaceContext.jsx'
+import useReceivedInvitations from './hooks/useReceivedInvitations.js'
+import { useWorkspaceTheme } from './hooks/useWorkspaceTheme.js'
 import AppHeader from './components/AppHeader.jsx'
 import './shell.css'
 
@@ -69,21 +72,51 @@ export default function AppLayout() {
   }, [handleUnauthorized])
 
   return (
-    <TooltipProvider delayDuration={0}>
-      <ActiveWorkspaceProvider user={user}>
-        <div className="flex min-h-svh flex-col bg-background text-foreground">
-          <AppHeader
+    <WorkspaceThemeProvider>
+      <TooltipProvider delayDuration={0}>
+        <ActiveWorkspaceProvider user={user}>
+          <AppShell
             user={user}
             onLogout={handleLogout}
             onUnauthorized={handleUnauthorized}
             onUserUpdated={handleUserUpdated}
           />
+        </ActiveWorkspaceProvider>
+      </TooltipProvider>
+    </WorkspaceThemeProvider>
+  )
+}
 
-          <main className="app-content flex min-h-0 flex-1 flex-col">
-            <Outlet />
-          </main>
-        </div>
-      </ActiveWorkspaceProvider>
-    </TooltipProvider>
+/**
+ * Inner shell rendered inside ActiveWorkspaceProvider so it can share one
+ * received-invitations store between the notification window and the
+ * workspace selector. Accepting anywhere reloads the accessible workspace
+ * list without changing the current selection.
+ */
+function AppShell({ user, onLogout, onUnauthorized, onUserUpdated }) {
+  const { theme } = useWorkspaceTheme()
+  const { reload } = useActiveWorkspace()
+  const received = useReceivedInvitations({
+    onUnauthorized,
+    onAccepted: () => reload(),
+  })
+
+  return (
+    <div
+      className="app-shell flex min-h-svh flex-col bg-background text-foreground"
+      data-theme={theme}
+    >
+      <AppHeader
+        user={user}
+        received={received}
+        onLogout={onLogout}
+        onUnauthorized={onUnauthorized}
+        onUserUpdated={onUserUpdated}
+      />
+
+      <main className="app-content flex min-h-0 flex-1 flex-col">
+        <Outlet />
+      </main>
+    </div>
   )
 }

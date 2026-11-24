@@ -1,6 +1,7 @@
 import { useMemo } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import {
+  Activity as ActivityIcon,
   CalendarDays,
   Check,
   Files,
@@ -25,14 +26,15 @@ import {
 import { cn } from '@/lib/utils'
 
 const MODULES = [
-  { key: 'workspace', name: 'Workspace', to: '/workspace', icon: LayoutDashboard },
+  { key: 'workspace', name: 'Workspace', to: '/workspace', icon: LayoutDashboard, exact: true },
+  { key: 'activity', name: 'Activity', to: '/workspace/activity', icon: ActivityIcon },
   { key: 'calendar', name: 'Calendar', to: '/calendar', icon: CalendarDays },
   { key: 'tasks', name: 'Tasks', to: '/tasks', icon: ListChecks },
   { key: 'documents', name: 'Documents', to: '/documents', icon: Files },
 ]
 
-function isModuleActive(pathname, to) {
-  return pathname === to || pathname.startsWith(`${to}/`)
+function isModuleActive(pathname, to, exact = false) {
+  return pathname === to || (!exact && pathname.startsWith(`${to}/`))
 }
 
 export default function ModuleSwitcher() {
@@ -40,7 +42,7 @@ export default function ModuleSwitcher() {
   const navigate = useNavigate()
 
   const activeKey = useMemo(() => {
-    const match = MODULES.find((module) => isModuleActive(location.pathname, module.to))
+    const match = MODULES.find((module) => isModuleActive(location.pathname, module.to, module.exact))
     return match?.key || null
   }, [location.pathname])
 

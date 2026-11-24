@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react'
-import { Briefcase, Check, ChevronDown, Layers, Loader2, Plus, User } from 'lucide-react'
+import { Briefcase, Check, ChevronDown, Layers, Loader2, Mail, Plus, Settings2, User } from 'lucide-react'
+import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import {
   DropdownMenu,
@@ -23,6 +24,8 @@ import { cn } from '@/lib/utils'
 import { useActiveWorkspace } from '../ActiveWorkspaceContext.jsx'
 import { ALL_WORKSPACES } from '../constants.js'
 import { createWorkspace } from '../api.js'
+import WorkspaceManageDialog from './WorkspaceManageDialog.jsx'
+import ReceivedInvitationsDialog from './ReceivedInvitationsDialog.jsx'
 
 function WorkspaceIcon({ workspaceType, className }) {
   const Icon = workspaceType === 'personal' ? User : Briefcase
@@ -33,7 +36,7 @@ function workspaceTypeLabel(workspaceType) {
   return workspaceType === 'personal' ? 'Personal' : 'Shared'
 }
 
-export default function WorkspaceSelector() {
+export default function WorkspaceSelector({ received, onUnauthorized }) {
   const {
     workspaces,
     status,
@@ -49,6 +52,10 @@ export default function WorkspaceSelector() {
   const [createName, setCreateName] = useState('')
   const [createBusy, setCreateBusy] = useState(false)
   const [createError, setCreateError] = useState('')
+  const [manageOpen, setManageOpen] = useState(false)
+  const [invitationsOpen, setInvitationsOpen] = useState(false)
+
+  const canManageActive = activeWorkspace?.workspace_type === 'shared'
 
   const sortedWorkspaces = useMemo(() => {
     const items = Array.isArray(workspaces) ? [...workspaces] : []
@@ -92,7 +99,11 @@ export default function WorkspaceSelector() {
 
   return (
     <>
-      <DropdownMenu>
+      <DropdownMenu
+        onOpenChange={(next) => {
+          if (next) received.refresh()
+        }}
+      >
         <TooltipProvider delayDuration={300}>
           <Tooltip>
             <TooltipTrigger asChild>
@@ -212,6 +223,27 @@ export default function WorkspaceSelector() {
           })}
 
           <DropdownMenuSeparator />
+          {canManageActive && (
+            <DropdownMenuItem
+              className="flex cursor-pointer items-center gap-2.5 rounded-[var(--radius-sm)] px-2 py-2 text-sm"
+              onSelect={() => setManageOpen(true)}
+            >
+              <Settings2 className="size-4 shrink-0 text-muted-foreground" aria-hidden="true" />
+              <span>Manage workspace</span>
+            </DropdownMenuItem>
+          )}
+          <DropdownMenuItem
+            className="flex cursor-pointer items-center gap-2.5 rounded-[var(--radius-sm)] px-2 py-2 text-sm"
+            onSelect={() => setInvitationsOpen(true)}
+          >
+            <Mail className="size-4 shrink-0 text-muted-foreground" aria-hidden="true" />
+            <span className="flex-1">Invitations</span>
+            {received.pendingCount > 0 && (
+              <Badge className="h-5 min-w-5 justify-center rounded-full px-1.5 text-[11px]">
+                {received.pendingCount > 99 ? '99+' : received.pendingCount}
+              </Badge>
+            )}
+          </DropdownMenuItem>
           <DropdownMenuItem
             className="flex cursor-pointer items-center gap-2.5 rounded-[var(--radius-sm)] px-2 py-2 text-sm"
             onSelect={openCreateDialog}
@@ -268,6 +300,29 @@ export default function WorkspaceSelector() {
           </FormField>
         </form>
       </DialogShell>
+
+      <WorkspaceManageDialog
+        open={manageOpen}
+        workspace={activeWorkspace}
+        onClose={() => setManageOpen(false)}
+        onLeft={() => {
+          setManageOpen(false)
+          reload()
+        }}
+        onUnauthorized={onUnauthorized}
+      />
+
+      <ReceivedInvitationsDialog
+        open={invitationsOpen}
+        onClose={() => setInvitationsOpen(false)}
+        items={received.items}
+        loading={received.loading}
+        error={received.error}
+        busyId={received.busyId}
+        onRefresh={() => received.refresh({ showLoading: true })}
+        onAccept={received.accept}
+        onDecline={received.decline}
+      />
     </>
   )
 }

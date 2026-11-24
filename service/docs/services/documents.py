@@ -100,6 +100,19 @@ def create_document(db: Session, user: User, data: DocumentCreate) -> Document:
             entity_id=document.id,
             metadata={"document_id": document.id, "document_title": document.title},
         )
+    else:
+        # Workspace-only documents never reach the project activity bridge.
+        from ...workspace import activity as ws_activity
+        from ...workspace import repository as ws_repository
+        ws_activity.record(
+            db,
+            workspace_ids=ws_repository.list_resource_workspace_ids(db, "document", document.id),
+            actor_id=user.id,
+            event_type=ws_activity.DOCUMENT_CREATED,
+            entity_type="document",
+            entity_id=document.id,
+            metadata={"resource_name": document.title},
+        )
     wiki_service.sync_wiki_reference_links(db, user, document)
     try:
         db.commit()
