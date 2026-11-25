@@ -603,8 +603,12 @@
     border-color 160ms ease;
 }
 
+/* Month day hover: lift via shadow only — never `transform`. FullCalendar
+   renders multi-day events as absolutely positioned harnesses inside the day
+   frame; a non-none transform on this frame becomes their containing block,
+   so a 2-day event collapses to the width of the hovered day on hover. */
 .calendar-surface .fc-dayGridMonth-view .fc-daygrid-day:hover .fc-daygrid-day-frame {
-  transform: translateY(-2px);
+  transform: none;
   box-shadow: 0 8px 20px rgba(17, 17, 17, 0.12);
 }
 
