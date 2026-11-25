@@ -93,7 +93,7 @@ def client():
 
     config = Config(str(REPO_ROOT / "alembic.ini"))
     config.set_main_option("script_location", str(REPO_ROOT / "alembic"))
-    command.upgrade(config, "head")
+    command.upgrade(config, "heads")
 
     import service.main
 
