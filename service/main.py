@@ -11,6 +11,7 @@ from .auth.router import router as auth_router
 from .ai.router import router as ai_router
 from .calendar.router import router as calendar_router
 from .discussions.router import router as discussions_router
+from .milestone.router import router as milestone_router
 from .notifications.router import router as notifications_router
 import service.notifications.models  # noqa: F401
 from .docs.router import router as docs_router
@@ -49,6 +50,7 @@ app.include_router(docs_router)
 app.include_router(calendar_router)
 app.include_router(discussions_router)
 app.include_router(notifications_router)
+app.include_router(milestone_router)
 app.include_router(project_router)
 app.include_router(project_invitations_router)
 app.include_router(task_router)

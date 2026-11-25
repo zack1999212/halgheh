@@ -7,11 +7,6 @@ import {
   RefreshCw,
   Trash2,
 } from 'lucide-react'
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipTrigger,
-} from '@/components/ui/tooltip'
 import { useToast } from '@/components/ui/toast.jsx'
 import useNotifications from './useNotifications.js'
 import NotificationItem from './NotificationItem.jsx'
@@ -130,15 +125,15 @@ export default function NotificationMenu({ received, onUnauthorized }) {
   const hasUnread = unreadCount > 0
   const badgeLabel = unreadCount > 99 ? '99+' : String(unreadCount)
 
-  // The newest unread notification is the most useful peek; fall back to the
-  // newest notification overall so the tooltip still previews something.
-  const preview = useMemo(() => {
-    const latestUnread = items.find((item) => !item.is_read)
-    return {
-      notification: latestUnread || items[0] || null,
+  // The inline preview exists only while something is unread. Once the user
+  // reads the last unread notification, it disappears with the badge.
+  const preview = useMemo(
+    () => ({
+      notification: items.find((item) => !item.is_read) || null,
       extraUnread: Math.max(unreadCount - 1, 0),
-    }
-  }, [items, unreadCount])
+    }),
+    [items, unreadCount],
+  )
 
   const bellButton = (
     <button
@@ -164,45 +159,40 @@ export default function NotificationMenu({ received, onUnauthorized }) {
 
   return (
     <div className="notification-menu" ref={containerRef}>
-      {open ? (
-        bellButton
-      ) : (
-        <Tooltip>
-          <TooltipTrigger asChild>{bellButton}</TooltipTrigger>
-          <TooltipContent side="bottom" align="end" className="w-72 p-0">
-            <div className="flex flex-col gap-1 p-3">
-              {preview.notification ? (
-                <>
-                  <div className="flex items-baseline justify-between gap-2">
-                    <p className="truncate text-[13px] font-semibold">
-                      {preview.notification.title}
-                    </p>
-                    <span className="shrink-0 text-[11px] text-muted-foreground">
-                      {formatRelativeTime(preview.notification.created_at)}
-                    </span>
-                  </div>
-                  {preview.notification.message && (
-                    <p className="line-clamp-2 text-xs text-muted-foreground">
-                      {preview.notification.message}
-                    </p>
-                  )}
-                  {preview.extraUnread > 0 && (
-                    <p className="text-[11px] text-muted-foreground">
-                      +{preview.extraUnread} more unread · click to view all
-                    </p>
-                  )}
-                </>
-              ) : (
-                <p className="text-[13px] text-muted-foreground">
-                  {loading
-                    ? 'Loading notifications…'
-                    : "You're all caught up."}
-                </p>
-              )}
-            </div>
-          </TooltipContent>
-        </Tooltip>
-      )}
+      <div className="notification-inline">
+        {hasUnread && (
+          <button
+            type="button"
+            className="notification-peek"
+            onClick={() => setOpen((current) => !current)}
+            aria-label="Open notifications"
+          >
+            {preview.notification ? (
+              <>
+                <span className="notification-peek-title">
+                  {preview.notification.title}
+                </span>
+                <span className="notification-peek-meta">
+                  {preview.notification.message
+                    ? `${preview.notification.message} · `
+                    : ''}
+                  {formatRelativeTime(preview.notification.created_at)}
+                </span>
+                {preview.extraUnread > 0 && (
+                  <span className="notification-peek-more">
+                    +{preview.extraUnread} more
+                  </span>
+                )}
+              </>
+            ) : (
+              <span className="notification-peek-empty">
+                Loading notifications…
+              </span>
+            )}
+          </button>
+        )}
+        {bellButton}
+      </div>
 
       {open && (
         <div

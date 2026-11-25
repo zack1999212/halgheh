@@ -9,11 +9,11 @@ from __future__ import annotations
 
 from datetime import date
 
-from sqlalchemy import Select, func, literal, nullslast, select, union_all
+from sqlalchemy import Select, func, literal, select, union_all
 from sqlalchemy.orm import Session, joinedload
 
 from ..auth.models import User
-from .models import Project, ProjectActivity, ProjectInvitation, ProjectMember, ProjectMilestone, ProjectMilestoneStep
+from .models import Project, ProjectActivity, ProjectInvitation, ProjectMember
 
 
 def create_project(db: Session, **fields) -> Project:
@@ -74,153 +74,6 @@ def list_projects_for_user(
 
 def delete_project(db: Session, project: Project) -> None:
     db.delete(project)
-
-
-# --- Milestones ---
-
-
-def create_milestone(db: Session, **fields) -> ProjectMilestone:
-    milestone = ProjectMilestone(**fields)
-    db.add(milestone)
-    db.flush()
-    return milestone
-
-
-def get_milestone_for_project(
-    db: Session, project_id: int, milestone_id: int
-) -> ProjectMilestone | None:
-    stmt = select(ProjectMilestone).where(
-        ProjectMilestone.project_id == project_id,
-        ProjectMilestone.id == milestone_id,
-    )
-    return db.scalars(stmt).first()
-
-
-def list_milestones(
-    db: Session, project_id: int, *, limit: int = 50, offset: int = 0
-) -> tuple[list[ProjectMilestone], int]:
-    """Milestones of one project in roadmap order."""
-    stmt = select(ProjectMilestone).where(ProjectMilestone.project_id == project_id)
-
-    total = db.scalar(select(func.count()).select_from(stmt.subquery()))
-    stmt = (
-        stmt.order_by(
-            ProjectMilestone.position.asc(),
-            nullslast(ProjectMilestone.due_date.asc()),
-            ProjectMilestone.created_at.asc(),
-            ProjectMilestone.id.asc(),
-        )
-        .limit(limit)
-        .offset(offset)
-    )
-    items = list(db.scalars(stmt).all())
-    for m in items:
-        # Ensure steps are loaded in configured order for serialization.
-        _ = list(m.steps)
-    return items, int(total or 0)
-
-
-def list_all_milestones_for_project(db: Session, project_id: int) -> list[ProjectMilestone]:
-    stmt = (
-        select(ProjectMilestone)
-        .where(ProjectMilestone.project_id == project_id)
-        .order_by(
-            ProjectMilestone.position.asc(),
-            nullslast(ProjectMilestone.due_date.asc()),
-            ProjectMilestone.created_at.asc(),
-            ProjectMilestone.id.asc(),
-        )
-    )
-    items = list(db.scalars(stmt).all())
-    for m in items:
-        _ = list(m.steps)
-    return items
-
-
-def get_next_milestone_position(db: Session, project_id: int) -> int:
-    stmt = select(func.coalesce(func.max(ProjectMilestone.position), -1)).where(
-        ProjectMilestone.project_id == project_id
-    )
-    return int(db.scalar(stmt) or -1) + 1
-
-
-def delete_milestone(db: Session, milestone: ProjectMilestone) -> None:
-    db.delete(milestone)
-
-
-def count_milestones_by_status(db: Session, project_id: int) -> dict[str, int]:
-    stmt = (
-        select(ProjectMilestone.status, func.count())
-        .where(ProjectMilestone.project_id == project_id)
-        .group_by(ProjectMilestone.status)
-    )
-    return {str(status): int(count) for status, count in db.execute(stmt).all()}
-
-
-def list_upcoming_milestones(
-    db: Session, project_id: int, *, as_of: date, limit: int = 5
-) -> list[ProjectMilestone]:
-    """Upcoming roadmap milestones (not completed/cancelled) with due dates."""
-    stmt = (
-        select(ProjectMilestone)
-        .where(
-            ProjectMilestone.project_id == project_id,
-            ProjectMilestone.status.notin_(("completed", "cancelled")),
-            ProjectMilestone.due_date.is_not(None),
-            ProjectMilestone.due_date >= as_of,
-        )
-        .order_by(
-            ProjectMilestone.due_date.asc(),
-            ProjectMilestone.position.asc(),
-            ProjectMilestone.created_at.asc(),
-            ProjectMilestone.id.asc(),
-        )
-        .limit(limit)
-    )
-    items = list(db.scalars(stmt).all())
-    for m in items:
-        _ = list(m.steps)
-    return items
-
-
-# --- Milestone steps ---
-
-
-def create_step(db: Session, **fields) -> ProjectMilestoneStep:
-    step = ProjectMilestoneStep(**fields)
-    db.add(step)
-    db.flush()
-    return step
-
-
-def get_step_for_milestone(
-    db: Session, milestone_id: int, step_id: int
-) -> ProjectMilestoneStep | None:
-    stmt = select(ProjectMilestoneStep).where(
-        ProjectMilestoneStep.milestone_id == milestone_id,
-        ProjectMilestoneStep.id == step_id,
-    )
-    return db.scalars(stmt).first()
-
-
-def list_steps(db: Session, milestone_id: int) -> list[ProjectMilestoneStep]:
-    stmt = (
-        select(ProjectMilestoneStep)
-        .where(ProjectMilestoneStep.milestone_id == milestone_id)
-        .order_by(ProjectMilestoneStep.position.asc(), ProjectMilestoneStep.id.asc())
-    )
-    return list(db.scalars(stmt).all())
-
-
-def get_next_step_position(db: Session, milestone_id: int) -> int:
-    stmt = select(func.coalesce(func.max(ProjectMilestoneStep.position), -1)).where(
-        ProjectMilestoneStep.milestone_id == milestone_id
-    )
-    return int(db.scalar(stmt) or -1) + 1
-
-
-def delete_step(db: Session, step: ProjectMilestoneStep) -> None:
-    db.delete(step)
 
 
 # --- Members ---

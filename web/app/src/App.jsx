@@ -10,6 +10,7 @@ import DocumentsLayout from '../workspace/layouts/DocumentsLayout.jsx'
 import HomePage from '../workspace/HomePage.jsx'
 import WorkspacePage from '../workspace/WorkspacePage.jsx'
 import ActivityPage from '../workspace/ActivityPage.jsx'
+import MilestonesPage from '../milestones/MilestonesPage.jsx'
 import CalendarPage from '../calendar/CalendarPage.jsx'
 import TasksPage from '../task/TasksPage.jsx'
 import DocumentsPage from '../features/documents/DocumentsPage.jsx'
@@ -36,6 +37,7 @@ export default function App() {
           <Route index element={<WorkspacePage />} />
           <Route path="activity" element={<ActivityPage />} />
         </Route>
+        <Route path="milestones" element={<MilestonesPage />} />
         <Route path="projects/*" element={<Navigate to="/workspace" replace />} />
         <Route path="calendar" element={<CalendarLayout />}>
           <Route index element={<CalendarPage />} />
