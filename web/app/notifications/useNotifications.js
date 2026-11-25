@@ -74,6 +74,36 @@ export default function useNotifications({ onUnauthorized } = {}) {
     refresh({ showLoading: true })
   }, [refresh])
 
+  // Lightweight polling for real-time badge/list updates without page refresh.
+  useEffect(() => {
+    let active = true
+    const tick = async () => {
+      if (!active) return
+      if (document.visibilityState === 'hidden') return
+      try {
+        const count = await getUnreadCount()
+        if (!active) return
+        setUnreadCount((prev) => {
+          if (prev !== count) {
+            // Count changed; refresh list to keep panel consistent.
+            refresh().catch(() => {})
+          }
+          return count
+        })
+      } catch (err) {
+        if (active) reportError(err, setError)
+      }
+    }
+    const id = setInterval(tick, 20000)
+    const onVis = () => { if (document.visibilityState === 'visible') tick() }
+    document.addEventListener('visibilitychange', onVis)
+    return () => {
+      active = false
+      clearInterval(id)
+      document.removeEventListener('visibilitychange', onVis)
+    }
+  }, [refresh, reportError])
+
   const syncUnreadCount = useCallback(async () => {
     try {
       setUnreadCount(await getUnreadCount())
@@ -93,8 +123,10 @@ export default function useNotifications({ onUnauthorized } = {}) {
           current.map((item) => (item.id === updated.id ? updated : item)),
         )
         await syncUnreadCount()
+        return { ok: true, updated }
       } catch (err) {
         reportError(err, setError)
+        return { ok: false, err }
       } finally {
         setBusyId(null)
       }
@@ -111,8 +143,10 @@ export default function useNotifications({ onUnauthorized } = {}) {
           current.filter((item) => item.id !== notificationId),
         )
         await syncUnreadCount()
+        return { ok: true }
       } catch (err) {
         reportError(err, setError)
+        return { ok: false, err }
       } finally {
         setBusyId(null)
       }
@@ -125,8 +159,10 @@ export default function useNotifications({ onUnauthorized } = {}) {
     try {
       await markAllNotificationsRead()
       await refresh()
+      return { ok: true }
     } catch (err) {
       reportError(err, setError)
+      return { ok: false, err }
     } finally {
       setBulkBusy(false)
     }
@@ -138,8 +174,10 @@ export default function useNotifications({ onUnauthorized } = {}) {
       await deleteAllNotifications()
       setItems([])
       setUnreadCount(0)
+      return { ok: true }
     } catch (err) {
       reportError(err, setError)
+      return { ok: false, err }
     } finally {
       setBulkBusy(false)
     }

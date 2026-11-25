@@ -1,31 +1,122 @@
+/* Tasks module — visual language aligned with Workspace (glass-clay, warm cream). */
 .tasks-page {
-  --tasks-page-bg: #f2f0eb;
-  --tasks-surface-bg: #ffffff;
-  --tasks-line: #e5e1d9;
-  --tasks-line-strong: #d8d3ca;
-  --tasks-muted: #77736c;
-  --tasks-shadow-raised: 0 4px 12px rgba(55, 45, 30, 0.07),
-    0 1px 3px rgba(55, 45, 30, 0.05),
-    0 8px 24px rgba(55, 45, 30, 0.06);
-  --tasks-shadow-control: 0 1px 3px rgba(55, 45, 30, 0.08),
-    0 3px 8px rgba(55, 45, 30, 0.08),
-    inset 0 1px 0 rgba(255, 255, 255, 0.7);
-  --tasks-shadow-control-press: inset 0 2px 4px rgba(55, 45, 30, 0.08),
-    inset -1px -1px 2px rgba(255, 255, 255, 0.85);
-  --tasks-radius-surface: 14px;
-  --tasks-radius-control: 10px;
+  /* Workspace-aligned tokens (scoped; do not modify global theme) */
+  --tasks-bg: #F5F3EE;
+  --tasks-text: #211E1A;
+  --tasks-text-2: #6E6A60;
+  --tasks-text-3: #9D998E;
+  --tasks-edge: rgba(255, 255, 255, .9);
+  --tasks-edge-soft: rgba(35, 30, 24, .07);
+  --tasks-glass-hi: rgba(255, 255, 255, .9);
+  --tasks-glass-lo: rgba(35, 30, 24, .05);
+  --tasks-card-grad: linear-gradient(165deg, rgba(255, 255, 255, .88), rgba(255, 255, 255, .6));
+  --tasks-panel: rgba(255, 255, 255, .55);
+  --tasks-row-hover: rgba(255, 255, 255, .7);
+  --tasks-shadow-card: 0 4px 16px rgba(35, 30, 24, .1);
+  --tasks-shadow-hover: 0 6px 20px rgba(35, 30, 24, .14);
+  --tasks-shadow-pop: 0 8px 24px rgba(35, 30, 24, .16);
+  --tasks-accent: #E67700;
+  --tasks-accent-soft: rgba(245, 159, 0, .14);
+  --tasks-r-card: 22px;
+  --tasks-r-control: 12px;
+  --tasks-ease: cubic-bezier(.2, 0, 0, 1);
 
+  /* legacy aliases used by existing rules */
+  --tasks-page-bg: var(--tasks-bg);
+  --tasks-surface-bg: rgba(255, 255, 255, .72);
+  --tasks-line: var(--tasks-edge-soft);
+  --tasks-line-strong: rgba(35, 30, 24, .14);
+  --tasks-muted: var(--tasks-text-2);
+  --tasks-shadow-raised: var(--tasks-shadow-card), inset 0 1px 0 var(--tasks-glass-hi), inset 0 -10px 18px var(--tasks-glass-lo);
+  --tasks-shadow-control: inset 0 1px 0 rgba(255,255,255,.7), 0 1px 2px rgba(35,30,24,.05);
+  --tasks-shadow-control-press: inset 0 2px 4px rgba(35, 30, 24, .08);
+  --tasks-radius-surface: var(--tasks-r-card);
+  --tasks-radius-control: var(--tasks-r-control);
+
+  /* Workspace-aligned shadcn tokens (scoped) */
+  --background: 45 27% 95%;
+  --foreground: 33 12% 12%;
+  --card: 0 0% 100%;
+  --card-foreground: 33 12% 12%;
+  --popover: 0 0% 100%;
+  --popover-foreground: 33 12% 12%;
+  --primary: 33 12% 12%;
+  --primary-foreground: 0 0% 100%;
+  --secondary: 45 20% 95%;
+  --secondary-foreground: 33 12% 12%;
+  --muted: 45 20% 95%;
+  --muted-foreground: 45 7% 40%;
+  --accent: 45 20% 92%;
+  --accent-foreground: 33 12% 12%;
+  --border: 40 19% 87%;
+  --input: 40 19% 87%;
+  --ring: 32 95% 44%;
+
+  /* Keep the warm light palette intact under OS/browser forced dark modes;
+     otherwise text colours get inverted and become invisible on these surfaces. */
+  color-scheme: only light;
+  position: relative;
+  overflow: hidden;
+  isolation: isolate;
   display: flex;
   flex-direction: column;
   gap: var(--space-4);
   width: 100%;
   max-width: 100%;
   min-width: 0;
-  padding-inline: var(--space-4);
+  padding: var(--space-4);
   height: calc(100dvh - var(--header-height) - var(--space-8) - var(--space-10));
   min-height: 520px;
-  background: var(--tasks-page-bg);
-  border-radius: 16px;
+  background: var(--tasks-bg);
+  border-radius: 24px;
+  color: var(--tasks-text);
+}
+
+/* Ambient glows — Workspace reference (soft, behind content, no pointer impact). */
+.tasks-page::before,
+.tasks-page::after {
+  content: '';
+  position: absolute;
+  border-radius: 50%;
+  pointer-events: none;
+  z-index: 0;
+  filter: blur(12px);
+  opacity: .35;
+}
+
+.tasks-page::before {
+  width: 420px;
+  height: 420px;
+  top: -140px;
+  left: -120px;
+  background: #FFE066;
+}
+
+.tasks-page::after {
+  width: 460px;
+  height: 460px;
+  top: 2%;
+  right: -160px;
+  background: #FFC078;
+}
+
+.tasks-page > * {
+  position: relative;
+  z-index: 1;
+}
+
+.tasks-toolbar {
+  padding: 4px 2px 0;
+}
+
+.tasks-toolbar-title {
+  font: 800 clamp(24px, 3.2vw, 32px) / 1.15 'Outfit', 'Inter', sans-serif;
+  letter-spacing: -.03em;
+  color: var(--tasks-text);
+}
+
+.tasks-toolbar-subtitle {
+  color: var(--tasks-text-2);
 }
 
 .tasks-body {
@@ -36,73 +127,109 @@
   flex: 1;
 }
 
-.tasks-surface {
+.tasks-body--board {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.tasks-surface,
+.tasks-nav,
+.tasks-filters {
   position: relative;
+  background: var(--tasks-card-grad);
+  border: 1px solid var(--tasks-edge);
+  border-radius: var(--tasks-r-card);
+  box-shadow: var(--tasks-shadow-card), inset 0 1px 0 var(--tasks-glass-hi), inset 0 -10px 18px var(--tasks-glass-lo);
+}
+
+.tasks-surface {
   display: flex;
   flex-direction: column;
   min-width: 0;
   min-height: 0;
   overflow: hidden;
-  background: var(--tasks-surface-bg);
-  border: 1px solid var(--tasks-line);
-  border-radius: var(--tasks-radius-surface);
-  box-shadow: var(--tasks-shadow-raised);
 }
 
 .tasks-surface-inner {
   flex: 1;
+  min-width: 0;
   min-height: 0;
-  overflow: auto;
+  overflow-y: auto;
+  overflow-x: hidden;
   padding: var(--space-4);
+}
+
+.tasks-surface-inner--board {
+  overflow-x: auto;
 }
 
 .tasks-nav {
   min-height: 0;
   overflow: auto;
   padding: var(--space-3);
-  background: var(--tasks-surface-bg);
-  border: 1px solid var(--tasks-line);
-  border-radius: var(--tasks-radius-surface);
-  box-shadow: var(--tasks-shadow-raised);
 }
 
 .tasks-nav-title {
-  padding: 4px 8px 10px;
-  font-size: 11px;
-  font-weight: 600;
-  letter-spacing: 0.06em;
+  padding: 6px 10px 10px;
+  font: 600 11px / 1 'Outfit', 'Inter', sans-serif;
+  letter-spacing: 0.08em;
   text-transform: uppercase;
-  color: var(--tasks-muted);
+  color: var(--tasks-text-3);
+}
+
+.tasks-nav button[aria-current='page'] {
+  background: linear-gradient(180deg, #3a3632, #211E1A);
+  color: #F5F3EE;
+  box-shadow: 0 4px 10px rgba(35, 30, 24, .18);
+}
+
+.tasks-filters {
+  padding: 16px;
 }
 
 .tasks-control-group {
-  background: #fff;
-  border: 1px solid var(--tasks-line);
-  border-radius: var(--tasks-radius-control);
-  box-shadow: var(--tasks-shadow-control);
+  background: rgba(255, 255, 255, .55);
+  border: 1px solid var(--tasks-edge-soft);
+  border-radius: var(--tasks-r-control);
+  box-shadow: inset 0 2px 4px rgba(35, 30, 24, .04);
   padding: 3px;
 }
 
 .tasks-control-group button {
-  border-radius: calc(var(--tasks-radius-control) - 4px);
+  border-radius: calc(var(--tasks-r-control) - 4px);
   transition: background-color 150ms ease, box-shadow 150ms ease, color 150ms ease;
+  color: var(--tasks-text-2);
 }
 
 .tasks-control-group button:hover:not(:disabled) {
-  background: #f7f5f1;
+  background: rgba(255, 255, 255, .75);
+  color: var(--tasks-text);
 }
 
 .tasks-control-group button:active:not(:disabled) {
-  background: #eae7e0;
+  background: rgba(35, 30, 24, .04);
   box-shadow: var(--tasks-shadow-control-press);
+}
+
+.tasks-control-group button[aria-pressed='true'],
+.tasks-control-group button.bg-primary {
+  color: #fff;
 }
 
 .tasks-board {
   display: grid;
   grid-template-columns: repeat(5, minmax(220px, 1fr));
   gap: var(--space-3);
-  align-items: start;
-  min-height: 100%;
+  align-items: stretch;
+  min-width: 0;
+}
+
+@media (max-width: 1280px) {
+  .tasks-board {
+    grid-template-columns: repeat(5, minmax(220px, 1fr));
+    overflow-x: auto;
+    padding-bottom: 2px;
+    -webkit-overflow-scrolling: touch;
+  }
 }
 
 .tasks-board-column {
@@ -110,10 +237,38 @@
   flex-direction: column;
   gap: var(--space-2);
   min-width: 0;
-  padding: var(--space-2);
-  background: #f7f5f1;
-  border: 1px solid var(--tasks-line);
-  border-radius: 12px;
+  min-height: 180px;
+  padding: 14px;
+  background: linear-gradient(180deg, rgba(255,255,255,.52), rgba(255,255,255,.34));
+  border: 1px solid var(--tasks-edge-soft);
+  border-radius: 18px;
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.6);
+  transition: border-color 150ms ease, background-color 150ms ease, box-shadow 150ms ease;
+}
+
+.tasks-board-column--over {
+  border-color: rgba(230, 119, 0, .35);
+  background: linear-gradient(180deg, rgba(255, 244, 214, .75), rgba(255,255,255,.5));
+  box-shadow: inset 0 0 0 1px rgba(230, 119, 0, .12);
+}
+
+.tasks-board--dragging,
+.tasks-board--dragging .tasks-card {
+  touch-action: none;
+}
+
+.tasks-board--dragging,
+.tasks-board--dragging * {
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+.tasks-drop-indicator {
+  height: 3px;
+  border-radius: 999px;
+  background: linear-gradient(90deg, #FFD43B, #E67700);
+  margin: 0 2px;
+  box-shadow: 0 0 8px rgba(230, 119, 0, .35);
 }
 
 .tasks-board-column-header {
@@ -121,45 +276,140 @@
   align-items: center;
   justify-content: space-between;
   gap: 8px;
-  padding: 4px 4px 2px;
+  padding: 2px 2px 8px;
+  border-bottom: 1px solid rgba(35, 30, 24, .07);
+}
+
+.tasks-board-column-body {
+  align-content: start;
+  min-height: 0;
+}
+
+.tasks-board-empty {
+  margin-top: 2px;
 }
 
 .tasks-card {
-  border: 1px solid var(--tasks-line);
-  border-radius: 10px;
-  background: #fff;
-  box-shadow: 0 1px 2px rgba(55, 45, 30, 0.08), 0 3px 8px rgba(55, 45, 30, 0.08);
+  border: 1px solid rgba(255, 255, 255, .85);
+  border-radius: 16px;
+  background: linear-gradient(165deg, rgba(255,255,255,.92), rgba(255,255,255,.72));
+  box-shadow: 0 2px 8px rgba(35, 30, 24, .07), inset 0 1px 0 rgba(255,255,255,.9);
+  transition: box-shadow 180ms var(--tasks-ease), border-color 180ms var(--tasks-ease), transform 180ms var(--tasks-ease);
 }
 
 .tasks-card:hover {
-  box-shadow: 0 2px 4px rgba(55, 45, 30, 0.1), 0 8px 18px rgba(55, 45, 30, 0.12);
+  box-shadow: 0 6px 18px rgba(35, 30, 24, .12), inset 0 1px 0 rgba(255,255,255,.95);
+  border-color: rgba(255, 255, 255, .95);
+}
+
+.tasks-card:focus-within {
+  border-color: rgba(230, 119, 0, .28);
+  box-shadow: 0 0 0 3px rgba(245, 159, 0, .12), 0 4px 12px rgba(35, 30, 24, .08);
 }
 
 .tasks-meta {
-  color: var(--tasks-muted);
+  color: var(--tasks-text-2);
+}
+
+.tasks-list {
+  flex-shrink: 0;
+}
+
+.tasks-list-head {
+  border-top-left-radius: inherit;
+  border-top-right-radius: inherit;
 }
 
 .tasks-list-row {
-  border: 1px solid var(--tasks-line);
-  border-radius: 10px;
-  background: #fff;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  transition: background-color 150ms ease;
+}
+
+@media (min-width: 768px) {
+  .tasks-list-row:hover {
+    background: rgba(255, 255, 255, .45);
+  }
+}
+
+@media (min-width: 768px) {
+  .tasks-list-head,
+  .tasks-list-row {
+    grid-template-columns: minmax(0, 1.7fr) 120px 110px 170px minmax(0, 1fr) 110px;
+  }
+
+  .tasks-list-head {
+    gap: 12px;
+    padding: 12px 16px;
+    border-bottom: 1px solid rgba(35, 30, 24, .07);
+    background: linear-gradient(180deg, rgba(255,255,255,.6), rgba(255,255,255,.35));
+    font: 600 11px/1.2 'Outfit', 'Inter', sans-serif;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--tasks-text-3);
+  }
+}
+
+@media (min-width: 768px) and (max-width: 1100px) {
+  .tasks-list-head,
+  .tasks-list-row {
+    grid-template-columns: minmax(0, 1.5fr) 110px 100px 150px minmax(0, 0.9fr) 100px;
+  }
 }
 
 /* Portal-rendered overlays (dialogs/sheets) */
 .tasks-dialog.tasks-dialog,
 .tasks-sheet.tasks-sheet {
-  border-color: #e5e1d9;
-  box-shadow: 0 4px 12px rgba(55, 45, 30, 0.1), 0 18px 40px -8px rgba(55, 45, 30, 0.18), 0 2px 6px rgba(55, 45, 30, 0.06);
+  color-scheme: only light;
+  /* Portal overlays inherit the root theme colour (white under forced dark
+     mode); use the scoped token so labels and plain text stay readable. */
+  color: hsl(var(--foreground));
+  --background: 45 27% 95%;
+  --foreground: 33 12% 12%;
+  --card: 0 0% 100%;
+  --card-foreground: 33 12% 12%;
+  --popover: 0 0% 100%;
+  --popover-foreground: 33 12% 12%;
+  --primary: 33 12% 12%;
+  --primary-foreground: 0 0% 100%;
+  --secondary: 45 20% 95%;
+  --secondary-foreground: 33 12% 12%;
+  --muted: 45 20% 95%;
+  --muted-foreground: 45 7% 40%;
+  --accent: 45 20% 92%;
+  --accent-foreground: 33 12% 12%;
+  --border: 40 19% 87%;
+  --input: 40 19% 87%;
+  --ring: 32 95% 44%;
+  background: linear-gradient(165deg, rgba(255,255,255,.96), rgba(250,248,244,.94));
+  border: 1px solid rgba(255, 255, 255, .9);
+  box-shadow: 0 8px 24px rgba(35, 30, 24, .12), 0 24px 48px -12px rgba(35, 30, 24, .18), inset 0 1px 0 rgba(255,255,255,.9);
+  border-radius: 22px;
 }
 
 .tasks-dialog input,
-.tasks-dialog textarea {
-  box-shadow: inset 1px 1px 3px rgba(55, 45, 30, 0.06), inset -1px -1px 3px rgba(255, 255, 255, 0.9);
+.tasks-dialog textarea,
+.tasks-dialog [role='combobox'] {
+  border-color: rgba(35, 30, 24, .1);
+  background: rgba(255,255,255,.72);
+}
+
+.tasks-dialog input:focus-visible,
+.tasks-dialog textarea:focus-visible,
+.tasks-dialog [role='combobox']:focus-visible {
+  border-color: rgba(230, 119, 0, .35);
+  box-shadow: 0 0 0 3px rgba(245, 159, 0, .12);
 }
 
 @media (max-width: 1280px) {
   .tasks-board {
-    grid-template-columns: repeat(3, minmax(220px, 1fr));
+    overflow-x: auto;
+    padding-bottom: 4px;
+    -webkit-overflow-scrolling: touch;
+  }
+  .tasks-board-column {
+    min-width: 260px;
   }
 }
 
@@ -171,8 +421,13 @@
   .tasks-body {
     grid-template-columns: 1fr;
   }
-  .tasks-nav {
-    max-height: 220px;
+  .tasks-board {
+    grid-template-columns: repeat(5, minmax(280px, 82vw));
+    overflow-x: auto;
+    overscroll-behavior-x: contain;
+  }
+  .tasks-board-column {
+    min-height: 160px;
   }
 }
 
@@ -187,6 +442,107 @@
     padding: var(--space-3);
   }
   .tasks-board {
-    grid-template-columns: 1fr;
+    grid-template-columns: repeat(5, minmax(84vw, 320px));
+    gap: var(--space-2);
+    overflow-x: auto;
+    padding-bottom: 6px;
   }
+  .tasks-board-column {
+    min-height: 220px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .tasks-card {
+    transition: none;
+  }
+}
+
+/* Checklist */
+.tasks-checklist {
+  display: grid;
+  gap: 0.375rem;
+}
+.tasks-checklist--dragging,
+.tasks-checklist--dragging * {
+  user-select: none !important;
+  -webkit-user-select: none !important;
+}
+.tasks-checklist-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.5rem;
+  border: 1px solid rgba(35, 30, 24, .08);
+  border-radius: 14px;
+  background: linear-gradient(165deg, rgba(255,255,255,.82), rgba(255,255,255,.62));
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.8);
+  padding: 0.5rem 0.625rem;
+  min-width: 0;
+}
+.tasks-checklist-item.is-dragging {
+  opacity: 0.55;
+}
+.tasks-checklist-item.is-over {
+  border-color: rgba(230, 119, 0, .35);
+  background: rgba(245, 159, 0, .08);
+}
+.tasks-checklist-handle {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.75rem;
+  height: 1.75rem;
+  margin-top: -0.125rem;
+  border: 0;
+  background: transparent;
+  color: var(--tasks-text-3);
+  border-radius: 0.5rem;
+  cursor: grab;
+  touch-action: none;
+  flex-shrink: 0;
+}
+.tasks-checklist-handle:hover { background: rgba(35, 30, 24, .05); color: var(--tasks-text); }
+.tasks-checklist-handle:active { cursor: grabbing; }
+.tasks-checklist-handle:disabled { opacity: 0.45; cursor: not-allowed; }
+.tasks-checklist-content {
+  flex: 1;
+  min-width: 0;
+  padding-top: 0.0625rem;
+}
+.tasks-checklist-title {
+  font-size: 0.875rem;
+  line-height: 1.35rem;
+  color: var(--tasks-text);
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+.tasks-checklist-title.is-completed {
+  color: var(--tasks-text-3);
+  text-decoration: line-through;
+}
+.tasks-checklist-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.125rem;
+  flex-shrink: 0;
+  margin-left: auto;
+}
+.tasks-checklist-edit {
+  display: flex;
+  align-items: center;
+  gap: 0.375rem;
+  width: 100%;
+}
+.tasks-checklist-edit > input { flex: 1; min-width: 0; }
+.tasks-checklist-add {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+.tasks-checklist-add > input { flex: 1; min-width: 0; }
+@media (max-width: 640px) {
+  .tasks-checklist-item { flex-wrap: wrap; }
+  .tasks-checklist-actions { width: 100%; justify-content: flex-end; margin-left: 0; }
+  .tasks-checklist-edit { flex-wrap: wrap; }
+  .tasks-checklist-edit > input { width: 100%; flex-basis: 100%; }
 }

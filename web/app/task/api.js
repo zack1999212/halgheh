@@ -80,6 +80,14 @@ export function updateTaskStatus(taskId, status) {
   })
 }
 
+export function updateTaskPosition(taskId, payload) {
+  return apiRequest(`/api/tasks/${taskId}/position`, {
+    method: 'PATCH',
+    body: payload,
+    fallbackMessage: 'Could not reorder the task.',
+  })
+}
+
 export function setTaskParent(taskId, parentTaskId) {
   return apiRequest(`/api/tasks/${taskId}/parent`, {
     method: 'PUT',
@@ -180,5 +188,43 @@ export function removeAssignment(taskId, userId) {
   return apiRequest(`/api/tasks/${taskId}/assignments/${userId}`, {
     method: 'DELETE',
     fallbackMessage: 'Could not remove the assignee.',
+  })
+}
+
+export function listChecklistItems(taskId, options = {}) {
+  return apiRequest(`/api/tasks/${taskId}/checklist`, {
+    fallbackMessage: 'Could not load checklist.',
+    signal: options.signal,
+  })
+}
+
+export function createChecklistItem(taskId, payload) {
+  return apiRequest(`/api/tasks/${taskId}/checklist`, {
+    method: 'POST',
+    body: payload,
+    fallbackMessage: 'Could not create checklist item.',
+  })
+}
+
+export function updateChecklistItem(taskId, itemId, payload) {
+  return apiRequest(`/api/tasks/${taskId}/checklist/${itemId}`, {
+    method: 'PATCH',
+    body: payload,
+    fallbackMessage: 'Could not update checklist item.',
+  })
+}
+
+export function deleteChecklistItem(taskId, itemId) {
+  return apiRequest(`/api/tasks/${taskId}/checklist/${itemId}`, {
+    method: 'DELETE',
+    fallbackMessage: 'Could not delete checklist item.',
+  })
+}
+
+export function reorderChecklistItems(taskId, payload) {
+  return apiRequest(`/api/tasks/${taskId}/checklist/reorder`, {
+    method: 'PATCH',
+    body: payload,
+    fallbackMessage: 'Could not reorder checklist items.',
   })
 }

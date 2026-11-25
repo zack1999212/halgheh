@@ -1,3 +1,4 @@
+import { useEffect, useRef, useState } from 'react'
 import { Search, SlidersHorizontal } from 'lucide-react'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -12,26 +13,53 @@ import WorkspaceScopeSelect from '../workspace/components/WorkspaceScopeSelect.j
 import { DUE_FILTERS, ORDER_OPTIONS, SORT_OPTIONS, TASK_PRIORITIES, TASK_STATUSES } from './utils/taskConstants.js'
 
 const ALL = '__all__'
+const SEARCH_DEBOUNCE_MS = 300
 
 export default function TasksFilters({
   filters,
   onChange,
+  view = 'list',
   workspaceScope,
   onWorkspaceScopeChange,
   workspaces = [],
 }) {
-  function set(key, value) {
-    onChange({ ...filters, [key]: value })
+  const [searchValue, setSearchValue] = useState(filters.q || '')
+  const searchTimerRef = useRef(null)
+  const latestFiltersRef = useRef(filters)
+
+  useEffect(() => {
+    latestFiltersRef.current = filters
+  }, [filters])
+
+  useEffect(() => {
+    setSearchValue(filters.q || '')
+  }, [filters.q])
+
+  useEffect(() => () => {
+    if (searchTimerRef.current) clearTimeout(searchTimerRef.current)
+  }, [])
+
+  function set(key, value, options) {
+    onChange({ ...filters, [key]: value }, options)
+  }
+
+  function handleSearchChange(event) {
+    const nextValue = event.target.value
+    setSearchValue(nextValue)
+    if (searchTimerRef.current) clearTimeout(searchTimerRef.current)
+    searchTimerRef.current = setTimeout(() => {
+      onChange({ ...latestFiltersRef.current, q: nextValue }, { replace: true })
+    }, SEARCH_DEBOUNCE_MS)
   }
 
   return (
-    <section className="grid gap-3 rounded-[var(--radius-lg)] border border-border bg-card p-3 sm:p-4" aria-label="Task filters">
+    <section className="tasks-filters grid gap-3" aria-label="Task filters">
       <div className="flex items-center gap-2 text-[13px] font-semibold">
         <SlidersHorizontal size={15} aria-hidden="true" className="text-muted-foreground" />
         Search and filters
       </div>
 
-      <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-6">
+      <div className={`grid gap-3 md:grid-cols-2 ${view === 'kanban' ? 'xl:grid-cols-5' : 'xl:grid-cols-6'}`}>
         {onWorkspaceScopeChange ? (
           <div className="grid gap-1.5">
             <Label htmlFor="task-workspace-scope" className="text-[12.5px]">Workspace</Label>
@@ -50,8 +78,8 @@ export default function TasksFilters({
             <Search size={14} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" aria-hidden="true" />
             <Input
               id="task-search"
-              value={filters.q}
-              onChange={(e) => set('q', e.target.value)}
+              value={searchValue}
+              onChange={handleSearchChange}
               placeholder="Search title or description"
               className="h-9 pl-8"
             />
@@ -96,27 +124,29 @@ export default function TasksFilters({
           </Select>
         </div>
 
-        <div className="grid gap-1.5">
-          <Label htmlFor="task-sort" className="text-[12.5px]">Sort</Label>
-          <div className="grid grid-cols-2 gap-2">
-            <Select value={filters.sort} onValueChange={(v) => set('sort', v)}>
-              <SelectTrigger id="task-sort" className="h-9" aria-label="Sort by">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {SORT_OPTIONS.map((s) => <SelectItem key={s.id} value={s.id}>{s.label}</SelectItem>)}
-              </SelectContent>
-            </Select>
-            <Select value={filters.order} onValueChange={(v) => set('order', v)}>
-              <SelectTrigger id="task-order" className="h-9" aria-label="Sort order">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {ORDER_OPTIONS.map((o) => <SelectItem key={o.id} value={o.id}>{o.label}</SelectItem>)}
-              </SelectContent>
-            </Select>
+        {view !== 'kanban' ? (
+          <div className="grid gap-1.5">
+            <Label htmlFor="task-sort" className="text-[12.5px]">Sort</Label>
+            <div className="grid grid-cols-2 gap-2">
+              <Select value={filters.sort} onValueChange={(v) => set('sort', v)}>
+                <SelectTrigger id="task-sort" className="h-9" aria-label="Sort by">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {SORT_OPTIONS.map((s) => <SelectItem key={s.id} value={s.id}>{s.label}</SelectItem>)}
+                </SelectContent>
+              </Select>
+              <Select value={filters.order} onValueChange={(v) => set('order', v)}>
+                <SelectTrigger id="task-order" className="h-9" aria-label="Sort order">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {ORDER_OPTIONS.map((o) => <SelectItem key={o.id} value={o.id}>{o.label}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            </div>
           </div>
-        </div>
+        ) : null}
       </div>
 
       <p className="text-[12px] text-muted-foreground">

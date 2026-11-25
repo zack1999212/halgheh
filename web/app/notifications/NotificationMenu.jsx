@@ -12,6 +12,7 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from '@/components/ui/tooltip'
+import { useToast } from '@/components/ui/toast.jsx'
 import useNotifications from './useNotifications.js'
 import NotificationItem from './NotificationItem.jsx'
 import NotificationPreferences from './NotificationPreferences.jsx'
@@ -55,9 +56,41 @@ export default function NotificationMenu({ received, onUnauthorized }) {
     return map
   }, [invitationItems])
 
+  const { toast } = useToast()
   const [open, setOpen] = useState(false)
   const [confirmingDeleteAll, setConfirmingDeleteAll] = useState(false)
   const containerRef = useRef(null)
+
+  const handleToggleRead = async (notification) => {
+    const res = await toggleRead(notification)
+    if (res?.ok) {
+      toast({ title: notification.is_read ? 'Notification marked as unread' : 'Notification marked as read' })
+    } else if (res?.err) {
+      toast({ title: 'Notification action failed', description: res.err?.message, variant: 'destructive' })
+    }
+  }
+
+  const handleDeleteOne = async (notificationId) => {
+    const res = await removeOne(notificationId)
+    if (res?.ok) {
+      toast({ title: 'Notification deleted successfully' })
+    } else if (res?.err) {
+      toast({ title: 'Notification deletion failed', description: res.err?.message, variant: 'destructive' })
+    }
+  }
+
+  const handleMarkAllRead = async () => {
+    const res = await markAllRead()
+    if (res?.ok) toast({ title: 'All notifications marked as read' })
+    else if (res?.err) toast({ title: 'Notification action failed', description: res.err?.message, variant: 'destructive' })
+  }
+
+  const handleRemoveAll = async () => {
+    const res = await removeAll()
+    setConfirmingDeleteAll(false)
+    if (res?.ok) toast({ title: 'All notifications deleted' })
+    else if (res?.err) toast({ title: 'Notification deletion failed', description: res.err?.message, variant: 'destructive' })
+  }
 
   useEffect(() => {
     if (!open) {
@@ -205,7 +238,7 @@ export default function NotificationMenu({ received, onUnauthorized }) {
             <button
               type="button"
               className="notification-panel-action"
-              onClick={markAllRead}
+              onClick={handleMarkAllRead}
               disabled={!hasUnread || bulkBusy}
             >
               <CheckCheck size={13} aria-hidden="true" />
@@ -218,7 +251,7 @@ export default function NotificationMenu({ received, onUnauthorized }) {
                 <button
                   type="button"
                   className="notification-panel-action notification-panel-action--danger"
-                  onClick={removeAll}
+                  onClick={handleRemoveAll}
                   disabled={bulkBusy}
                 >
                   Confirm
@@ -282,8 +315,8 @@ export default function NotificationMenu({ received, onUnauthorized }) {
                     key={notification.id}
                     notification={notification}
                     busy={busyId === notification.id || bulkBusy}
-                    onToggleRead={toggleRead}
-                    onDelete={removeOne}
+                    onToggleRead={handleToggleRead}
+                    onDelete={handleDeleteOne}
                     invitation={
                       notification.type === 'workspace_invitation' && notification.invitation_id != null
                         ? invitationsById.get(notification.invitation_id)
