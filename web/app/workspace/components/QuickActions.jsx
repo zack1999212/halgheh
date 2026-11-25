@@ -1,5 +1,13 @@
 import { useNavigate } from 'react-router-dom'
-import { CalendarDays, FileText, Flag, Map, Plus } from 'lucide-react'
+import {
+  CalendarDays,
+  FileText,
+  Flag,
+  Map,
+  MessageSquare,
+  MessagesSquare,
+  Plus,
+} from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 
@@ -8,6 +16,8 @@ export default function QuickActions({
   canCreateEvent = false,
   canCreateMilestone = false,
   onCreateMilestone,
+  canStartDiscussion = false,
+  onStartDiscussion,
 }) {
   const navigate = useNavigate()
 
@@ -64,6 +74,26 @@ export default function QuickActions({
           >
             <Map className="size-4" aria-hidden="true" />
             View Milestones
+          </Button>
+
+          {canStartDiscussion && (
+            <Button
+              type="button"
+              className="ws-btn h-10 justify-start gap-2 rounded-[10px]"
+              onClick={onStartDiscussion}
+            >
+              <MessageSquare className="size-4" aria-hidden="true" />
+              Start Discussion
+            </Button>
+          )}
+          <Button
+            type="button"
+            variant="outline"
+            className="ws-btn h-10 justify-start gap-2 rounded-[10px]"
+            onClick={() => navigate('/discussions')}
+          >
+            <MessagesSquare className="size-4" aria-hidden="true" />
+            View Discussions
           </Button>
         </div>
       </CardContent>

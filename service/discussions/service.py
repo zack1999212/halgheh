@@ -6,8 +6,8 @@ from fastapi import HTTPException, status
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
-from ..project import permissions as project_permissions
-from ..project import service as project_service
+from ..workspace import permissions as workspace_permissions
+from ..workspace import service as workspace_service
 from . import repository
 from .models import DISCUSSION_TYPES
 
@@ -32,25 +32,24 @@ def _commit(db: Session, *, conflict_detail: str = "Conflict") -> None:
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=conflict_detail)
 
 
-def _get_project_role(db: Session, project_id: int, actor_id: int) -> str:
-    return project_service.get_project_role(db, actor_id, project_id)
+def _get_workspace_role(db: Session, workspace_id: int, actor_id: int) -> str:
+    return workspace_service.get_accessible_workspace(db, workspace_id, actor_id)[1]
 
 
-def _require_project_view(db: Session, project_id: int, actor_id: int):
-    project, role = project_service.require_project_view(db, actor_id, project_id)
-    return project, role
+def _require_workspace_view(db: Session, workspace_id: int, actor_id: int):
+    return workspace_service.get_accessible_workspace(db, workspace_id, actor_id)
 
 
-def _require_discussion_access(db: Session, project_id: int, discussion_id: int, actor_id: int):
-    _require_project_view(db, project_id, actor_id)
-    discussion = repository.get_discussion_for_project(db, project_id, discussion_id)
+def _require_discussion_access(db: Session, workspace_id: int, discussion_id: int, actor_id: int):
+    _require_workspace_view(db, workspace_id, actor_id)
+    discussion = repository.get_discussion_for_workspace(db, workspace_id, discussion_id)
     if discussion is None:
         raise _not_found()
     return discussion
 
 
-def _require_reply_access(db: Session, project_id: int, discussion_id: int, reply_id: int, actor_id: int):
-    discussion = _require_discussion_access(db, project_id, discussion_id, actor_id)
+def _require_reply_access(db: Session, workspace_id: int, discussion_id: int, reply_id: int, actor_id: int):
+    discussion = _require_discussion_access(db, workspace_id, discussion_id, actor_id)
     reply = repository.get_reply_for_discussion(db, discussion_id, reply_id)
     if reply is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Reply not found")
@@ -81,7 +80,7 @@ def _serialize_discussion(
     reaction_items = reactions or []
     return {
         "id": discussion.id,
-        "project_id": discussion.project_id,
+        "workspace_id": discussion.workspace_id,
         "author_id": discussion.author_id,
         "author": _serialize_author(getattr(discussion, "author", None)),
         "type": discussion.type,
@@ -119,14 +118,14 @@ def _serialize_reply(reply, *, reactions: list[dict] | None = None) -> dict:
 
 def list_discussions(
     db: Session,
-    project_id: int,
+    workspace_id: int,
     actor_id: int,
     *,
     discussion_type: str | None = None,
     limit: int = 20,
     offset: int = 0,
 ) -> tuple[list[dict], int]:
-    _require_project_view(db, project_id, actor_id)
+    _require_workspace_view(db, workspace_id, actor_id)
     if discussion_type is not None and discussion_type not in DISCUSSION_TYPES:
         raise _bad_request(f"Unknown discussion type: {discussion_type}")
 
@@ -135,7 +134,7 @@ def list_discussions(
 
     items, total = repository.list_discussions(
         db,
-        project_id,
+        workspace_id,
         discussion_type=discussion_type,
         limit=limit,
         offset=offset,
@@ -154,19 +153,13 @@ def list_discussions(
     ], total
 
 
-def create_discussion(db: Session, project_id: int, actor_id: int, data) -> dict:
-    _project, role = _require_project_view(db, project_id, actor_id)
-
-    if data.type == "announcement":
-        if role not in (project_permissions.ROLE_OWNER, project_permissions.ROLE_ADMIN):
-            raise _forbidden("Not allowed to create announcements")
-    else:
-        if not project_permissions.can_manage_project_content(role):
-            raise _forbidden("Not allowed to create discussions")
+def create_discussion(db: Session, workspace_id: int, actor_id: int, data) -> dict:
+    # Every workspace member can start a discussion; the author is the caller.
+    _require_workspace_view(db, workspace_id, actor_id)
 
     discussion = repository.create_discussion(
         db,
-        project_id=project_id,
+        workspace_id=workspace_id,
         author_id=actor_id,
         type=data.type,
         title=data.title,
@@ -174,12 +167,12 @@ def create_discussion(db: Session, project_id: int, actor_id: int, data) -> dict
         is_pinned=False,
     )
     _commit(db, conflict_detail="Could not create discussion")
-    discussion = repository.get_discussion_for_project(db, project_id, discussion.id)
+    discussion = repository.get_discussion_for_workspace(db, workspace_id, discussion.id)
     return _serialize_discussion(discussion, reply_count=0, reactions=[])
 
 
-def get_discussion(db: Session, project_id: int, discussion_id: int, actor_id: int) -> dict:
-    discussion = _require_discussion_access(db, project_id, discussion_id, actor_id)
+def get_discussion(db: Session, workspace_id: int, discussion_id: int, actor_id: int) -> dict:
+    discussion = _require_discussion_access(db, workspace_id, discussion_id, actor_id)
     reply_counts = repository.get_reply_counts(db, [discussion.id])
     reaction_map = repository.get_discussion_reaction_summaries(db, [discussion.id], viewer_id=actor_id)
     return _serialize_discussion(
@@ -189,14 +182,10 @@ def get_discussion(db: Session, project_id: int, discussion_id: int, actor_id: i
     )
 
 
-def update_discussion(db: Session, project_id: int, discussion_id: int, actor_id: int, data) -> dict:
-    discussion = _require_discussion_access(db, project_id, discussion_id, actor_id)
-    role = _get_project_role(db, project_id, actor_id)
-
-    is_author = discussion.author_id == actor_id
-    is_owner = role == project_permissions.ROLE_OWNER
-    if not (is_author or is_owner):
-        raise _forbidden("Not allowed to edit this discussion")
+def update_discussion(db: Session, workspace_id: int, discussion_id: int, actor_id: int, data) -> dict:
+    discussion = _require_discussion_access(db, workspace_id, discussion_id, actor_id)
+    if discussion.author_id != actor_id:
+        raise _forbidden("Only the author can edit this discussion")
 
     updates = data.model_dump(exclude_unset=True)
     for field, value in updates.items():
@@ -206,7 +195,7 @@ def update_discussion(db: Session, project_id: int, discussion_id: int, actor_id
         discussion.updated_at = datetime.now(timezone.utc)
 
     _commit(db, conflict_detail="Could not update discussion")
-    discussion = repository.get_discussion_for_project(db, project_id, discussion_id)
+    discussion = repository.get_discussion_for_workspace(db, workspace_id, discussion_id)
     reply_counts = repository.get_reply_counts(db, [discussion.id])
     reaction_map = repository.get_discussion_reaction_summaries(db, [discussion.id], viewer_id=actor_id)
     return _serialize_discussion(
@@ -216,28 +205,24 @@ def update_discussion(db: Session, project_id: int, discussion_id: int, actor_id
     )
 
 
-def delete_discussion(db: Session, project_id: int, discussion_id: int, actor_id: int) -> None:
-    discussion = _require_discussion_access(db, project_id, discussion_id, actor_id)
-    role = _get_project_role(db, project_id, actor_id)
-
-    is_author = discussion.author_id == actor_id
-    is_owner = role == project_permissions.ROLE_OWNER
-    if not (is_author or is_owner):
-        raise _forbidden("Not allowed to delete this discussion")
+def delete_discussion(db: Session, workspace_id: int, discussion_id: int, actor_id: int) -> None:
+    discussion = _require_discussion_access(db, workspace_id, discussion_id, actor_id)
+    if discussion.author_id != actor_id:
+        raise _forbidden("Only the author can delete this discussion")
 
     repository.soft_delete_discussion(db, discussion, deleted_at=datetime.now(timezone.utc))
     _commit(db, conflict_detail="Could not delete discussion")
 
 
-def pin_discussion(db: Session, project_id: int, discussion_id: int, actor_id: int, *, is_pinned: bool) -> dict:
-    discussion = _require_discussion_access(db, project_id, discussion_id, actor_id)
-    role = _get_project_role(db, project_id, actor_id)
-    if role not in (project_permissions.ROLE_OWNER, project_permissions.ROLE_ADMIN):
+def pin_discussion(db: Session, workspace_id: int, discussion_id: int, actor_id: int, *, is_pinned: bool) -> dict:
+    discussion = _require_discussion_access(db, workspace_id, discussion_id, actor_id)
+    role = _get_workspace_role(db, workspace_id, actor_id)
+    if not workspace_permissions.can_edit_workspace(role):
         raise _forbidden("Not allowed to pin discussions")
 
     discussion.is_pinned = bool(is_pinned)
     _commit(db, conflict_detail="Could not update discussion pin state")
-    discussion = repository.get_discussion_for_project(db, project_id, discussion_id)
+    discussion = repository.get_discussion_for_workspace(db, workspace_id, discussion_id)
     reply_counts = repository.get_reply_counts(db, [discussion.id])
     reaction_map = repository.get_discussion_reaction_summaries(db, [discussion.id], viewer_id=actor_id)
     return _serialize_discussion(
@@ -252,14 +237,14 @@ def pin_discussion(db: Session, project_id: int, discussion_id: int, actor_id: i
 
 def list_replies(
     db: Session,
-    project_id: int,
+    workspace_id: int,
     discussion_id: int,
     actor_id: int,
     *,
     limit: int = 50,
     offset: int = 0,
 ) -> tuple[list[dict], int]:
-    _require_discussion_access(db, project_id, discussion_id, actor_id)
+    _require_discussion_access(db, workspace_id, discussion_id, actor_id)
     limit = min(max(limit, 1), 100)
     offset = max(offset, 0)
 
@@ -269,11 +254,8 @@ def list_replies(
     return [_serialize_reply(r, reactions=reaction_map.get(r.id, [])) for r in items], total
 
 
-def create_reply(db: Session, project_id: int, discussion_id: int, actor_id: int, data) -> dict:
-    discussion = _require_discussion_access(db, project_id, discussion_id, actor_id)
-    role = _get_project_role(db, project_id, actor_id)
-    if not project_permissions.can_manage_project_content(role):
-        raise _forbidden("Not allowed to reply to discussions")
+def create_reply(db: Session, workspace_id: int, discussion_id: int, actor_id: int, data) -> dict:
+    discussion = _require_discussion_access(db, workspace_id, discussion_id, actor_id)
     if discussion.deleted_at is not None:
         raise _not_found()
 
@@ -289,14 +271,11 @@ def create_reply(db: Session, project_id: int, discussion_id: int, actor_id: int
 
 
 def update_reply(
-    db: Session, project_id: int, discussion_id: int, reply_id: int, actor_id: int, data
+    db: Session, workspace_id: int, discussion_id: int, reply_id: int, actor_id: int, data
 ) -> dict:
-    _discussion, reply = _require_reply_access(db, project_id, discussion_id, reply_id, actor_id)
-    role = _get_project_role(db, project_id, actor_id)
-    is_author = reply.author_id == actor_id
-    is_owner = role == project_permissions.ROLE_OWNER
-    if not (is_author or is_owner):
-        raise _forbidden("Not allowed to edit this reply")
+    _discussion, reply = _require_reply_access(db, workspace_id, discussion_id, reply_id, actor_id)
+    if reply.author_id != actor_id:
+        raise _forbidden("Only the author can edit this reply")
 
     reply.content = data.content
     reply.updated_at = datetime.now(timezone.utc)
@@ -306,13 +285,10 @@ def update_reply(
     return _serialize_reply(reply, reactions=reaction_map.get(reply.id, []))
 
 
-def delete_reply(db: Session, project_id: int, discussion_id: int, reply_id: int, actor_id: int) -> dict:
-    _discussion, reply = _require_reply_access(db, project_id, discussion_id, reply_id, actor_id)
-    role = _get_project_role(db, project_id, actor_id)
-    is_author = reply.author_id == actor_id
-    is_owner = role == project_permissions.ROLE_OWNER
-    if not (is_author or is_owner):
-        raise _forbidden("Not allowed to delete this reply")
+def delete_reply(db: Session, workspace_id: int, discussion_id: int, reply_id: int, actor_id: int) -> dict:
+    _discussion, reply = _require_reply_access(db, workspace_id, discussion_id, reply_id, actor_id)
+    if reply.author_id != actor_id:
+        raise _forbidden("Only the author can delete this reply")
 
     if reply.deleted_at is None:
         repository.soft_delete_reply(db, reply, deleted_at=datetime.now(timezone.utc))
@@ -326,20 +302,13 @@ def delete_reply(db: Session, project_id: int, discussion_id: int, reply_id: int
 # --- Reactions ---
 
 
-def _require_reactable_discussion(db: Session, project_id: int, discussion_id: int, actor_id: int):
-    discussion = _require_discussion_access(db, project_id, discussion_id, actor_id)
-    role = _get_project_role(db, project_id, actor_id)
-    if not project_permissions.can_manage_project_content(role):
-        raise _forbidden("Not allowed to react")
-    return discussion
+def _require_reactable_discussion(db: Session, workspace_id: int, discussion_id: int, actor_id: int):
+    # Workspace access was already verified; every member may react.
+    return _require_discussion_access(db, workspace_id, discussion_id, actor_id)
 
 
-def _require_reactable_reply(db: Session, project_id: int, discussion_id: int, reply_id: int, actor_id: int):
-    discussion, reply = _require_reply_access(db, project_id, discussion_id, reply_id, actor_id)
-    role = _get_project_role(db, project_id, actor_id)
-    if not project_permissions.can_manage_project_content(role):
-        raise _forbidden("Not allowed to react")
-    return discussion, reply
+def _require_reactable_reply(db: Session, workspace_id: int, discussion_id: int, reply_id: int, actor_id: int):
+    return _require_reply_access(db, workspace_id, discussion_id, reply_id, actor_id)
 
 
 def _discussion_reaction_response(db: Session, discussion_id: int, *, actor_id: int) -> dict:
@@ -364,8 +333,8 @@ def _reply_reaction_response(db: Session, reply_id: int, *, actor_id: int) -> di
     }
 
 
-def add_discussion_reaction(db: Session, project_id: int, discussion_id: int, actor_id: int, *, emoji: str) -> dict:
-    _require_reactable_discussion(db, project_id, discussion_id, actor_id)
+def add_discussion_reaction(db: Session, workspace_id: int, discussion_id: int, actor_id: int, *, emoji: str) -> dict:
+    _require_reactable_discussion(db, workspace_id, discussion_id, actor_id)
     existing = repository.get_reaction_for_discussion(db, discussion_id, actor_id, emoji)
     if existing is None:
         repository.create_reaction(
@@ -383,8 +352,8 @@ def add_discussion_reaction(db: Session, project_id: int, discussion_id: int, ac
     return _discussion_reaction_response(db, discussion_id, actor_id=actor_id)
 
 
-def remove_discussion_reaction(db: Session, project_id: int, discussion_id: int, actor_id: int, *, emoji: str) -> dict:
-    _require_reactable_discussion(db, project_id, discussion_id, actor_id)
+def remove_discussion_reaction(db: Session, workspace_id: int, discussion_id: int, actor_id: int, *, emoji: str) -> dict:
+    _require_reactable_discussion(db, workspace_id, discussion_id, actor_id)
     existing = repository.get_reaction_for_discussion(db, discussion_id, actor_id, emoji)
     if existing is not None:
         repository.delete_reaction(db, existing)
@@ -393,9 +362,9 @@ def remove_discussion_reaction(db: Session, project_id: int, discussion_id: int,
 
 
 def add_reply_reaction(
-    db: Session, project_id: int, discussion_id: int, reply_id: int, actor_id: int, *, emoji: str
+    db: Session, workspace_id: int, discussion_id: int, reply_id: int, actor_id: int, *, emoji: str
 ) -> dict:
-    _discussion, _reply = _require_reactable_reply(db, project_id, discussion_id, reply_id, actor_id)
+    _discussion, _reply = _require_reactable_reply(db, workspace_id, discussion_id, reply_id, actor_id)
     existing = repository.get_reaction_for_reply(db, reply_id, actor_id, emoji)
     if existing is None:
         repository.create_reaction(
@@ -414,9 +383,9 @@ def add_reply_reaction(
 
 
 def remove_reply_reaction(
-    db: Session, project_id: int, discussion_id: int, reply_id: int, actor_id: int, *, emoji: str
+    db: Session, workspace_id: int, discussion_id: int, reply_id: int, actor_id: int, *, emoji: str
 ) -> dict:
-    _discussion, _reply = _require_reactable_reply(db, project_id, discussion_id, reply_id, actor_id)
+    _discussion, _reply = _require_reactable_reply(db, workspace_id, discussion_id, reply_id, actor_id)
     existing = repository.get_reaction_for_reply(db, reply_id, actor_id, emoji)
     if existing is not None:
         repository.delete_reaction(db, existing)

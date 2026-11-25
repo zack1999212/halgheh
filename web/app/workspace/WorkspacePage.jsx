@@ -82,6 +82,7 @@ export default function WorkspacePage() {
     workspaceReady &&
     !isAllWorkspaces &&
     activeWorkspace?.current_user_role === 'owner'
+  const canStartDiscussion = workspaceReady && !isAllWorkspaces
 
   const openCreateEvent = useCallback(() => {
     if (!calendar.calendars.length) return
@@ -250,6 +251,8 @@ export default function WorkspacePage() {
               canCreateEvent={canCreateEvent}
               canCreateMilestone={canCreateMilestone}
               onCreateMilestone={() => navigate('/milestones?create=1')}
+              canStartDiscussion={canStartDiscussion}
+              onStartDiscussion={() => navigate('/discussions?create=1')}
             />
           </div>
         </div>
