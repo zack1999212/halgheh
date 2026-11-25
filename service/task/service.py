@@ -32,7 +32,7 @@ from sqlalchemy.orm import Session
 
 from ..auth.models import User
 from . import permissions, repository
-from .models import DONE_STATUS, TASK_STATUSES, Task
+from .models import DONE_STATUS, TASK_PRIORITIES, TASK_STATUSES, Task, TaskChecklistItem
 from ..project import activity as project_activity
 from ..project import permissions as project_permissions
 from ..project import service as project_service
@@ -147,6 +147,33 @@ def _access_role(db: Session, task: Task | None, actor_id: int) -> str:
     return permissions.task_role(task, actor_id)
 
 
+def _create_task_created_notifications(db: Session, task: Task, actor_id: int) -> None:
+    """Persist task-created notifications for creator and active assignees.
+
+    Recipients are deduplicated by user id. Notifications are added to the
+    current transaction; caller controls commit/rollback.
+    """
+    from ..notifications.models import Notification
+
+    recipient_ids: set[int] = {actor_id}
+    for assignment in getattr(task, "assignments", []) or []:
+        if getattr(assignment, "assignment_status", None) == "active":
+            recipient_ids.add(assignment.assigned_user_id)
+
+    title = "New task created"
+    message = f'Task "{task.title}" was created.'
+    for user_id in sorted(recipient_ids):
+        db.add(
+            Notification(
+                user_id=user_id,
+                type="task_created",
+                title=title,
+                message=message,
+                task_id=task.id,
+            )
+        )
+
+
 def _visible_task(db: Session, actor_id: int, task_id: int) -> tuple[Task, str]:
     """Load a task the actor can see, else 404 (indistinguishable from
     nonexistent — guessed ids reveal nothing)."""
@@ -189,6 +216,10 @@ def attach_task_workspaces(db: Session, actor_id: int, tasks: list[Task]) -> lis
             "parent_task_id": t.parent_task_id,
             "created_by": t.created_by,
             "project_id": t.project_id,
+            "position": getattr(t, "position", 0) or 0,
+            "priority_position": getattr(t, "priority_position", 0) or 0,
+            "checklist_total": int(getattr(t, "checklist_total", 0) or 0),
+            "checklist_completed": int(getattr(t, "checklist_completed", 0) or 0),
             "created_at": t.created_at,
             "updated_at": t.updated_at,
             "workspaces": ws_map.get(t.id, []),
@@ -214,6 +245,10 @@ def serialize_task(task: Task, *, actor_id: int | None = None, db: Session | Non
         "parent_task_id": task.parent_task_id,
         "created_by": task.created_by,
         "project_id": task.project_id,
+        "position": task.position,
+        "priority_position": getattr(task, "priority_position", 0) or 0,
+        "checklist_total": int(getattr(task, "checklist_total", 0) or 0),
+        "checklist_completed": int(getattr(task, "checklist_completed", 0) or 0),
         "created_at": task.created_at,
         "updated_at": task.updated_at,
         "labels": [link.label for link in task.label_assignments],
@@ -276,6 +311,12 @@ def create_task(db: Session, actor_id: int, data: TaskCreate) -> Task:
     resolved_workspace_id = _resolve_task_workspace_id(
         db, actor_id, workspace_id=workspace_id, project_id=project_id
     )
+    repository.list_status_task_ids_for_update(db, "todo")
+    todo_neighbors = repository.get_status_position_neighbors(db, status="todo")
+    next_position = (todo_neighbors[-1][1] + _POSITION_GAP) if todo_neighbors else _POSITION_GAP
+    repository.list_priority_task_ids_for_update(db, data.priority)
+    priority_neighbors = repository.get_priority_position_neighbors(db, priority=data.priority)
+    next_priority_position = (priority_neighbors[-1][1] + _POSITION_GAP) if priority_neighbors else _POSITION_GAP
     task = repository.create_task(
         db,
         title=data.title,
@@ -288,6 +329,8 @@ def create_task(db: Session, actor_id: int, data: TaskCreate) -> Task:
         start_date=data.start_date,
         due_date=data.due_date,
         completed_at=None,
+        position=next_position,
+        priority_position=next_priority_position,
     )
     _ensure_task_workspace_association(db, task, resolved_workspace_id)
     repository.add_activity(
@@ -321,12 +364,14 @@ def create_task(db: Session, actor_id: int, data: TaskCreate) -> Task:
             entity_id=task.id,
             metadata={"resource_name": task.title},
         )
+    _create_task_created_notifications(db, task, actor_id)
     _commit(
         db,
         conflict_detail="Could not create the task",
         conflict_status=status.HTTP_400_BAD_REQUEST,
     )
     db.refresh(task)
+    repository.populate_checklist_counts(db, [task])
     return task
 
 
@@ -345,6 +390,12 @@ def create_subtask(
     if not permissions.can_edit(role):
         raise _forbidden("Not allowed to modify this task")
     _validate_dates(data.start_date, data.due_date)
+    repository.list_status_task_ids_for_update(db, "todo")
+    todo_neighbors = repository.get_status_position_neighbors(db, status="todo")
+    next_position = (todo_neighbors[-1][1] + _POSITION_GAP) if todo_neighbors else _POSITION_GAP
+    repository.list_priority_task_ids_for_update(db, data.priority)
+    priority_neighbors = repository.get_priority_position_neighbors(db, priority=data.priority)
+    next_priority_position = (priority_neighbors[-1][1] + _POSITION_GAP) if priority_neighbors else _POSITION_GAP
     task = repository.create_task(
         db,
         title=data.title,
@@ -357,6 +408,8 @@ def create_subtask(
         start_date=data.start_date,
         due_date=data.due_date,
         completed_at=None,
+        position=next_position,
+        priority_position=next_priority_position,
     )
     from ..workspace import repository as ws_repo
     parent_ws_ids = ws_repo.get_resource_workspace_ids(db, "task", parent.id)
@@ -383,12 +436,14 @@ def create_subtask(
             entity_id=task.id,
             metadata={"task_id": task.id, "task_title": task.title},
         )
+    _create_task_created_notifications(db, task, actor_id)
     _commit(
         db,
         conflict_detail="Could not create the subtask",
         conflict_status=status.HTTP_400_BAD_REQUEST,
     )
     db.refresh(task)
+    repository.populate_checklist_counts(db, [task])
     return task
 
 
@@ -470,6 +525,15 @@ def update_task(db: Session, actor_id: int, task_id: int, data: TaskUpdate) -> T
     if not changed and not project_changed:
         return task
 
+    # If priority changed via edit, append to destination priority column so
+    # priority-board ordering stays consistent. Status changes are handled by
+    # the dedicated status/position endpoint.
+    if "priority" in updates and updates["priority"] != task.priority:
+        new_priority = updates["priority"]
+        repository.list_priority_task_ids_for_update(db, new_priority)
+        priority_neighbors = repository.get_priority_position_neighbors(db, priority=new_priority, exclude_task_id=task.id)
+        updates["priority_position"] = (priority_neighbors[-1][1] + _POSITION_GAP) if priority_neighbors else _POSITION_GAP
+
     repository.update_task(db, task, **updates)
 
     for _field, action, old_value, new_value in changed:
@@ -513,6 +577,7 @@ def update_task(db: Session, actor_id: int, task_id: int, data: TaskUpdate) -> T
         conflict_status=status.HTTP_400_BAD_REQUEST,
     )
     db.refresh(task)
+    repository.populate_checklist_counts(db, [task])
     return task
 
 
@@ -557,6 +622,212 @@ def delete_task(db: Session, actor_id: int, task_id: int) -> None:
 # ---------------------------------------------------------------------------
 
 
+_POSITION_GAP = 1000
+
+
+def _normalize_status_positions(db: Session, status: str) -> dict[int, int]:
+    """Reassign deterministic gap positions for all tasks in a status."""
+    task_ids = repository.list_status_task_ids_for_update(db, status)
+    positions: dict[int, int] = {}
+    for index, tid in enumerate(task_ids, start=1):
+        positions[tid] = index * _POSITION_GAP
+    if not positions:
+        return positions
+    for tid, pos in positions.items():
+        db.execute(
+            Task.__table__.update().where(Task.id == tid).values(position=pos)
+        )
+    db.flush()
+    return positions
+
+
+def _normalize_priority_positions(db: Session, priority: str) -> dict[int, int]:
+    """Reassign deterministic gap positions for all tasks in a priority column."""
+    task_ids = repository.list_priority_task_ids_for_update(db, priority)
+    positions: dict[int, int] = {}
+    for index, tid in enumerate(task_ids, start=1):
+        positions[tid] = index * _POSITION_GAP
+    if not positions:
+        return positions
+    for tid, pos in positions.items():
+        db.execute(
+            Task.__table__.update().where(Task.id == tid).values(priority_position=pos)
+        )
+    db.flush()
+    return positions
+
+
+def _compute_target_position(
+    db: Session,
+    *,
+    task_id: int,
+    target_status: str,
+    before_task_id: int | None,
+    after_task_id: int | None,
+) -> int:
+    """Compute a new position in target_status."""
+    if before_task_id == task_id or after_task_id == task_id:
+        raise _bad_request("A task cannot be positioned relative to itself")
+
+    neighbors = repository.get_status_position_neighbors(
+        db, status=target_status, exclude_task_id=task_id
+    )
+    positions_by_id = {tid: pos for tid, pos in neighbors}
+    ordered_ids = [tid for tid, _pos in neighbors]
+
+    for neighbor_id, label in ((before_task_id, "before_task_id"), (after_task_id, "after_task_id")):
+        if neighbor_id is not None and neighbor_id not in positions_by_id:
+            neighbor = repository.get_task(db, neighbor_id, eager=False)
+            if neighbor is None:
+                raise _bad_request(f"Unknown {label}")
+            if neighbor.status != target_status:
+                raise _bad_request(f"{label} must belong to the target status column")
+            raise _bad_request(f"Invalid {label}")
+
+    if before_task_id is not None and after_task_id is not None:
+        if ordered_ids.index(before_task_id) > ordered_ids.index(after_task_id):
+            raise _bad_request("before_task_id must come before after_task_id")
+
+    # Resolve effective bounds from the actual neighbor order so a one-sided
+    # insertion does not collide with the adjacent occupied slot.
+    if before_task_id is None and after_task_id is None:
+        if not ordered_ids:
+            return _POSITION_GAP
+        return positions_by_id[ordered_ids[-1]] + _POSITION_GAP
+
+    if before_task_id is not None and after_task_id is not None:
+        lower_id, upper_id = before_task_id, after_task_id
+    elif before_task_id is not None:
+        lower_id = before_task_id
+        idx = ordered_ids.index(before_task_id)
+        upper_id = ordered_ids[idx + 1] if idx + 1 < len(ordered_ids) else None
+    else:
+        upper_id = after_task_id
+        idx = ordered_ids.index(after_task_id)
+        lower_id = ordered_ids[idx - 1] if idx > 0 else None
+
+    def _bounds(ids_to_pos: dict[int, int]) -> tuple[int | None, int | None]:
+        lower = ids_to_pos.get(lower_id) if lower_id is not None else None
+        upper = ids_to_pos.get(upper_id) if upper_id is not None else None
+        return lower, upper
+
+    lower, upper = _bounds(positions_by_id)
+    if lower is None and upper is None:
+        return _POSITION_GAP
+    if lower is None:
+        if upper is not None and upper - _POSITION_GAP >= 1:
+            # Keep a gap from the start while preserving order.
+            candidate = upper - _POSITION_GAP
+            if candidate >= 1:
+                return candidate
+        return max(1, (upper or _POSITION_GAP) - 1)
+    if upper is None:
+        return lower + _POSITION_GAP
+    if upper - lower > 1:
+        return lower + ((upper - lower) // 2)
+
+    new_positions = _normalize_status_positions(db, target_status)
+    lower, upper = _bounds(new_positions)
+    if lower is None or upper is None:
+        raise _bad_request("Could not compute task position")
+    if upper - lower > 1:
+        return lower + ((upper - lower) // 2)
+    _normalize_status_positions(db, target_status)
+    refreshed = repository.get_status_position_neighbors(
+        db, status=target_status, exclude_task_id=task_id
+    )
+    refreshed_positions = {tid: pos for tid, pos in refreshed}
+    lower, upper = _bounds(refreshed_positions)
+    if lower is None or upper is None:
+        raise _bad_request("Could not compute task position")
+    return lower + max(1, (upper - lower) // 2)
+
+
+def _compute_target_priority_position(
+    db: Session,
+    *,
+    task_id: int,
+    target_priority: str,
+    before_task_id: int | None,
+    after_task_id: int | None,
+) -> int:
+    """Compute a new priority_position in target_priority."""
+    if before_task_id == task_id or after_task_id == task_id:
+        raise _bad_request("A task cannot be positioned relative to itself")
+
+    neighbors = repository.get_priority_position_neighbors(
+        db, priority=target_priority, exclude_task_id=task_id
+    )
+    positions_by_id = {tid: pos for tid, pos in neighbors}
+    ordered_ids = [tid for tid, _pos in neighbors]
+
+    for neighbor_id, label in ((before_task_id, "before_task_id"), (after_task_id, "after_task_id")):
+        if neighbor_id is not None and neighbor_id not in positions_by_id:
+            neighbor = repository.get_task(db, neighbor_id, eager=False)
+            if neighbor is None:
+                raise _bad_request(f"Unknown {label}")
+            if neighbor.priority != target_priority:
+                raise _bad_request(f"{label} must belong to the target priority column")
+            raise _bad_request(f"Invalid {label}")
+
+    if before_task_id is not None and after_task_id is not None:
+        if ordered_ids.index(before_task_id) > ordered_ids.index(after_task_id):
+            raise _bad_request("before_task_id must come before after_task_id")
+
+    # Resolve effective bounds from the actual neighbor order so a one-sided
+    # insertion does not collide with the adjacent occupied slot.
+    if before_task_id is None and after_task_id is None:
+        if not ordered_ids:
+            return _POSITION_GAP
+        return positions_by_id[ordered_ids[-1]] + _POSITION_GAP
+
+    if before_task_id is not None and after_task_id is not None:
+        lower_id, upper_id = before_task_id, after_task_id
+    elif before_task_id is not None:
+        lower_id = before_task_id
+        idx = ordered_ids.index(before_task_id)
+        upper_id = ordered_ids[idx + 1] if idx + 1 < len(ordered_ids) else None
+    else:
+        upper_id = after_task_id
+        idx = ordered_ids.index(after_task_id)
+        lower_id = ordered_ids[idx - 1] if idx > 0 else None
+
+    def _bounds(ids_to_pos: dict[int, int]) -> tuple[int | None, int | None]:
+        lower = ids_to_pos.get(lower_id) if lower_id is not None else None
+        upper = ids_to_pos.get(upper_id) if upper_id is not None else None
+        return lower, upper
+
+    lower, upper = _bounds(positions_by_id)
+    if lower is None and upper is None:
+        return _POSITION_GAP
+    if lower is None:
+        if upper is not None and upper - _POSITION_GAP >= 1:
+            candidate = upper - _POSITION_GAP
+            if candidate >= 1:
+                return candidate
+        return max(1, (upper or _POSITION_GAP) - 1)
+    if upper is None:
+        return lower + _POSITION_GAP
+    if upper - lower > 1:
+        return lower + ((upper - lower) // 2)
+
+    new_positions = _normalize_priority_positions(db, target_priority)
+    lower, upper = _bounds(new_positions)
+    if lower is None or upper is None:
+        raise _bad_request("Could not compute task position")
+    if upper - lower > 1:
+        return lower + ((upper - lower) // 2)
+    _normalize_priority_positions(db, target_priority)
+    refreshed = repository.get_priority_position_neighbors(
+        db, priority=target_priority, exclude_task_id=task_id
+    )
+    refreshed_positions = {tid: pos for tid, pos in refreshed}
+    lower, upper = _bounds(refreshed_positions)
+    if lower is None or upper is None:
+        raise _bad_request("Could not compute task position")
+    return lower + max(1, (upper - lower) // 2)
+
+
 def set_task_status(
     db: Session, actor_id: int, task_id: int, new_status: str
 ) -> Task:
@@ -580,7 +851,13 @@ def set_task_status(
             f"Invalid status transition from '{old_status}' to '{new_status}'"
         )
 
+    # Append to destination column to keep Kanban ordering deterministic.
+    repository.list_status_task_ids_for_update(db, new_status)
+    neighbors = repository.get_status_position_neighbors(db, status=new_status, exclude_task_id=task.id)
+    next_position = (neighbors[-1][1] + _POSITION_GAP) if neighbors else _POSITION_GAP
+
     task.status = new_status
+    task.position = next_position
     if new_status == DONE_STATUS:
         task.completed_at = datetime.now(timezone.utc)
     else:
@@ -622,6 +899,144 @@ def set_task_status(
         conflict_status=status.HTTP_400_BAD_REQUEST,
     )
     db.refresh(task)
+    repository.populate_checklist_counts(db, [task])
+    return task
+
+
+def set_task_position(
+    db: Session,
+    actor_id: int,
+    task_id: int,
+    *,
+    target_status: str | None = None,
+    target_priority: str | None = None,
+    before_task_id: int | None = None,
+    after_task_id: int | None = None,
+) -> Task:
+    """Reorder a task within/between status columns or priority columns.
+
+    Status mode (target_status): preserves existing behavior - may change
+    status and status-position; never changes priority. Enforces status
+    transition rules and completed_at invariants.
+
+    Priority mode (target_priority): changes priority and/or priority_position;
+    never changes status.
+    """
+    has_status = target_status is not None
+    has_priority = target_priority is not None
+    if has_status == has_priority:
+        raise _bad_request("Provide exactly one of target_status or target_priority")
+
+    task, role = _visible_task(db, actor_id, task_id)
+
+    if has_status:
+        if not permissions.can_change_status(role):
+            raise _forbidden("Not allowed to change this task's status")
+        if target_status not in TASK_STATUSES:
+            raise _bad_request(f"Unknown task status: {target_status}")
+
+        old_status = task.status
+        old_position = task.position
+        if target_status != old_status:
+            if target_status not in ALLOWED_STATUS_TRANSITIONS[old_status]:
+                raise _bad_request(
+                    f"Invalid status transition from '{old_status}' to '{target_status}'"
+                )
+
+        repository.list_status_task_ids_for_update(db, target_status)
+        if old_status != target_status:
+            repository.list_status_task_ids_for_update(db, old_status)
+
+        new_position = _compute_target_position(
+            db,
+            task_id=task.id,
+            target_status=target_status,
+            before_task_id=before_task_id,
+            after_task_id=after_task_id,
+        )
+
+        if target_status == old_status and new_position == old_position:
+            db.refresh(task)
+            return task
+
+        status_changed = target_status != old_status
+        task.status = target_status
+        task.position = new_position
+        if status_changed:
+            if target_status == DONE_STATUS:
+                task.completed_at = datetime.now(timezone.utc)
+            else:
+                task.completed_at = None
+            repository.add_activity(
+                db,
+                task_id=task.id,
+                actor_id=actor_id,
+                action="status_changed",
+                old_value=old_status,
+                new_value=target_status,
+            )
+
+        repository.add_activity(
+            db,
+            task_id=task.id,
+            actor_id=actor_id,
+            action="task_updated",
+            old_value=_snap({"status": old_status, "position": old_position}),
+            new_value=_snap({"status": target_status, "position": new_position}),
+        )
+
+        _commit(
+            db,
+            conflict_detail="Could not update task position",
+            conflict_status=status.HTTP_400_BAD_REQUEST,
+        )
+        db.refresh(task)
+        return task
+
+    # Priority mode
+    if not permissions.can_edit(role):
+        raise _forbidden("Not allowed to change this task's priority")
+    if target_priority not in TASK_PRIORITIES:
+        raise _bad_request(f"Unknown task priority: {target_priority}")
+
+    old_priority = task.priority
+    old_priority_position = getattr(task, "priority_position", 0) or 0
+
+    repository.list_priority_task_ids_for_update(db, target_priority)
+    if old_priority != target_priority:
+        repository.list_priority_task_ids_for_update(db, old_priority)
+
+    new_priority_position = _compute_target_priority_position(
+        db,
+        task_id=task.id,
+        target_priority=target_priority,
+        before_task_id=before_task_id,
+        after_task_id=after_task_id,
+    )
+
+    if target_priority == old_priority and new_priority_position == old_priority_position:
+        db.refresh(task)
+        return task
+
+    task.priority = target_priority
+    task.priority_position = new_priority_position
+
+    repository.add_activity(
+        db,
+        task_id=task.id,
+        actor_id=actor_id,
+        action="task_updated",
+        old_value=_snap({"priority": old_priority, "priority_position": old_priority_position}),
+        new_value=_snap({"priority": target_priority, "priority_position": new_priority_position}),
+    )
+
+    _commit(
+        db,
+        conflict_detail="Could not update task priority position",
+        conflict_status=status.HTTP_400_BAD_REQUEST,
+    )
+    db.refresh(task)
+    repository.populate_checklist_counts(db, [task])
     return task
 
 
@@ -663,6 +1078,7 @@ def set_parent_task(
         conflict_status=status.HTTP_400_BAD_REQUEST,
     )
     db.refresh(task)
+    repository.populate_checklist_counts(db, [task])
     return task
 
 
@@ -797,6 +1213,7 @@ def assign_user(
         conflict_status=status.HTTP_409_CONFLICT,
     )
     db.refresh(task)
+    repository.populate_checklist_counts(db, [task])
     return task
 
 
@@ -899,6 +1316,7 @@ def reassign_task(
         conflict_status=status.HTTP_409_CONFLICT,
     )
     db.refresh(task)
+    repository.populate_checklist_counts(db, [task])
     return task
 
 
@@ -967,6 +1385,7 @@ def remove_assignment(
         conflict_status=status.HTTP_400_BAD_REQUEST,
     )
     db.refresh(task)
+    repository.populate_checklist_counts(db, [task])
     return task
 
 
@@ -1141,6 +1560,7 @@ def attach_label(db: Session, actor_id: int, task_id: int, label_id: int) -> Tas
         conflict_status=status.HTTP_409_CONFLICT,
     )
     db.refresh(task)
+    repository.populate_checklist_counts(db, [task])
     return task
 
 
@@ -1167,6 +1587,7 @@ def detach_label(db: Session, actor_id: int, task_id: int, label_id: int) -> Tas
         conflict_status=status.HTTP_400_BAD_REQUEST,
     )
     db.refresh(task)
+    repository.populate_checklist_counts(db, [task])
     return task
 
 
@@ -1188,3 +1609,158 @@ def attach_task_to_workspace(db: Session, actor_id: int, task_id: int, workspace
 def detach_task_from_workspace(db: Session, actor_id: int, task_id: int, workspace_id: int) -> dict:
     from ..workspace import service as ws_service
     return ws_service.detach_resource_from_workspace(db, actor_id, "task", task_id, workspace_id)
+
+
+# ---------------------------------------------------------------------------
+# Checklist
+# ---------------------------------------------------------------------------
+
+
+def _checklist_item_not_found() -> HTTPException:
+    return HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Checklist item not found")
+
+
+def list_checklist_items(db: Session, actor_id: int, task_id: int):
+    task, role = _visible_task(db, actor_id, task_id)
+    if not permissions.can_view(role):
+        raise _not_found()
+    return repository.list_checklist_items(db, task.id)
+
+
+def create_checklist_item(db: Session, actor_id: int, task_id: int, *, title: str):
+    task = _owned_task(db, actor_id, task_id)
+    trimmed = (title or "").strip()
+    if not trimmed:
+        raise _bad_request("Checklist item title must not be empty")
+    if len(trimmed) > 200:
+        raise _bad_request("Checklist item title must be at most 200 characters")
+    max_pos = repository.get_max_checklist_position(db, task.id)
+    position = (int(max_pos) + 1000) if max_pos is not None else 1000
+    item = repository.create_checklist_item(db, task_id=task.id, title=trimmed, position=position)
+    repository.add_activity(
+        db,
+        task_id=task.id,
+        actor_id=actor_id,
+        action="task_updated",
+        old_value=None,
+        new_value=_snap({"checklist_item_added": item.id, "title": trimmed}),
+    )
+    _commit(
+        db,
+        conflict_detail="Could not create the checklist item",
+        conflict_status=status.HTTP_400_BAD_REQUEST,
+    )
+    db.refresh(item)
+    return item
+
+
+def update_checklist_item(db: Session, actor_id: int, task_id: int, item_id: int, *, data):
+    task = _owned_task(db, actor_id, task_id)
+    item = repository.get_checklist_item(db, task.id, item_id)
+    if item is None:
+        raise _checklist_item_not_found()
+    updates = data.model_dump(exclude_unset=True)
+    changed = False
+    if "title" in updates:
+        title = updates["title"]
+        if title is None:
+            raise _bad_request("Checklist item title must not be empty")
+        trimmed = title.strip()
+        if not trimmed:
+            raise _bad_request("Checklist item title must not be empty")
+        if len(trimmed) > 200:
+            raise _bad_request("Checklist item title must be at most 200 characters")
+        if trimmed != item.title:
+            item.title = trimmed
+            changed = True
+    if "is_completed" in updates and updates["is_completed"] is not None:
+        if bool(updates["is_completed"]) != bool(item.is_completed):
+            item.is_completed = bool(updates["is_completed"])
+            changed = True
+    if not changed:
+        return item
+    repository.add_activity(
+        db,
+        task_id=task.id,
+        actor_id=actor_id,
+        action="task_updated",
+        old_value=None,
+        new_value=_snap({"checklist_item_updated": item.id, "is_completed": item.is_completed}),
+    )
+    _commit(
+        db,
+        conflict_detail="Could not update the checklist item",
+        conflict_status=status.HTTP_400_BAD_REQUEST,
+    )
+    db.refresh(item)
+    return item
+
+
+def delete_checklist_item(db: Session, actor_id: int, task_id: int, item_id: int) -> None:
+    task = _owned_task(db, actor_id, task_id)
+    item = repository.get_checklist_item(db, task.id, item_id)
+    if item is None:
+        raise _checklist_item_not_found()
+    repository.delete_checklist_item(db, item)
+    repository.add_activity(
+        db,
+        task_id=task.id,
+        actor_id=actor_id,
+        action="task_updated",
+        old_value=_snap({"checklist_item_deleted": item_id}),
+        new_value=None,
+    )
+    _commit(
+        db,
+        conflict_detail="Could not delete the checklist item",
+        conflict_status=status.HTTP_400_BAD_REQUEST,
+    )
+
+
+def reorder_checklist_items(db: Session, actor_id: int, task_id: int, *, item_ids: list[int]):
+    task = _owned_task(db, actor_id, task_id)
+    # Lock existing rows for deterministic reorder.
+    existing_ids = repository.list_checklist_item_ids_for_update(db, task.id)
+    existing_set = set(existing_ids)
+    submitted_set = set(item_ids)
+    if len(item_ids) != len(submitted_set):
+        raise _bad_request("Duplicate checklist item ids are not allowed")
+    if not existing_set:
+        raise _bad_request("Task has no checklist items to reorder")
+    if submitted_set != existing_set:
+        unknown = submitted_set - existing_set
+        if unknown:
+            raise _bad_request("Checklist reorder must include exactly the task's checklist items")
+        raise _bad_request("Checklist reorder must include exactly the task's checklist items")
+    if item_ids == existing_ids:
+        return repository.list_checklist_items(db, task.id)
+
+    # Two-phase position update to avoid transient unique conflicts if any constraint exists.
+    offset = 1_000_000_000
+    for idx, cid in enumerate(item_ids, start=1):
+        db.execute(
+            TaskChecklistItem.__table__.update()
+            .where(TaskChecklistItem.task_id == task.id, TaskChecklistItem.id == cid)
+            .values(position=offset + idx)
+        )
+    db.flush()
+    for idx, cid in enumerate(item_ids, start=1):
+        db.execute(
+            TaskChecklistItem.__table__.update()
+            .where(TaskChecklistItem.task_id == task.id, TaskChecklistItem.id == cid)
+            .values(position=idx * 1000)
+        )
+    repository.add_activity(
+        db,
+        task_id=task.id,
+        actor_id=actor_id,
+        action="task_updated",
+        old_value=None,
+        new_value=_snap({"checklist_reordered": item_ids}),
+    )
+    _commit(
+        db,
+        conflict_detail="Could not reorder checklist items",
+        conflict_status=status.HTTP_400_BAD_REQUEST,
+    )
+    return repository.list_checklist_items(db, task.id)

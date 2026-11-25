@@ -18,7 +18,8 @@ class NotificationResponse(BaseModel):
     event_id: int | None
     reminder_id: int | None
     scheduled_reminder_id: int | None
-    invitation_id: int | None
+    invitation_id: int | None = None
+    task_id: int | None = None
     occurrence_start_at: datetime | None
     occurrence_start_date: date | None
     created_at: datetime

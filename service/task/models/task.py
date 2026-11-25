@@ -4,6 +4,7 @@ from datetime import date, datetime
 from typing import TYPE_CHECKING
 
 from sqlalchemy import (
+    BigInteger,
     CheckConstraint,
     Date,
     DateTime,
@@ -22,6 +23,7 @@ if TYPE_CHECKING:
     from ...auth.models import User
     from ...project.models import Project
     from .assignment import TaskAssignment
+    from .checklist import TaskChecklistItem
     from .comment import TaskComment
     from .label import TaskLabelAssignment
 
@@ -72,6 +74,8 @@ class Task(Base):
         Index("ix_tasks_due_date", "due_date"),
         Index("ix_tasks_parent_task_id", "parent_task_id"),
         Index("ix_tasks_project_id", "project_id"),
+        Index("ix_tasks_status_position_id", "status", "position", "id"),
+        Index("ix_tasks_priority_position_id", "priority", "priority_position", "id"),
     )
 
     id: Mapped[int] = mapped_column(primary_key=True)
@@ -96,6 +100,12 @@ class Task(Base):
     due_date: Mapped[date | None] = mapped_column(Date, nullable=True)
     completed_at: Mapped[datetime | None] = mapped_column(
         DateTime(timezone=True), nullable=True
+    )
+    position: Mapped[int] = mapped_column(
+        BigInteger, nullable=False, default=0, server_default=text("0")
+    )
+    priority_position: Mapped[int] = mapped_column(
+        BigInteger, nullable=False, default=0, server_default=text("0")
     )
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, server_default=func.now()
@@ -139,6 +149,13 @@ class Task(Base):
         back_populates="task",
         cascade="all, delete-orphan",
         passive_deletes=True,
+    )
+    checklist_items: Mapped[list["TaskChecklistItem"]] = relationship(
+        "TaskChecklistItem",
+        back_populates="task",
+        cascade="all, delete-orphan",
+        passive_deletes=True,
+        order_by="TaskChecklistItem.position.asc(), TaskChecklistItem.id.asc()",
     )
     # NOTE: no ``activities`` relationship is declared on purpose. Activity
     # rows are audit history and must survive task deletion (the FK uses
