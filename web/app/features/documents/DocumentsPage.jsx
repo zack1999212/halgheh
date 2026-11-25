@@ -684,6 +684,7 @@ export default function DocumentsPage() {
               <DocumentEditor
                 key={document.data.id}
                 document={document.data}
+                readOnly={document.data.can_edit === false}
                 onSave={document.update}
                 onToggleFavorite={() => handleToggleFavorite(document.data)}
                 onTrash={handleEditorTrash}
