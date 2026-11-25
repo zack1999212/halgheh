@@ -464,7 +464,9 @@ export default function CalendarAgent({ onCalendarChanged }) {
         err?.status === 400 &&
         /not configured|api key|endpoint/i.test(message)
       ) {
-        setErrorNeedsSettings(true)
+        if (!/ask an administrator/i.test(message)) {
+          setErrorNeedsSettings(true)
+        }
       }
     } finally {
       setSending(false)

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import logging
 import time
 from dataclasses import dataclass, field
 from typing import Any
@@ -40,6 +41,9 @@ from .schemas import (
     ModelUpdate,
     ProviderOut,
 )
+
+
+logger = logging.getLogger(__name__)
 
 
 def _caps_out(caps: ModelCapabilities) -> ModelCapabilitiesOut:
@@ -625,24 +629,40 @@ def resolve_runtime_config(
         upstream = fallback.upstream_model_id
 
     credential = active if (active is not None and active.provider == provider.id) else None
+    app_usable = app_config.provider == provider.id and bool(app_config.api_key)
     if credential is not None:
         try:
-            api_key = decrypt_secret(credential.api_key_encrypted)
+            personal_key = decrypt_secret(credential.api_key_encrypted)
         except ValueError:
+            personal_key = ""
+        if personal_key:
+            api_key = personal_key
+            base_url = (
+                credential.base_url
+                or app_config.base_url
+                or provider.default_base_url
+            )
+            extra = credential.extra_config or {}
+            credential_id = credential.id
+        elif app_usable:
+            logger.warning(
+                "Personal AI credential unavailable for user_id=%s provider=%s; falling back to application configuration",
+                user_id,
+                provider.id,
+            )
+            api_key = app_config.api_key
+            base_url = app_config.base_url or provider.default_base_url
+            extra = app_config.extra
+            credential_id = None
+            source = "application"
+        else:
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                 detail=(
-                    "Your saved AI credential could not be decrypted. "
-                    "Update or remove it in AI settings."
+                    "Your saved AI credential could not be used. "
+                    "Update it in AI settings or ask an administrator to configure the application AI provider."
                 ),
             )
-        base_url = (
-            credential.base_url
-            or app_config.base_url
-            or provider.default_base_url
-        )
-        extra = credential.extra_config or {}
-        credential_id = credential.id
     elif app_config.provider == provider.id:
         api_key = app_config.api_key
         base_url = app_config.base_url or provider.default_base_url

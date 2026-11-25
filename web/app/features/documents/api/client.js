@@ -294,10 +294,10 @@ export function restoreDocumentVersion(
 
 // ----------------------------------------------------------------------- AI
 
-export function aiSummarizeDocument(documentId, { maxPoints = 6, signal } = {}) {
+export function aiSummarizeDocument(documentId, { maxPoints = 6, includeRelated = false, signal } = {}) {
   return apiRequest(`${BASE}/documents/${documentId}/ai/summary`, {
     method: 'POST',
-    body: { max_points: maxPoints },
+    body: { max_points: maxPoints, include_related: includeRelated },
     signal,
     fallbackMessage: 'Could not generate the summary.',
   })
@@ -314,7 +314,7 @@ export function aiAskDocument(documentId, { question, includeRelated = false, si
 
 export function aiImproveDocument(
   documentId,
-  { action, selectedText, instruction, signal } = {},
+  { action, selectedText, instruction, includeRelated = false, signal } = {},
 ) {
   return apiRequest(`${BASE}/documents/${documentId}/ai/improve`, {
     method: 'POST',
@@ -322,6 +322,7 @@ export function aiImproveDocument(
       action,
       selected_text: selectedText ?? null,
       instruction: instruction ?? null,
+      include_related: includeRelated,
     },
     signal,
     fallbackMessage: 'Could not improve the document.',
@@ -330,11 +331,11 @@ export function aiImproveDocument(
 
 export function aiGenerateDocument(
   documentId,
-  { instruction, useDocumentContext = true, signal } = {},
+  { instruction, useDocumentContext = true, includeRelated = false, signal } = {},
 ) {
   return apiRequest(`${BASE}/documents/${documentId}/ai/generate`, {
     method: 'POST',
-    body: { instruction, use_document_context: useDocumentContext },
+    body: { instruction, use_document_context: useDocumentContext, include_related: includeRelated },
     signal,
     fallbackMessage: 'Could not generate the draft.',
   })

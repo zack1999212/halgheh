@@ -634,7 +634,7 @@ def summarize_document_ai(
     document: Document = Depends(deps.readable_document),
 ):
     result = ai_service.summarize_document(
-        db, current_user, document, max_points=data.max_points
+        db, current_user, document, max_points=data.max_points, include_related=data.include_related
     )
     response = _ai_response(result)
     response.kind = "summary"
@@ -680,6 +680,7 @@ def improve_document_ai(
         action=data.action,
         selected_text=data.selected_text,
         instruction=data.instruction,
+        include_related=data.include_related,
     )
     response = _ai_response(result)
     response.kind = "improvement"
@@ -702,6 +703,7 @@ def generate_document_ai(
         document,
         instruction=data.instruction,
         use_document_context=data.use_document_context,
+        include_related=data.include_related,
     )
     response = _ai_response(result)
     response.kind = "draft"
