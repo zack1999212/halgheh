@@ -42,7 +42,7 @@ function ResultBlock({ title, result, onCopy }) {
           <Copy size={13} aria-hidden="true" />Copy
         </Button>
       </div>
-      <div className="whitespace-pre-wrap break-words text-[13px] leading-6 text-foreground">{result.content}</div>
+      <div dir="auto" className="whitespace-pre-wrap break-words text-start text-[13px] leading-6 text-foreground [unicode-bidi:plaintext]">{result.content}</div>
       <div className="flex flex-wrap gap-x-3 gap-y-1 text-[11px] text-muted-foreground">
         <span>AI-generated</span>
         {result.model_label || result.model ? <span>Model: {result.model_label || result.model}</span> : null}
@@ -51,7 +51,7 @@ function ResultBlock({ title, result, onCopy }) {
         {result.related_documents_used ? <span>{result.related_documents_used} related doc(s) used</span> : null}
         {result.truncated ? <span>Context truncated</span> : null}
       </div>
-      {result.warning ? <p className="text-[12px] text-muted-foreground">{result.warning}</p> : null}
+      {result.warning ? <p dir="auto" className="text-[12px] text-muted-foreground [unicode-bidi:plaintext]">{result.warning}</p> : null}
     </div>
   )
 }
@@ -78,11 +78,14 @@ export default function DocumentAIAssistant({
   const [applyConfirm, setApplyConfirm] = useState(false)
   const [resultEditSeq, setResultEditSeq] = useState(null)
   const abortRef = useRef(null)
+  const inFlightRef = useRef(false)
   const activeDocId = doc?.id
 
   useEffect(() => {
     if (!open) {
       abortRef.current?.abort()
+      abortRef.current = null
+      inFlightRef.current = false
       setLoading(false)
     }
   }, [open])
@@ -95,11 +98,14 @@ export default function DocumentAIAssistant({
     setApplyConfirm(false)
     setResultEditSeq(null)
     abortRef.current?.abort()
+    abortRef.current = null
+    inFlightRef.current = false
     setLoading(false)
   }, [activeDocId])
 
   async function run(requestFn, meta = null) {
-    if (!doc?.id || loading) return
+    if (!doc?.id || loading || inFlightRef.current) return
+    inFlightRef.current = true
     abortRef.current?.abort()
     const controller = new AbortController()
     abortRef.current = controller
@@ -123,6 +129,7 @@ export default function DocumentAIAssistant({
         abortRef.current = null
         setLoading(false)
       }
+      inFlightRef.current = false
     }
   }
 
@@ -216,7 +223,7 @@ export default function DocumentAIAssistant({
           {action === 'ask' && (
             <div className="grid gap-2">
               <label className="text-[13px] font-medium" htmlFor="ai-question">Question about this document</label>
-              <Textarea id="ai-question" value={question} onChange={(e) => setQuestion(e.target.value)} placeholder="Ask a question about the document..." className="min-h-[96px]" />
+              <Textarea id="ai-question" dir="auto" value={question} onChange={(e) => setQuestion(e.target.value)} placeholder="Ask a question about the document... / سوال خود را درباره سند بپرسید..." className="min-h-[96px] [unicode-bidi:plaintext]" />
               <Button type="button" onClick={() => run((signal) => aiAskDocument(doc.id, { question: question.trim(), includeRelated, signal }), { action: 'ask' })} disabled={!askReady}>
                 {loading ? <><LoaderCircle size={14} className="mr-2 animate-spin" />Asking...</> : 'Ask AI'}
               </Button>
@@ -230,9 +237,9 @@ export default function DocumentAIAssistant({
                 {IMPROVE_ACTIONS.map((opt) => <option key={opt.value} value={opt.value}>{opt.label}</option>)}
               </select>
               <label className="text-[13px] font-medium" htmlFor="ai-selected-text">Selected text (optional)</label>
-              <Textarea id="ai-selected-text" value={selectedText} onChange={(e) => setSelectedText(e.target.value)} placeholder="Paste text to improve, or leave empty to improve the whole document." className="min-h-[96px]" />
+              <Textarea id="ai-selected-text" dir="auto" value={selectedText} onChange={(e) => setSelectedText(e.target.value)} placeholder="Paste text to improve, or leave empty to improve the whole document." className="min-h-[96px] [unicode-bidi:plaintext]" />
               <label className="text-[13px] font-medium" htmlFor="ai-improve-instruction">Instruction (optional)</label>
-              <Input id="ai-improve-instruction" value={instruction} onChange={(e) => setInstruction(e.target.value)} placeholder="e.g. Make it more concise" />
+              <Input id="ai-improve-instruction" dir="auto" value={instruction} onChange={(e) => setInstruction(e.target.value)} placeholder="e.g. Make it more concise / مثلا کوتاه‌تر و رسمی‌تر بنویس" className="[unicode-bidi:plaintext]" />
               <Button type="button" onClick={() => run((signal) => aiImproveDocument(doc.id, { action: improveAction, selectedText: selectedText.trim() || null, instruction: instruction.trim() || null, includeRelated, signal }), { action: 'improve', improveAction, selectedText: selectedText.trim() || null })} disabled={!improveReady}>
                 {loading ? <><LoaderCircle size={14} className="mr-2 animate-spin" />Improving...</> : 'Generate improvement'}
               </Button>
@@ -242,7 +249,7 @@ export default function DocumentAIAssistant({
           {action === 'generate' && (
             <div className="grid gap-2">
               <label className="text-[13px] font-medium" htmlFor="ai-generate-instruction">Draft instruction</label>
-              <Textarea id="ai-generate-instruction" value={instruction} onChange={(e) => setInstruction(e.target.value)} placeholder="Describe the draft you want..." className="min-h-[110px]" />
+              <Textarea id="ai-generate-instruction" dir="auto" value={instruction} onChange={(e) => setInstruction(e.target.value)} placeholder="Describe the draft you want... / پیش‌نویس مورد نظر را توضیح دهید..." className="min-h-[110px] [unicode-bidi:plaintext]" />
               <label className="flex items-center gap-2 text-[13px] text-muted-foreground">
                 <input type="checkbox" checked={useContext} onChange={(e) => setUseContext(e.target.checked)} />
                 Use current document as context
@@ -255,7 +262,7 @@ export default function DocumentAIAssistant({
 
           {loading && (
             <div className="flex items-center justify-between rounded-md border border-border bg-muted/30 px-3 py-2 text-[13px] text-muted-foreground">
-              <span className="flex items-center gap-2"><LoaderCircle size={14} className="animate-spin" />Waiting for AI response...</span>
+              <span className="flex items-center gap-2"><LoaderCircle size={14} className="animate-spin" />{action === 'summary' ? 'Generating summary...' : action === 'ask' ? 'Asking AI...' : action === 'improve' ? 'Generating improvement...' : 'Generating draft...'}</span>
               <Button type="button" variant="ghost" size="sm" className="h-7 px-2" onClick={() => abortRef.current?.abort()}>Cancel</Button>
             </div>
           )}
@@ -263,7 +270,7 @@ export default function DocumentAIAssistant({
           {error && (
             <div role="alert" className="flex items-start gap-2 rounded-md border border-destructive/30 bg-destructive/5 px-3 py-2 text-[13px] text-destructive">
               <AlertCircle size={14} className="mt-0.5 shrink-0" />
-              <span>{error}</span>
+              <span dir="auto" className="[unicode-bidi:plaintext]">{error}</span>
             </div>
           )}
 
