@@ -1,23 +1,10 @@
 import { Link } from 'react-router-dom'
 import { Separator } from '@/components/ui/separator'
+import BrandMark from '@/components/shared/BrandMark'
 import NotificationMenu from '../../notifications/NotificationMenu.jsx'
 import ModuleSwitcher from './ModuleSwitcher.jsx'
 import ProfileMenu from './ProfileMenu.jsx'
 import WorkspaceSelector from './WorkspaceSelector.jsx'
-
-function BrandMark() {
-  return (
-    <span
-      className="flex size-[30px] shrink-0 items-center justify-center rounded-[var(--radius-sm)] border border-border bg-foreground text-background"
-      aria-hidden="true"
-    >
-      <svg viewBox="0 0 24 24" fill="none" className="size-[18px]">
-        <circle cx="12" cy="12" r="8" stroke="currentColor" strokeWidth="2" />
-        <circle cx="12" cy="12" r="2.6" fill="currentColor" />
-      </svg>
-    </span>
-  )
-}
 
 /**
  * Shared application header for all authenticated modules.

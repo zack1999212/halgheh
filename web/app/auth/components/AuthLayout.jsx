@@ -1,3 +1,4 @@
+import BrandMark from '@/components/shared/BrandMark'
 import {
   Card,
   CardContent,
@@ -6,32 +7,49 @@ import {
   CardHeader,
   CardTitle,
 } from '@/components/ui/card'
+import '../auth.css'
 
 /**
- * Shared shell for the authentication pages: page background, centered card,
- * Halgheh branding, heading block and the footer switch link.
+ * Shared shell for the authentication pages: a black/yellow branded panel on
+ * large screens and a centered card everywhere. The panel collapses on mobile
+ * so the form keeps the full viewport.
  */
 export default function AuthLayout({ title, description, children, footer }) {
   return (
-    <div className="flex min-h-dvh items-center justify-center bg-background px-4 py-10 pb-[max(2.5rem,env(safe-area-inset-bottom,0px))] sm:px-5">
-      <main className="w-full max-w-[420px]">
-        <Card className="rounded-lg border-border shadow-[var(--shadow-card)]">
+    <div className="auth-page flex min-h-dvh bg-background">
+      <aside className="auth-showcase relative hidden flex-col overflow-hidden p-10 lg:flex">
+        <div className="relative z-10 flex items-center gap-3">
+          <BrandMark className="size-9" />
+          <span className="text-[17px] font-semibold tracking-[-0.01em]">Halgheh</span>
+        </div>
+
+        <div className="relative z-10 my-auto max-w-md">
+          <p className="auth-kicker">Plan · Track · Finish</p>
+          <h2 className="mt-3 text-[38px] font-bold leading-[1.1] tracking-[-0.03em]">
+            One place for your work, milestones and conversations.
+          </h2>
+          <p className="mt-4 text-[14px] leading-relaxed text-muted-foreground">
+            Build a roadmap, attach the tasks that complete each step, and keep
+            your workspace in sync.
+          </p>
+
+          <div className="mt-8 flex gap-2" aria-hidden="true">
+            <span className="auth-pip" />
+            <span className="auth-pip" />
+            <span className="auth-pip auth-pip--active" />
+          </div>
+        </div>
+      </aside>
+
+      <main className="flex flex-1 items-center justify-center px-4 py-10 pb-[max(2.5rem,env(safe-area-inset-bottom,0px))] sm:px-6">
+        <Card className="auth-card w-full max-w-[430px]">
           <CardHeader>
-            <div className="mb-6 flex items-center gap-2">
-              <span
-                className="flex size-[30px] items-center justify-center rounded-[var(--radius-sm)] bg-foreground text-background"
-                aria-hidden="true"
-              >
-                <svg viewBox="0 0 24 24" fill="none" className="size-[18px]">
-                  <circle cx="12" cy="12" r="8" stroke="currentColor" strokeWidth="2" />
-                  <circle cx="12" cy="12" r="2.6" fill="currentColor" />
-                </svg>
-              </span>
+            <div className="mb-6 flex items-center gap-2 lg:hidden">
+              <BrandMark />
               <span className="text-[15px] font-semibold tracking-[-0.01em]">
                 Halgheh
               </span>
             </div>
-
             <CardTitle className="text-2xl leading-tight tracking-[-0.02em]">
               <h1>{title}</h1>
             </CardTitle>

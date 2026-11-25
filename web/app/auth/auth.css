@@ -1,0 +1,66 @@
+/* Authentication screens — black / yellow identity. */
+
+.auth-page {
+  background:
+    radial-gradient(circle at 85% 15%, rgba(255, 212, 59, 0.08), transparent 42%),
+    var(--background);
+}
+
+.auth-showcase {
+  width: 42%;
+  max-width: 620px;
+  background:
+    radial-gradient(circle at 20% 80%, rgba(255, 212, 59, 0.18), transparent 45%),
+    linear-gradient(160deg, #191815, #0d0c0b 70%);
+  color: #f2f0ea;
+}
+
+.auth-showcase::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background-image: linear-gradient(rgba(255, 212, 59, 0.06) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255, 212, 59, 0.06) 1px, transparent 1px);
+  background-size: 48px 48px;
+  mask-image: linear-gradient(to bottom, transparent, #000 40%, transparent);
+  pointer-events: none;
+}
+
+.auth-kicker {
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: #ffd43b;
+}
+
+.auth-pip {
+  width: 26px;
+  height: 6px;
+  border-radius: 999px;
+  background: rgba(255, 212, 59, 0.25);
+}
+
+.auth-pip--active {
+  width: 48px;
+  background: #ffd43b;
+}
+
+.auth-card {
+  border-color: color-mix(in srgb, var(--ws-accent, #e67700) 35%, var(--border));
+  box-shadow: 0 24px 60px -32px rgba(0, 0, 0, 0.5);
+}
+
+.auth-card button[type='submit'] {
+  background: var(--ws-accent, #e67700);
+  color: #17150f;
+  font-weight: 600;
+}
+
+.auth-card button[type='submit']:hover:not(:disabled) {
+  background: #ffd43b;
+}
+
+.auth-card button[type='submit']:disabled {
+  opacity: 0.6;
+}

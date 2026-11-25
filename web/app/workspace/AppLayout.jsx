@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react'
 import { Outlet, useNavigate } from 'react-router-dom'
-import { getCurrentUser, clearSession } from '../auth/api.js'
+import { getCurrentUser, clearSession, logout } from '../auth/api.js'
 import { TooltipProvider } from '@/components/ui/tooltip'
 import { ToastProvider } from '@/components/ui/toast.jsx'
 import { WorkspaceThemeProvider } from './WorkspaceThemeProvider.jsx'
@@ -26,8 +26,21 @@ export default function AppLayout() {
     navigate('/login', { replace: true })
   }, [navigate])
 
-  const handleLogout = useCallback(() => {
-    clearSession()
+  useEffect(() => {
+    function handleSessionExpired() {
+      clearSession()
+      navigate('/login?expired=1', { replace: true })
+    }
+    window.addEventListener('halgheh:session-expired', handleSessionExpired)
+    return () => window.removeEventListener('halgheh:session-expired', handleSessionExpired)
+  }, [navigate])
+
+  const handleLogout = useCallback(async () => {
+    try {
+      await logout()
+    } catch {
+      clearSession()
+    }
     navigate('/login', { replace: true })
   }, [navigate])
 

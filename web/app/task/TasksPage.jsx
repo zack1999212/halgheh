@@ -6,7 +6,7 @@ import { Button } from '@/components/ui/button'
 import { useToast } from '@/components/ui/toast.jsx'
 import { cn } from '@/lib/utils'
 import { getCurrentUser } from '../auth/api.js'
-import { clearToken } from '../src/api.js'
+import { clearSession } from '../auth/api.js'
 import { useActiveWorkspace } from '../workspace/ActiveWorkspaceContext.jsx'
 import { ALL_WORKSPACES } from '../workspace/constants.js'
 import TasksToolbar from './TasksToolbar.jsx'
@@ -104,7 +104,7 @@ export default function TasksPage() {
   }, [setSearchParams])
 
   const handleUnauthorized = useCallback(() => {
-    clearToken()
+    clearSession()
     navigate('/login', { replace: true })
   }, [navigate])
 

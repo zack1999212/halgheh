@@ -1,6 +1,9 @@
 import { Navigate, Route, Routes } from 'react-router-dom'
 import Login from '../auth/Login.jsx'
 import Register from '../auth/Register.jsx'
+import ForgotPassword from '../auth/ForgotPassword.jsx'
+import ResetPassword from '../auth/ResetPassword.jsx'
+import VerifyEmail from '../auth/VerifyEmail.jsx'
 import ProtectedRoute from '../auth/ProtectedRoute.jsx'
 import AppLayout from '../workspace/AppLayout.jsx'
 import WorkspaceLayout from '../workspace/layouts/WorkspaceLayout.jsx'
@@ -24,6 +27,9 @@ export default function App() {
     <Routes>
       <Route path="/login" element={<Login />} />
       <Route path="/register" element={<Register />} />
+      <Route path="/forgot-password" element={<ForgotPassword />} />
+      <Route path="/reset-password" element={<ResetPassword />} />
+      <Route path="/verify-email" element={<VerifyEmail />} />
 
       <Route
         element={
