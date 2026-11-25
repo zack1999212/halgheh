@@ -100,6 +100,15 @@ def writable_document(db: Session, user: User, document_id: int) -> Document:
     return document
 
 
+def can_modify_document(db: Session, user: User, document: Document) -> bool:
+    """Return True when the user may modify the document without raising."""
+    try:
+        writable_document(db, user, document.id)
+        return True
+    except HTTPException:
+        return False
+
+
 def owner_document(db: Session, user: User, document_id: int) -> Document:
     """Document whose permission grants may be managed: owner only."""
     document = readable_document(db, user, document_id)
