@@ -7,9 +7,15 @@ import {
   RefreshCw,
   Trash2,
 } from 'lucide-react'
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from '@/components/ui/tooltip'
 import useNotifications from './useNotifications.js'
 import NotificationItem from './NotificationItem.jsx'
 import NotificationPreferences from './NotificationPreferences.jsx'
+import { formatRelativeTime } from './format.js'
 import './notifications.css'
 
 export default function NotificationMenu({ received, onUnauthorized }) {
@@ -91,27 +97,79 @@ export default function NotificationMenu({ received, onUnauthorized }) {
   const hasUnread = unreadCount > 0
   const badgeLabel = unreadCount > 99 ? '99+' : String(unreadCount)
 
+  // The newest unread notification is the most useful peek; fall back to the
+  // newest notification overall so the tooltip still previews something.
+  const preview = useMemo(() => {
+    const latestUnread = items.find((item) => !item.is_read)
+    return {
+      notification: latestUnread || items[0] || null,
+      extraUnread: Math.max(unreadCount - 1, 0),
+    }
+  }, [items, unreadCount])
+
+  const bellButton = (
+    <button
+      type="button"
+      className={`icon-button${open ? ' is-active' : ''}`}
+      onClick={() => setOpen((current) => !current)}
+      aria-expanded={open}
+      aria-haspopup="dialog"
+      aria-label={
+        hasUnread
+          ? `Notifications, ${unreadCount} unread`
+          : 'Notifications'
+      }
+    >
+      <Bell size={18} aria-hidden="true" />
+      {hasUnread && (
+        <span className="notification-badge" aria-hidden="true">
+          {badgeLabel}
+        </span>
+      )}
+    </button>
+  )
+
   return (
     <div className="notification-menu" ref={containerRef}>
-      <button
-        type="button"
-        className={`icon-button${open ? ' is-active' : ''}`}
-        onClick={() => setOpen((current) => !current)}
-        aria-expanded={open}
-        aria-haspopup="dialog"
-        aria-label={
-          hasUnread
-            ? `Notifications, ${unreadCount} unread`
-            : 'Notifications'
-        }
-      >
-        <Bell size={18} aria-hidden="true" />
-        {hasUnread && (
-          <span className="notification-badge" aria-hidden="true">
-            {badgeLabel}
-          </span>
-        )}
-      </button>
+      {open ? (
+        bellButton
+      ) : (
+        <Tooltip>
+          <TooltipTrigger asChild>{bellButton}</TooltipTrigger>
+          <TooltipContent side="bottom" align="end" className="w-72 p-0">
+            <div className="flex flex-col gap-1 p-3">
+              {preview.notification ? (
+                <>
+                  <div className="flex items-baseline justify-between gap-2">
+                    <p className="truncate text-[13px] font-semibold">
+                      {preview.notification.title}
+                    </p>
+                    <span className="shrink-0 text-[11px] text-muted-foreground">
+                      {formatRelativeTime(preview.notification.created_at)}
+                    </span>
+                  </div>
+                  {preview.notification.message && (
+                    <p className="line-clamp-2 text-xs text-muted-foreground">
+                      {preview.notification.message}
+                    </p>
+                  )}
+                  {preview.extraUnread > 0 && (
+                    <p className="text-[11px] text-muted-foreground">
+                      +{preview.extraUnread} more unread · click to view all
+                    </p>
+                  )}
+                </>
+              ) : (
+                <p className="text-[13px] text-muted-foreground">
+                  {loading
+                    ? 'Loading notifications…'
+                    : "You're all caught up."}
+                </p>
+              )}
+            </div>
+          </TooltipContent>
+        </Tooltip>
+      )}
 
       {open && (
         <div
