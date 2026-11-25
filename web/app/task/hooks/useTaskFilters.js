@@ -154,6 +154,14 @@ export default function useTaskFilters({ projectId = null, projectMode = false, 
     }, { replace: true })
   }, [updateParams])
 
+  // Stable identity: TasksPage observes this callback in an effect, so an
+  // inline function here would retrigger that effect (and its URL write) on
+  // every render, creating an update loop.
+  const resetPagination = useCallback(
+    () => updateParams((next) => next.delete('page'), { replace: true }),
+    [updateParams],
+  )
+
   const query = useMemo(() => {
     const q = {
       sort: filters.sort || 'updated_at',
@@ -188,6 +196,6 @@ export default function useTaskFilters({ projectId = null, projectMode = false, 
     selectNav,
     nextPage,
     prevPage,
-    resetPagination: () => updateParams((next) => next.delete('page'), { replace: true }),
+    resetPagination,
   }
 }

@@ -14,8 +14,8 @@ from alembic import op
 import sqlalchemy as sa
 
 
-revision: str = "019"
-down_revision: Union[str, Sequence[str], None] = "018"
+revision: str = "019_task_prio"
+down_revision: Union[str, Sequence[str], None] = "018_task_pos"
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 
