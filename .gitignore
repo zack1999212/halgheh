@@ -44,3 +44,8 @@ Thumbs.db
 # IDE local files
 .idea/
 .vscode/
+
+# Local environment files (never commit secrets)
+.env
+.env.local
+.env.*.local
