@@ -51,7 +51,6 @@ export default function TasksFilters({
       onChange({ ...latestFiltersRef.current, q: nextValue }, { replace: true })
     }, SEARCH_DEBOUNCE_MS)
   }
-  }
 
   return (
     <section className="tasks-filters grid gap-3" aria-label="Task filters">

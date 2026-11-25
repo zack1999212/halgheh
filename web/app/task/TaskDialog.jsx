@@ -190,7 +190,6 @@ export default function TaskDialog({
     }
     writeDraft(mode, keyTaskId, payload)
   }, [open, loading, isEdit, task?.id, task?.updated_at, createdTaskId, title, description, priority, statusValue, startDate, dueDate, selectedLabelIds, draftChecklist])
->>>>>>> 9c1e503 (fix and edit task)
 
   const attachedLabels = Array.isArray(task?.labels) ? task.labels : []
   const assignments = Array.isArray(task?.assignments) ? task.assignments : []

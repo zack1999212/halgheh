@@ -52,6 +52,9 @@
   --input: 40 19% 87%;
   --ring: 32 95% 44%;
 
+  /* Keep the warm light palette intact under OS/browser forced dark modes;
+     otherwise text colours get inverted and become invisible on these surfaces. */
+  color-scheme: only light;
   position: relative;
   overflow: hidden;
   isolation: isolate;
@@ -358,6 +361,10 @@
 /* Portal-rendered overlays (dialogs/sheets) */
 .tasks-dialog.tasks-dialog,
 .tasks-sheet.tasks-sheet {
+  color-scheme: only light;
+  /* Portal overlays inherit the root theme colour (white under forced dark
+     mode); use the scoped token so labels and plain text stay readable. */
+  color: hsl(var(--foreground));
   --background: 45 27% 95%;
   --foreground: 33 12% 12%;
   --card: 0 0% 100%;

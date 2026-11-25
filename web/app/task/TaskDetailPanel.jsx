@@ -18,7 +18,6 @@ import {
 import { deleteTask, updateTaskStatus } from './api.js'
 import TaskActivitySection from './TaskActivitySection.jsx'
 import TaskChecklistSection from './TaskChecklistSection.jsx'
-import TaskSubtasksSection from './TaskSubtasksSection.jsx'
 import TaskCommentsSection from './TaskCommentsSection.jsx'
 import useTaskDetails from './hooks/useTaskDetails.js'
 import { TASK_STATUSES } from './utils/taskConstants.js'
@@ -251,19 +250,6 @@ export default function TaskDetailPanel({
                       details.reload()
                       onChanged?.()
                     }}
-                  />
-
-                  <Separator />
-
-                  <TaskSubtasksSection
-                    task={task}
-                    subtasks={details.subtasks}
-                    total={details.subtasksTotal}
-                    error={details.subtasksError}
-                    busy={details.subtasksBusy}
-                    onCreate={details.addSubtask}
-                    onOpenTask={onOpenTask}
-                    canCreate={canMutate}
                   />
 
                   <Separator />

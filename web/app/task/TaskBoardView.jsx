@@ -24,6 +24,10 @@ export default function TaskBoardView({
   onMoveTask,
   onOpen,
   isStatusPending,
+  readOnly = false,
+  emptyTitle = 'No tasks found',
+  emptyDescription = 'Try adjusting filters or create a new task.',
+  activeWorkspaceId = null,
 }) {
   const isPriorityMode = boardMode === 'priority'
   const columnsDef = isPriorityMode ? TASK_PRIORITIES : TASK_STATUSES
