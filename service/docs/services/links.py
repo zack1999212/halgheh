@@ -7,7 +7,6 @@ from ...auth.models import User
 from ..models import Document, DocumentLink, Folder
 from ..repositories import documents as document_repository
 from ..repositories import links as link_repository
-from ..repositories import permissions as permission_repository
 from ..schemas import (
     DocumentLinkCreate,
     DocumentLinkResponse,
@@ -55,11 +54,19 @@ def create_link(
 
 
 def _can_read_document(db: Session, user: User, document: Document) -> bool:
+    """Whether ``user`` may read ``document``.
+
+    Delegates to the shared access layer so workspace membership, project
+    membership, ownership, and legacy grants resolve exactly as they do for
+    every other document endpoint. Inaccessible documents raise 404 there.
+    """
     if document.is_deleted:
         return False
-    if document.owner_id == user.id:
-        return True
-    return permission_repository.readable_level(db, document.id, user.id) is not None
+    try:
+        access.readable_document(db, user, document.id)
+    except HTTPException:
+        return False
+    return True
 
 
 def _load_documents_map(
@@ -112,13 +119,22 @@ def list_links(
     }
     folder_names = _load_folder_names(db, folder_ids)
 
+    readable_cache: dict[int, bool] = {}
+
+    def _readable(doc: Document) -> bool:
+        # Access checks are per-document; cache them so a document that
+        # appears in many links is resolved once per request.
+        if doc.id not in readable_cache:
+            readable_cache[doc.id] = _can_read_document(db, user, doc)
+        return readable_cache[doc.id]
+
     def build(link: DocumentLink) -> DocumentLinkResponse | None:
         src = docs.get(link.source_document_id)
         tgt = docs.get(link.target_document_id)
         if src is None or tgt is None:
             return None
         # Never expose inaccessible or deleted documents through links.
-        if not _can_read_document(db, user, src) or not _can_read_document(db, user, tgt):
+        if not _readable(src) or not _readable(tgt):
             return None
         return DocumentLinkResponse(
             id=link.id,
