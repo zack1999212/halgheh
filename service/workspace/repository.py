@@ -212,10 +212,25 @@ def has_resource_workspace(db: Session, resource_type: str, resource_id: int, wo
     return db.scalars(stmt).first() is not None
 
 
-def add_resource_workspace(db: Session, resource_type: str, resource_id: int, workspace_id: int):
+def add_resource_workspace(
+    db: Session,
+    resource_type: str,
+    resource_id: int,
+    workspace_id: int,
+    *,
+    is_original: bool = False,
+    permission_level: str = "viewer",
+    shared_by_user_id: int | None = None,
+):
     model = _assoc_model(resource_type)
     rfield = _assoc_resource_field(resource_type)
     kwargs = {rfield: resource_id, "workspace_id": workspace_id}
+    if resource_type == "task":
+        kwargs.update(
+            is_original=is_original,
+            permission_level=permission_level,
+            shared_by_user_id=shared_by_user_id,
+        )
     obj = model(**kwargs)
     db.add(obj)
     db.flush()

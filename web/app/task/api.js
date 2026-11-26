@@ -228,3 +228,39 @@ export function reorderChecklistItems(taskId, payload) {
     fallbackMessage: 'Could not reorder checklist items.',
   })
 }
+
+// --- Workspace sharing -----------------------------------------------------
+
+export function listTaskWorkspaces(taskId, params = {}, options = {}) {
+  return apiRequest(`/api/tasks/${taskId}/workspaces${buildQuery(params)}`, {
+    fallbackMessage: 'Could not load shared workspaces.',
+    signal: options.signal,
+  })
+}
+
+export function shareTaskWithWorkspace(taskId, workspaceId, permissionLevel = 'viewer', params = {}) {
+  return apiRequest(
+    `/api/tasks/${taskId}/workspaces/${workspaceId}${buildQuery({ permission_level: permissionLevel, ...params })}`,
+    {
+      method: 'POST',
+      fallbackMessage: 'Could not share the task.',
+    },
+  )
+}
+
+export function updateTaskWorkspacePermission(taskId, workspaceId, permissionLevel, params = {}) {
+  return apiRequest(
+    `/api/tasks/${taskId}/workspaces/${workspaceId}${buildQuery({ permission_level: permissionLevel, ...params })}`,
+    {
+      method: 'PATCH',
+      fallbackMessage: 'Could not update the workspace permission.',
+    },
+  )
+}
+
+export function unshareTaskWorkspace(taskId, workspaceId, params = {}) {
+  return apiRequest(`/api/tasks/${taskId}/workspaces/${workspaceId}${buildQuery(params)}`, {
+    method: 'DELETE',
+    fallbackMessage: 'Could not remove the shared workspace.',
+  })
+}

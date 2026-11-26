@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useToast } from '@/components/ui/toast.jsx'
-import { Calendar, Check, Clock, FileText, Flag, Pencil, Tag, Trash2, User, Users, X } from 'lucide-react'
+import { Calendar, Check, Clock, FileText, Flag, Pencil, Share2, Tag, Trash2, User, Users, X } from 'lucide-react'
 import ConfirmDialog from '@/components/shared/ConfirmDialog'
 import ErrorState from '@/components/shared/ErrorState'
 import IconButton from '@/components/shared/IconButton'
@@ -19,6 +19,8 @@ import { deleteTask, updateTaskStatus } from './api.js'
 import TaskActivitySection from './TaskActivitySection.jsx'
 import TaskChecklistSection from './TaskChecklistSection.jsx'
 import TaskCommentsSection from './TaskCommentsSection.jsx'
+import TaskShareDialog from './TaskShareDialog.jsx'
+import { listTaskWorkspaces } from './api.js'
 import useTaskDetails from './hooks/useTaskDetails.js'
 import { TASK_STATUSES } from './utils/taskConstants.js'
 import { formatDate, formatDateTime, priorityLabel, statusLabel } from './utils/taskFormat.js'
@@ -48,13 +50,19 @@ export default function TaskDetailPanel({
   onOpenTask,
   onUnauthorized,
   onChanged,
+  workspaces = [],
+  contextWorkspaceId = null,
 }) {
+  const { toast } = useToast()
   const details = useTaskDetails({ taskId, onUnauthorized, refreshKey })
   const [deleteOpen, setDeleteOpen] = useState(false)
   const [deleteBusy, setDeleteBusy] = useState(false)
   const [deleteError, setDeleteError] = useState('')
   const [statusBusy, setStatusBusy] = useState(false)
   const [statusError, setStatusError] = useState('')
+  const [shareOpen, setShareOpen] = useState(false)
+  const [shareVersion, setShareVersion] = useState(0)
+  const [associations, setAssociations] = useState([])
 
   useEffect(() => {
     setDeleteOpen(false)
@@ -62,14 +70,37 @@ export default function TaskDetailPanel({
     setDeleteBusy(false)
     setStatusBusy(false)
     setStatusError('')
+    setShareOpen(false)
   }, [taskId])
+
+  useEffect(() => {
+    if (!taskId) return undefined
+    let active = true
+    const params = contextWorkspaceId ? { context_workspace_id: contextWorkspaceId } : {}
+    listTaskWorkspaces(taskId, params)
+      .then((rows) => { if (active) setAssociations(Array.isArray(rows) ? rows : []) })
+      .catch(() => { if (active) setAssociations([]) })
+    return () => { active = false }
+  }, [taskId, refreshKey, shareVersion, contextWorkspaceId])
 
   const task = details.task
   const isOwner = Boolean(task && currentUserId != null && task.created_by === currentUserId)
-  const canManage = canManageProp != null ? Boolean(canManageProp) : isOwner
+  const workspaceRoleById = useMemo(
+    () => new Map(workspaces.map((workspace) => [workspace.id, workspace.current_user_role])),
+    [workspaces],
+  )
+  const canEditSharedTask = associations.some(
+    (association) =>
+      association.permission_level === 'editor' &&
+      ['owner', 'admin', 'editor'].includes(workspaceRoleById.get(association.workspace_id)),
+  )
+  const canShare = isOwner
+  const canManage = canManageProp != null ? Boolean(canManageProp) : isOwner || canEditSharedTask
   const canMutate = !readOnly && canManage
-  const canChangeStatus = !readOnly && (canManage || isOwner || (Array.isArray(task?.assignments) && currentUserId != null && task.assignments.some((a) => a.assigned_user_id === currentUserId && a.assignment_status === 'active')))
-  const canComment = canCommentProp != null ? Boolean(canCommentProp) : !readOnly
+  const activeAssignee = Array.isArray(task?.assignments) && currentUserId != null && task.assignments.some((a) => a.assigned_user_id === currentUserId && a.assignment_status === 'active')
+  const legacyAssigneeRights = associations.length === 0
+  const canChangeStatus = !readOnly && (canManage || (legacyAssigneeRights && activeAssignee))
+  const canComment = canCommentProp != null ? Boolean(canCommentProp) : !readOnly && (canManage || (legacyAssigneeRights && activeAssignee))
   const assignments = Array.isArray(task?.assignments) ? task.assignments : []
   const labels = Array.isArray(task?.labels) ? task.labels : []
 
@@ -272,7 +303,12 @@ export default function TaskDetailPanel({
             </div>
           </ScrollArea>
 
-          <div className="flex items-center gap-2 border-t border-border px-5 py-3 pb-[calc(0.75rem+env(safe-area-inset-bottom,0px))]">
+          <div className="flex flex-wrap items-center gap-2 border-t border-border px-5 py-3 pb-[calc(0.75rem+env(safe-area-inset-bottom,0px))]">
+            {canShare ? (
+              <Button type="button" variant="secondary" className="h-9 flex-1 gap-1.5" onClick={() => setShareOpen(true)} disabled={!task || details.loading}>
+                <Share2 size={14} aria-hidden="true" /> Share
+              </Button>
+            ) : null}
             {canMutate ? (
               <>
                 <Button type="button" variant="outline" className="h-9 flex-1 gap-1.5" onClick={() => onEdit?.(task)} disabled={!task || details.loading}>
@@ -288,6 +324,20 @@ export default function TaskDetailPanel({
           </div>
         </SheetContent>
       </Sheet>
+
+      <TaskShareDialog
+        open={shareOpen && Boolean(taskId)}
+        taskId={taskId}
+        taskTitle={task?.title || ''}
+        workspaces={workspaces}
+        contextWorkspaceId={contextWorkspaceId}
+        onClose={() => setShareOpen(false)}
+        onChanged={() => {
+          setShareVersion((value) => value + 1)
+          onChanged?.()
+        }}
+        onUnauthorized={onUnauthorized}
+      />
 
       <ConfirmDialog
         open={deleteOpen}

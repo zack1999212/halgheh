@@ -27,6 +27,7 @@ import json
 from datetime import date, datetime, timezone
 
 from fastapi import HTTPException, status
+from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
@@ -105,36 +106,78 @@ def _project_role_for_task(db: Session, task: Task, actor_id: int) -> str:
     return project_service.get_project_role(db, actor_id, task.project_id)
 
 
-def _access_role(db: Session, task: Task | None, actor_id: int) -> str:
+def _task_workspace_rows(db: Session, task_id: int):
+    """All canonical Workspace associations for a task (including metadata)."""
+    from ..workspace.models import TaskWorkspace
+    return db.execute(
+        select(TaskWorkspace).where(TaskWorkspace.task_id == task_id)
+    ).scalars().all()
+
+
+def _role_rank(role: str) -> int:
+    return {
+        permissions.ROLE_NONE: 0,
+        permissions.ROLE_PROJECT_VIEWER: 1,
+        permissions.ROLE_ASSIGNEE: 2,
+        permissions.ROLE_EDITOR: 3,
+        permissions.ROLE_OWNER: 4,
+    }.get(role, 0)
+
+
+def _access_role(
+    db: Session,
+    task: Task | None,
+    actor_id: int,
+    workspace_id: int | None = None,
+) -> str:
+    """Resolve the caller's task role through current Workspace access.
+
+    Workspace membership is the outer gate and the association's
+    ``permission_level`` is the inner gate: a Workspace role alone never
+    upgrades a task shared as viewer. ``workspace_id`` restricts the decision
+    to the requested context when one is supplied (list/filter endpoints).
+    """
     if task is None:
         return permissions.ROLE_NONE
-    # Canonical workspace association access
-    from ..workspace import repository as ws_repo
+
     from ..workspace import permissions as ws_permissions
+    from ..workspace import repository as ws_repo
     from ..docs.models import Workspace
 
-    ws_ids = ws_repo.get_resource_workspace_ids(db, "task", task.id)
-    if ws_ids:
+    rows = _task_workspace_rows(db, task.id)
+    if rows:
+        if workspace_id is not None:
+            rows = [row for row in rows if row.workspace_id == workspace_id]
+            if not rows:
+                return permissions.ROLE_NONE
+
         best = permissions.ROLE_NONE
-        for ws_id in ws_ids:
-            ws = db.get(Workspace, ws_id)
+        for row in rows:
+            ws = db.get(Workspace, row.workspace_id)
             if ws is None:
                 continue
-            if ws.owner_id == actor_id:
-                return permissions.ROLE_OWNER
-            if ws.workspace_type == "personal":
-                continue
             member = ws_repo.get_member(db, ws.id, actor_id)
-            role = ws_permissions.workspace_role(ws, actor_id, member.role if member else None)
-            if not ws_permissions.can_view(role):
+            ws_role = ws_permissions.workspace_role(
+                ws, actor_id, member.role if member else None
+            )
+            if not ws_permissions.can_view(ws_role):
                 continue
-            if ws_permissions.can_manage_content(role):
-                return permissions.ROLE_OWNER
-            best = permissions.ROLE_PROJECT_VIEWER
-        if best != permissions.ROLE_NONE:
-            return best
-        # associated but no accessible workspace -> invisible
-        return permissions.ROLE_NONE
+            candidate = (
+                permissions.ROLE_EDITOR
+                if row.permission_level == "editor"
+                and ws_permissions.can_manage_content(ws_role)
+                else permissions.ROLE_PROJECT_VIEWER
+            )
+            if _role_rank(candidate) > _role_rank(best):
+                best = candidate
+
+        if best == permissions.ROLE_NONE:
+            # Associated but no accessible workspace -> invisible, even to
+            # the creator (preserves the existing visibility rule).
+            return permissions.ROLE_NONE
+        if task.created_by == actor_id:
+            return permissions.ROLE_OWNER
+        return best
 
     # Legacy fallback (pre-migration / missing associations)
     if task.project_id is not None:
@@ -174,20 +217,47 @@ def _create_task_created_notifications(db: Session, task: Task, actor_id: int) -
         )
 
 
-def _visible_task(db: Session, actor_id: int, task_id: int) -> tuple[Task, str]:
+def _visible_task(
+    db: Session,
+    actor_id: int,
+    task_id: int,
+    workspace_id: int | None = None,
+) -> tuple[Task, str]:
     """Load a task the actor can see, else 404 (indistinguishable from
     nonexistent — guessed ids reveal nothing)."""
     task = repository.get_task(db, task_id)
-    role = _access_role(db, task, actor_id)
+    role = _access_role(db, task, actor_id, workspace_id=workspace_id)
     if role == permissions.ROLE_NONE:
         raise _not_found()
     return task, role
 
 
-def _owned_task(db: Session, actor_id: int, task_id: int) -> Task:
-    task, role = _visible_task(db, actor_id, task_id)
+def _owned_task(
+    db: Session,
+    actor_id: int,
+    task_id: int,
+    workspace_id: int | None = None,
+) -> Task:
+    """Require content-edit permission (owner or shared editor)."""
+    task, role = _visible_task(db, actor_id, task_id, workspace_id=workspace_id)
     if not permissions.can_edit(role):
         raise _forbidden("Not allowed to modify this task")
+    return task
+
+
+def _admin_task(
+    db: Session,
+    actor_id: int,
+    task_id: int,
+    workspace_id: int | None = None,
+) -> Task:
+    """Require canonical-owner permission for administrative operations.
+
+    Covers assignments, labels, hierarchy changes and sharing administration.
+    """
+    task, role = _visible_task(db, actor_id, task_id, workspace_id=workspace_id)
+    if not permissions.can_share(role):
+        raise _forbidden("Only the task owner may perform this operation")
     return task
 
 
@@ -294,10 +364,26 @@ def _resolve_task_workspace_id(db: Session, actor_id: int, *, workspace_id: int 
     return personal.id
 
 
-def _ensure_task_workspace_association(db: Session, task: Task, workspace_id: int) -> None:
+def _ensure_task_workspace_association(
+    db: Session,
+    task: Task,
+    workspace_id: int,
+    *,
+    is_original: bool = True,
+    permission_level: str = "editor",
+    shared_by_user_id: int | None = None,
+) -> None:
     from ..workspace import repository as ws_repo
     if not ws_repo.has_resource_workspace(db, "task", task.id, workspace_id):
-        ws_repo.add_resource_workspace(db, "task", task.id, workspace_id)
+        ws_repo.add_resource_workspace(
+            db,
+            "task",
+            task.id,
+            workspace_id,
+            is_original=is_original,
+            permission_level=permission_level,
+            shared_by_user_id=shared_by_user_id,
+        )
 
 
 def create_task(db: Session, actor_id: int, data: TaskCreate) -> Task:
@@ -376,7 +462,11 @@ def create_task(db: Session, actor_id: int, data: TaskCreate) -> Task:
 
 
 def create_subtask(
-    db: Session, actor_id: int, parent_task_id: int, data: SubtaskCreate
+    db: Session,
+    actor_id: int,
+    parent_task_id: int,
+    data: SubtaskCreate,
+    workspace_id: int | None = None,
 ) -> Task:
     """Create a subtask under an accessible parent.
 
@@ -386,9 +476,7 @@ def create_subtask(
     A brand-new task cannot form a cycle (it has no descendants), but the
     parent must be accessible.
     """
-    parent, role = _visible_task(db, actor_id, parent_task_id)
-    if not permissions.can_edit(role):
-        raise _forbidden("Not allowed to modify this task")
+    _admin_task(db, actor_id, parent_task_id, workspace_id=workspace_id)
     _validate_dates(data.start_date, data.due_date)
     repository.list_status_task_ids_for_update(db, "todo")
     todo_neighbors = repository.get_status_position_neighbors(db, status="todo")
@@ -416,8 +504,14 @@ def create_subtask(
     if not parent_ws_ids:
         resolved_workspace_id = _resolve_task_workspace_id(db, actor_id, workspace_id=getattr(data, "workspace_id", None), project_id=parent.project_id)
         parent_ws_ids = [resolved_workspace_id]
-    for ws_id in parent_ws_ids:
-        _ensure_task_workspace_association(db, task, ws_id)
+    for index, ws_id in enumerate(parent_ws_ids):
+        _ensure_task_workspace_association(
+            db,
+            task,
+            ws_id,
+            is_original=(index == 0),
+            permission_level="editor" if index == 0 else "viewer",
+        )
     repository.add_activity(
         db,
         task_id=task.id,
@@ -447,8 +541,8 @@ def create_subtask(
     return task
 
 
-def get_task(db: Session, actor_id: int, task_id: int) -> Task:
-    task, _role = _visible_task(db, actor_id, task_id)
+def get_task(db: Session, actor_id: int, task_id: int, workspace_id: int | None = None) -> Task:
+    task, _role = _visible_task(db, actor_id, task_id, workspace_id=workspace_id)
     return task
 
 
@@ -477,13 +571,13 @@ def list_tasks(
     return scopes[scope](db, actor_id, flt)
 
 
-def update_task(db: Session, actor_id: int, task_id: int, data: TaskUpdate) -> Task:
+def update_task(db: Session, actor_id: int, task_id: int, data: TaskUpdate, workspace_id: int | None = None) -> Task:
     """Owner-only partial update with per-field audit entries.
 
     Status is deliberately NOT part of this operation (dedicated transition
     endpoint manages ``completed_at`` atomically with the status value).
     """
-    task = _owned_task(db, actor_id, task_id)
+    task = _owned_task(db, actor_id, task_id, workspace_id=workspace_id)
     updates = data.model_dump(exclude_unset=True)
 
     old_project_id = task.project_id
@@ -581,12 +675,14 @@ def update_task(db: Session, actor_id: int, task_id: int, data: TaskUpdate) -> T
     return task
 
 
-def delete_task(db: Session, actor_id: int, task_id: int) -> None:
+def delete_task(db: Session, actor_id: int, task_id: int, workspace_id: int | None = None) -> None:
     """Delete a task everywhere.
 
     Authorized: resource creator, or an owner of an associated shared/personal workspace.
     """
-    task, _role = _visible_task(db, actor_id, task_id)
+    task, role = _visible_task(db, actor_id, task_id, workspace_id=workspace_id)
+    if not permissions.can_delete_task(role):
+        raise _forbidden("Only the task owner may delete this task")
     from ..workspace import service as ws_service
     if not ws_service.can_delete_resource_everywhere(db, actor_id, "task", task):
         raise _forbidden("Not allowed to delete this task everywhere")
@@ -829,7 +925,7 @@ def _compute_target_priority_position(
 
 
 def set_task_status(
-    db: Session, actor_id: int, task_id: int, new_status: str
+    db: Session, actor_id: int, task_id: int, new_status: str, workspace_id: int | None = None
 ) -> Task:
     """Validate and apply a status transition (owner or active assignee).
 
@@ -837,7 +933,7 @@ def set_task_status(
     task reaches ``done``, cleared whenever it leaves ``done``. Re-setting
     the current status is an idempotent no-op.
     """
-    task, role = _visible_task(db, actor_id, task_id)
+    task, role = _visible_task(db, actor_id, task_id, workspace_id=workspace_id)
     if not permissions.can_change_status(role):
         raise _forbidden("Not allowed to change this task's status")
     if new_status not in TASK_STATUSES:
@@ -912,6 +1008,7 @@ def set_task_position(
     target_priority: str | None = None,
     before_task_id: int | None = None,
     after_task_id: int | None = None,
+    workspace_id: int | None = None,
 ) -> Task:
     """Reorder a task within/between status columns or priority columns.
 
@@ -927,7 +1024,7 @@ def set_task_position(
     if has_status == has_priority:
         raise _bad_request("Provide exactly one of target_status or target_priority")
 
-    task, role = _visible_task(db, actor_id, task_id)
+    task, role = _visible_task(db, actor_id, task_id, workspace_id=workspace_id)
 
     if has_status:
         if not permissions.can_change_status(role):
@@ -1041,7 +1138,8 @@ def set_task_position(
 
 
 def set_parent_task(
-    db: Session, actor_id: int, task_id: int, parent_task_id: int | None
+    db: Session, actor_id: int, task_id: int, parent_task_id: int | None,
+    workspace_id: int | None = None,
 ) -> Task:
     """Attach or detach a parent (owner-only).
 
@@ -1049,7 +1147,7 @@ def set_parent_task(
     moved task appears anywhere in it, the move would create a loop and is
     rejected with 400. The parent must also be visible to the actor.
     """
-    task = _owned_task(db, actor_id, task_id)
+    task = _admin_task(db, actor_id, task_id, workspace_id=workspace_id)
     old_parent = task.parent_task_id
 
     if parent_task_id is None:
@@ -1059,7 +1157,7 @@ def set_parent_task(
     else:
         if parent_task_id == task.id:
             raise _bad_request("A task cannot be its own parent")
-        parent, _role = _visible_task(db, actor_id, parent_task_id)
+        parent, _role = _visible_task(db, actor_id, parent_task_id, workspace_id=workspace_id)
         if task.id in set(repository.ancestor_ids(db, parent.id)):
             raise _bad_request("Circular parent-child relationship")
         repository.update_task(db, task, parent_task_id=parent.id)
@@ -1085,16 +1183,16 @@ def set_parent_task(
 def list_subtasks(
     db: Session, actor_id: int, parent_task_id: int, flt: TaskFilter
 ) -> tuple[list[Task], int]:
-    _visible_task(db, actor_id, parent_task_id)
+    _visible_task(db, actor_id, parent_task_id, workspace_id=getattr(flt, "workspace_id", None))
     return repository.list_subtasks(db, actor_id, parent_task_id, flt)
 
 
-def get_parent_task(db: Session, actor_id: int, task_id: int) -> Task | None:
+def get_parent_task(db: Session, actor_id: int, task_id: int, workspace_id: int | None = None) -> Task | None:
     """Return the parent task if it is visible to the actor."""
-    task, _role = _visible_task(db, actor_id, task_id)
+    task, _role = _visible_task(db, actor_id, task_id, workspace_id=workspace_id)
     if task.parent_task_id is None:
         return None
-    parent, role = _visible_task(db, actor_id, task.parent_task_id)
+    parent, role = _visible_task(db, actor_id, task.parent_task_id, workspace_id=workspace_id)
     if not permissions.can_view(role):
         raise _not_found()
     return parent
@@ -1135,7 +1233,8 @@ def _assignment_target_exists(db: Session, target_user_id: int) -> None:
 
 
 def assign_user(
-    db: Session, actor_id: int, task_id: int, target_user_id: int
+    db: Session, actor_id: int, task_id: int, target_user_id: int,
+    workspace_id: int | None = None,
 ) -> Task:
     """Assign a user to a task (owner only; manager rule integration point).
 
@@ -1143,7 +1242,7 @@ def assign_user(
     A previously cancelled assignment is reactivated in place (the unique
     index forbids a second row for the same pair, and history is kept).
     """
-    task = _owned_task(db, actor_id, task_id)
+    task = _admin_task(db, actor_id, task_id, workspace_id=workspace_id)
     _assignment_target_exists(db, target_user_id)
 
     previous_active_ids = [
@@ -1218,7 +1317,8 @@ def assign_user(
 
 
 def reassign_task(
-    db: Session, actor_id: int, task_id: int, target_user_id: int
+    db: Session, actor_id: int, task_id: int, target_user_id: int,
+    workspace_id: int | None = None,
 ) -> Task:
     """Replace all active assignees with a single user (owner only).
 
@@ -1226,7 +1326,7 @@ def reassign_task(
     target is assigned with the same idempotent/reactivation logic as
     ``assign_user``. All of it lands in one transaction.
     """
-    task = _owned_task(db, actor_id, task_id)
+    task = _admin_task(db, actor_id, task_id, workspace_id=workspace_id)
     _assignment_target_exists(db, target_user_id)
 
     previous_active_ids = [
@@ -1321,13 +1421,14 @@ def reassign_task(
 
 
 def remove_assignment(
-    db: Session, actor_id: int, task_id: int, target_user_id: int
+    db: Session, actor_id: int, task_id: int, target_user_id: int,
+    workspace_id: int | None = None,
 ) -> Task:
     """Cancel an active assignment (owner only). History is preserved by
     flipping ``assignment_status`` to ``cancelled`` — the row is kept, so
     the unique index still holds and re-assignment can reactivate it.
     Removing a non-assigned user is an idempotent no-op."""
-    task = _owned_task(db, actor_id, task_id)
+    task = _admin_task(db, actor_id, task_id, workspace_id=workspace_id)
     assignment = repository.get_assignment(db, task.id, target_user_id)
     if assignment is None or assignment.assignment_status != "active":
         return task
@@ -1395,9 +1496,9 @@ def remove_assignment(
 
 
 def add_comment(
-    db: Session, actor_id: int, task_id: int, content: str
+    db: Session, actor_id: int, task_id: int, content: str, workspace_id: int | None = None
 ) -> TaskComment:
-    task, role = _visible_task(db, actor_id, task_id)
+    task, role = _visible_task(db, actor_id, task_id, workspace_id=workspace_id)
     if not permissions.can_comment(role):
         raise _forbidden("Not allowed to comment on this task")
     comment = repository.create_comment(
@@ -1421,16 +1522,17 @@ def add_comment(
 
 
 def list_comments(
-    db: Session, actor_id: int, task_id: int, *, limit: int = 100, offset: int = 0
+    db: Session, actor_id: int, task_id: int, *, limit: int = 100, offset: int = 0,
+    workspace_id: int | None = None,
 ) -> tuple[list[TaskComment], int]:
-    _visible_task(db, actor_id, task_id)
+    _visible_task(db, actor_id, task_id, workspace_id=workspace_id)
     limit = min(max(limit, 1), _MAX_LIST_LIMIT)
     offset = max(offset, 0)
     return repository.list_comments(db, task_id, limit=limit, offset=offset)
 
 
-def delete_comment(db: Session, actor_id: int, task_id: int, comment_id: int) -> None:
-    task, _role = _visible_task(db, actor_id, task_id)
+def delete_comment(db: Session, actor_id: int, task_id: int, comment_id: int, workspace_id: int | None = None) -> None:
+    task, _role = _visible_task(db, actor_id, task_id, workspace_id=workspace_id)
     comment = repository.get_comment(db, task.id, comment_id)
     if comment is None:
         raise _not_found("Comment not found")
@@ -1458,9 +1560,10 @@ def delete_comment(db: Session, actor_id: int, task_id: int, comment_id: int) ->
 
 
 def list_activity(
-    db: Session, actor_id: int, task_id: int, *, limit: int = 100, offset: int = 0
+    db: Session, actor_id: int, task_id: int, *, limit: int = 100, offset: int = 0,
+    workspace_id: int | None = None,
 ) -> tuple[list, int]:
-    _visible_task(db, actor_id, task_id)
+    _visible_task(db, actor_id, task_id, workspace_id=workspace_id)
     limit = min(max(limit, 1), _MAX_LIST_LIMIT)
     offset = max(offset, 0)
     return repository.list_activity(db, task_id, limit=limit, offset=offset)
@@ -1536,10 +1639,10 @@ def delete_label(db: Session, actor_id: int, label_id: int) -> None:
     )
 
 
-def attach_label(db: Session, actor_id: int, task_id: int, label_id: int) -> Task:
+def attach_label(db: Session, actor_id: int, task_id: int, label_id: int, workspace_id: int | None = None) -> Task:
     """Attach one of the actor's own labels to a task (owner-only,
     idempotent; the unique pair index backs the idempotency)."""
-    task = _owned_task(db, actor_id, task_id)
+    task = _admin_task(db, actor_id, task_id, workspace_id=workspace_id)
     label = repository.get_label_for_user(db, label_id, actor_id)
     if label is None:
         raise _not_found("Label not found")
@@ -1564,8 +1667,8 @@ def attach_label(db: Session, actor_id: int, task_id: int, label_id: int) -> Tas
     return task
 
 
-def detach_label(db: Session, actor_id: int, task_id: int, label_id: int) -> Task:
-    task = _owned_task(db, actor_id, task_id)
+def detach_label(db: Session, actor_id: int, task_id: int, label_id: int, workspace_id: int | None = None) -> Task:
+    task = _admin_task(db, actor_id, task_id, workspace_id=workspace_id)
     label = repository.get_label_for_user(db, label_id, actor_id)
     if label is None:
         raise _not_found("Label not found")
@@ -1596,19 +1699,188 @@ def detach_label(db: Session, actor_id: int, task_id: int, label_id: int) -> Tas
 # ---------------------------------------------------------------------------
 
 
-def list_task_workspaces(db: Session, actor_id: int, task_id: int) -> list[int]:
+def _serialize_task_workspace(row, workspace) -> dict:
+    return {
+        "workspace_id": row.workspace_id,
+        "workspace_name": workspace.name,
+        "workspace_type": workspace.workspace_type,
+        "is_original": bool(row.is_original),
+        "permission_level": row.permission_level,
+        "shared_by_user_id": row.shared_by_user_id,
+        "created_at": row.created_at,
+    }
+
+
+def list_task_workspaces(
+    db: Session,
+    actor_id: int,
+    task_id: int,
+    workspace_id: int | None = None,
+) -> list[dict]:
+    """List associations, exposing only workspaces the caller can see."""
+    task, _role = _visible_task(db, actor_id, task_id, workspace_id=workspace_id)
+    from ..workspace import permissions as ws_permissions
+    from ..workspace import repository as ws_repo
+    from ..docs.models import Workspace
+
+    result = []
+    for row in _task_workspace_rows(db, task.id):
+        ws = db.get(Workspace, row.workspace_id)
+        if ws is None:
+            continue
+        member = ws_repo.get_member(db, ws.id, actor_id)
+        role = ws_permissions.workspace_role(ws, actor_id, member.role if member else None)
+        if not ws_permissions.can_view(role):
+            continue
+        result.append(_serialize_task_workspace(row, ws))
+    result.sort(key=lambda item: (not item["is_original"], item["workspace_name"], item["workspace_id"]))
+    return result
+
+
+def attach_task_to_workspace(
+    db: Session,
+    actor_id: int,
+    task_id: int,
+    workspace_id: int,
+    permission_level: str = "viewer",
+    workspace_context_id: int | None = None,
+) -> dict:
+    """Share the canonical task into a workspace the owner can access."""
+    task = _admin_task(db, actor_id, task_id, workspace_id=workspace_context_id)
+    if permission_level not in ("viewer", "editor"):
+        raise _bad_request("permission_level must be 'viewer' or 'editor'")
+
+    from ..workspace import activity as ws_activity
+    from ..workspace import permissions as ws_permissions
+    from ..workspace import repository as ws_repo
     from ..workspace import service as ws_service
-    return ws_service.list_resource_workspaces(db, actor_id, "task", task_id)
+    from ..docs.models import Workspace
+
+    target_ws, target_role = ws_service.get_accessible_workspace(db, workspace_id, actor_id)
+    if not ws_permissions.can_manage_content(target_role):
+        raise _forbidden("Not allowed to share into this workspace")
+
+    existing = next(
+        (row for row in _task_workspace_rows(db, task.id) if row.workspace_id == workspace_id),
+        None,
+    )
+    if existing is not None:
+        return {
+            "workspace_id": workspace_id,
+            "is_original": bool(existing.is_original),
+            "permission_level": existing.permission_level,
+            "attached": False,
+        }
+
+    row = ws_repo.add_resource_workspace(
+        db,
+        "task",
+        task.id,
+        workspace_id,
+        is_original=False,
+        permission_level=permission_level,
+        shared_by_user_id=actor_id,
+    )
+    ws_activity.record(
+        db,
+        workspace_ids=[workspace_id],
+        actor_id=actor_id,
+        event_type=ws_activity.TASK_ATTACHED,
+        entity_type="task",
+        entity_id=task.id,
+        metadata={"resource_name": task.title, "permission_level": permission_level},
+    )
+    _commit(
+        db,
+        conflict_detail="Could not share task with this workspace",
+        conflict_status=status.HTTP_409_CONFLICT,
+    )
+    db.refresh(row)
+    return {**_serialize_task_workspace(row, target_ws), "attached": True}
 
 
-def attach_task_to_workspace(db: Session, actor_id: int, task_id: int, workspace_id: int) -> dict:
-    from ..workspace import service as ws_service
-    return ws_service.attach_resource_to_workspace(db, actor_id, "task", task_id, workspace_id)
+def detach_task_from_workspace(
+    db: Session,
+    actor_id: int,
+    task_id: int,
+    workspace_id: int,
+    workspace_context_id: int | None = None,
+) -> dict:
+    """Remove one shared association; never the original or the task itself."""
+    task = _admin_task(db, actor_id, task_id, workspace_id=workspace_context_id)
+    from ..workspace import activity as ws_activity
+    from ..workspace import repository as ws_repo
+
+    existing = next(
+        (row for row in _task_workspace_rows(db, task.id) if row.workspace_id == workspace_id),
+        None,
+    )
+    if existing is None:
+        raise _not_found("Workspace association not found")
+    if existing.is_original:
+        raise _bad_request("The original workspace association cannot be removed")
+
+    ws_repo.remove_resource_workspace(db, "task", task.id, workspace_id)
+    ws_activity.record(
+        db,
+        workspace_ids=[workspace_id],
+        actor_id=actor_id,
+        event_type=ws_activity.TASK_DETACHED,
+        entity_type="task",
+        entity_id=task.id,
+        metadata={"resource_name": task.title},
+    )
+    _commit(
+        db,
+        conflict_detail="Could not remove this workspace association",
+        conflict_status=status.HTTP_400_BAD_REQUEST,
+    )
+    return {"workspace_id": workspace_id, "detached": True}
 
 
-def detach_task_from_workspace(db: Session, actor_id: int, task_id: int, workspace_id: int) -> dict:
-    from ..workspace import service as ws_service
-    return ws_service.detach_resource_from_workspace(db, actor_id, "task", task_id, workspace_id)
+def update_task_workspace_permission(
+    db: Session,
+    actor_id: int,
+    task_id: int,
+    workspace_id: int,
+    permission_level: str,
+    workspace_context_id: int | None = None,
+) -> dict:
+    """Change viewer/editor on a shared association (owner only)."""
+    task = _admin_task(db, actor_id, task_id, workspace_id=workspace_context_id)
+    if permission_level not in ("viewer", "editor"):
+        raise _bad_request("permission_level must be 'viewer' or 'editor'")
+
+    from ..workspace import activity as ws_activity
+    from ..docs.models import Workspace
+
+    existing = next(
+        (row for row in _task_workspace_rows(db, task.id) if row.workspace_id == workspace_id),
+        None,
+    )
+    if existing is None:
+        raise _not_found("Workspace association not found")
+    if existing.is_original:
+        raise _bad_request("The original workspace permission cannot be changed")
+
+    existing.permission_level = permission_level
+    ws_activity.record(
+        db,
+        workspace_ids=[workspace_id],
+        actor_id=actor_id,
+        event_type=ws_activity.TASK_UPDATED,
+        entity_type="task",
+        entity_id=task.id,
+        metadata={"permission_level": permission_level, "workspace_id": workspace_id},
+    )
+    _commit(
+        db,
+        conflict_detail="Could not update this workspace permission",
+        conflict_status=status.HTTP_400_BAD_REQUEST,
+    )
+    db.refresh(existing)
+    ws = db.get(Workspace, workspace_id)
+    return _serialize_task_workspace(existing, ws)
 
 
 # ---------------------------------------------------------------------------
@@ -1620,15 +1892,15 @@ def _checklist_item_not_found() -> HTTPException:
     return HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Checklist item not found")
 
 
-def list_checklist_items(db: Session, actor_id: int, task_id: int):
-    task, role = _visible_task(db, actor_id, task_id)
+def list_checklist_items(db: Session, actor_id: int, task_id: int, workspace_id: int | None = None):
+    task, role = _visible_task(db, actor_id, task_id, workspace_id=workspace_id)
     if not permissions.can_view(role):
         raise _not_found()
     return repository.list_checklist_items(db, task.id)
 
 
-def create_checklist_item(db: Session, actor_id: int, task_id: int, *, title: str):
-    task = _owned_task(db, actor_id, task_id)
+def create_checklist_item(db: Session, actor_id: int, task_id: int, *, title: str, workspace_id: int | None = None):
+    task = _owned_task(db, actor_id, task_id, workspace_id=workspace_id)
     trimmed = (title or "").strip()
     if not trimmed:
         raise _bad_request("Checklist item title must not be empty")
@@ -1654,8 +1926,8 @@ def create_checklist_item(db: Session, actor_id: int, task_id: int, *, title: st
     return item
 
 
-def update_checklist_item(db: Session, actor_id: int, task_id: int, item_id: int, *, data):
-    task = _owned_task(db, actor_id, task_id)
+def update_checklist_item(db: Session, actor_id: int, task_id: int, item_id: int, *, data, workspace_id: int | None = None):
+    task = _owned_task(db, actor_id, task_id, workspace_id=workspace_id)
     item = repository.get_checklist_item(db, task.id, item_id)
     if item is None:
         raise _checklist_item_not_found()
@@ -1696,8 +1968,8 @@ def update_checklist_item(db: Session, actor_id: int, task_id: int, item_id: int
     return item
 
 
-def delete_checklist_item(db: Session, actor_id: int, task_id: int, item_id: int) -> None:
-    task = _owned_task(db, actor_id, task_id)
+def delete_checklist_item(db: Session, actor_id: int, task_id: int, item_id: int, workspace_id: int | None = None) -> None:
+    task = _owned_task(db, actor_id, task_id, workspace_id=workspace_id)
     item = repository.get_checklist_item(db, task.id, item_id)
     if item is None:
         raise _checklist_item_not_found()
@@ -1717,8 +1989,8 @@ def delete_checklist_item(db: Session, actor_id: int, task_id: int, item_id: int
     )
 
 
-def reorder_checklist_items(db: Session, actor_id: int, task_id: int, *, item_ids: list[int]):
-    task = _owned_task(db, actor_id, task_id)
+def reorder_checklist_items(db: Session, actor_id: int, task_id: int, *, item_ids: list[int], workspace_id: int | None = None):
+    task = _owned_task(db, actor_id, task_id, workspace_id=workspace_id)
     # Lock existing rows for deterministic reorder.
     existing_ids = repository.list_checklist_item_ids_for_update(db, task.id)
     existing_set = set(existing_ids)

@@ -28,6 +28,7 @@ from __future__ import annotations
 from .models import Task
 
 ROLE_OWNER = "owner"
+ROLE_EDITOR = "editor"
 ROLE_ASSIGNEE = "assignee"
 ROLE_PROJECT_VIEWER = "project_viewer"
 ROLE_NONE = "none"
@@ -53,25 +54,38 @@ def can_view(role: str) -> bool:
 
 
 def can_edit(role: str) -> bool:
-    """Title/description/dates/parent/labels/deletion/assignment control."""
-    return role == ROLE_OWNER
+    """Normal content edits: title, description, dates, priority, checklist."""
+    return role in (ROLE_OWNER, ROLE_EDITOR)
 
 
 def can_change_status(role: str) -> bool:
-    return role in (ROLE_OWNER, ROLE_ASSIGNEE)
+    return role in (ROLE_OWNER, ROLE_EDITOR, ROLE_ASSIGNEE)
 
 
 def can_comment(role: str) -> bool:
-    return role in (ROLE_OWNER, ROLE_ASSIGNEE)
+    return role in (ROLE_OWNER, ROLE_EDITOR, ROLE_ASSIGNEE)
 
 
 def can_assign(role: str) -> bool:
-    """Who may create, reassign, or remove assignments.
+    """Who may create, reassign, or remove assignments (owner only)."""
+    return role == ROLE_OWNER
 
-    v1: only the task owner delegates work. When the platform gains a
-    team/manager model, this becomes a membership check
-    ("assigner must be authorized to manage ``target_user_id``") without any
-    other module change — the service layer and schemas already treat this
-    as the single decision point.
-    """
+
+def can_manage_structure(role: str) -> bool:
+    """Parent/subtask restructuring is reserved for the canonical owner."""
+    return role == ROLE_OWNER
+
+
+def can_manage_labels(role: str) -> bool:
+    """Label links are owner-controlled, like assignments."""
+    return role == ROLE_OWNER
+
+
+def can_share(role: str) -> bool:
+    """Only the canonical task owner may manage Workspace associations."""
+    return role == ROLE_OWNER
+
+
+def can_delete_task(role: str) -> bool:
+    """Permanent deletion stays with the canonical task owner."""
     return role == ROLE_OWNER

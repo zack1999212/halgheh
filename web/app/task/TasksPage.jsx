@@ -474,6 +474,8 @@ export default function TasksPage() {
         onOpenTask={(id) => setSelectedTaskId(id)}
         onUnauthorized={handleUnauthorized}
         onChanged={() => { reload(); setDetailsRefreshKey((k) => k + 1) }}
+        workspaces={workspaces}
+        contextWorkspaceId={workspaceScope !== ALL_WORKSPACES ? workspaceScope : null}
       />
 
       <ConfirmDialog

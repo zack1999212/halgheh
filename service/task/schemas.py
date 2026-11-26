@@ -425,6 +425,20 @@ class WorkspaceSummaryOut(BaseModel):
     workspace_type: str
 
 
+class TaskWorkspaceOut(BaseModel):
+    """Sharing metadata for one canonical Task ↔ Workspace association."""
+
+    model_config = ConfigDict(from_attributes=True)
+
+    workspace_id: int
+    workspace_name: str
+    workspace_type: str
+    is_original: bool
+    permission_level: str
+    shared_by_user_id: int | None = None
+    created_at: datetime
+
+
 class TaskLabelOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 

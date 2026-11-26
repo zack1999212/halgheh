@@ -53,6 +53,7 @@ from .schemas import (
     TaskStatisticsOut,
     TaskStatusUpdate,
     TaskUpdate,
+    TaskWorkspaceOut,
 )
 
 router = APIRouter(prefix="/api/tasks", tags=["tasks"])
@@ -274,10 +275,11 @@ def delete_label(
 )
 def get_task(
     task_id: int,
+    workspace_id: int | None = Query(default=None),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    task = service.get_task(db, current_user.id, task_id)
+    task = service.get_task(db, current_user.id, task_id, workspace_id=workspace_id)
     return service.serialize_task(task, actor_id=current_user.id, db=db)
 
 
@@ -293,10 +295,11 @@ def get_task(
 def update_task(
     task_id: int,
     data: TaskUpdate,
+    workspace_id: int | None = Query(default=None),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    task = service.update_task(db, current_user.id, task_id, data)
+    task = service.update_task(db, current_user.id, task_id, data, workspace_id=workspace_id)
     return service.serialize_task(task, actor_id=current_user.id, db=db)
 
 
@@ -312,10 +315,11 @@ def update_task(
 )
 def delete_task(
     task_id: int,
+    workspace_id: int | None = Query(default=None),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    service.delete_task(db, current_user.id, task_id)
+    service.delete_task(db, current_user.id, task_id, workspace_id=workspace_id)
     return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
@@ -333,10 +337,11 @@ def delete_task(
 def set_task_status(
     task_id: int,
     data: TaskStatusUpdate,
+    workspace_id: int | None = Query(default=None),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    task = service.set_task_status(db, current_user.id, task_id, data.status)
+    task = service.set_task_status(db, current_user.id, task_id, data.status, workspace_id=workspace_id)
     return service.serialize_task(task, actor_id=current_user.id, db=db)
 
 
@@ -356,6 +361,7 @@ def set_task_status(
 def set_task_position(
     task_id: int,
     data: TaskPositionUpdate,
+    workspace_id: int | None = Query(default=None),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
@@ -367,6 +373,7 @@ def set_task_position(
         target_priority=data.target_priority,
         before_task_id=data.before_task_id,
         after_task_id=data.after_task_id,
+        workspace_id=workspace_id,
     )
     return service.serialize_task(task)
 
@@ -380,10 +387,11 @@ def set_task_position(
 def set_task_parent(
     task_id: int,
     data: TaskParentUpdate,
+    workspace_id: int | None = Query(default=None),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    task = service.set_parent_task(db, current_user.id, task_id, data.parent_task_id)
+    task = service.set_parent_task(db, current_user.id, task_id, data.parent_task_id, workspace_id=workspace_id)
     return service.serialize_task(task, actor_id=current_user.id, db=db)
 
 
@@ -394,10 +402,11 @@ def set_task_parent(
 )
 def get_task_parent(
     task_id: int,
+    workspace_id: int | None = Query(default=None),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    parent = service.get_parent_task(db, current_user.id, task_id)
+    parent = service.get_parent_task(db, current_user.id, task_id, workspace_id=workspace_id)
     return service.serialize_task(parent, actor_id=current_user.id, db=db) if parent is not None else None
 
 
@@ -415,6 +424,7 @@ def get_task_parent(
 def create_subtask(
     task_id: int,
     data: SubtaskCreate,
+    workspace_id: int | None = Query(default=None),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
@@ -423,7 +433,7 @@ def create_subtask(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="parent_task_id must match the task in the URL",
         )
-    task = service.create_subtask(db, current_user.id, task_id, data)
+    task = service.create_subtask(db, current_user.id, task_id, data, workspace_id=workspace_id)
     return service.serialize_task(task, actor_id=current_user.id, db=db)
 
 
@@ -460,10 +470,11 @@ def list_subtasks(
 def assign_user(
     task_id: int,
     data: TaskAssignmentCreate,
+    workspace_id: int | None = Query(default=None),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    task = service.assign_user(db, current_user.id, task_id, data.assigned_user_id)
+    task = service.assign_user(db, current_user.id, task_id, data.assigned_user_id, workspace_id=workspace_id)
     return service.serialize_task(task, actor_id=current_user.id, db=db)
 
 
@@ -475,10 +486,11 @@ def assign_user(
 def reassign_task(
     task_id: int,
     data: TaskAssignmentCreate,
+    workspace_id: int | None = Query(default=None),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    task = service.reassign_task(db, current_user.id, task_id, data.assigned_user_id)
+    task = service.reassign_task(db, current_user.id, task_id, data.assigned_user_id, workspace_id=workspace_id)
     return service.serialize_task(task, actor_id=current_user.id, db=db)
 
 
@@ -490,10 +502,11 @@ def reassign_task(
 def remove_assignment(
     task_id: int,
     user_id: int,
+    workspace_id: int | None = Query(default=None),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    service.remove_assignment(db, current_user.id, task_id, user_id)
+    service.remove_assignment(db, current_user.id, task_id, user_id, workspace_id=workspace_id)
     return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
@@ -509,13 +522,14 @@ def remove_assignment(
 )
 def list_comments(
     task_id: int,
+    workspace_id: int | None = Query(default=None),
     limit: int = Query(default=50, ge=1, le=100),
     offset: int = Query(default=0, ge=0),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
     items, total = service.list_comments(
-        db, current_user.id, task_id, limit=limit, offset=offset
+        db, current_user.id, task_id, limit=limit, offset=offset, workspace_id=workspace_id
     )
     return {"items": items, "total": total, "limit": limit, "offset": offset}
 
@@ -529,10 +543,11 @@ def list_comments(
 def add_comment(
     task_id: int,
     data: TaskCommentCreate,
+    workspace_id: int | None = Query(default=None),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    return service.add_comment(db, current_user.id, task_id, data.content)
+    return service.add_comment(db, current_user.id, task_id, data.content, workspace_id=workspace_id)
 
 
 @router.delete(
@@ -543,10 +558,11 @@ def add_comment(
 def delete_comment(
     task_id: int,
     comment_id: int,
+    workspace_id: int | None = Query(default=None),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    service.delete_comment(db, current_user.id, task_id, comment_id)
+    service.delete_comment(db, current_user.id, task_id, comment_id, workspace_id=workspace_id)
     return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
@@ -562,13 +578,14 @@ def delete_comment(
 )
 def list_activity(
     task_id: int,
+    workspace_id: int | None = Query(default=None),
     limit: int = Query(default=50, ge=1, le=100),
     offset: int = Query(default=0, ge=0),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
     items, total = service.list_activity(
-        db, current_user.id, task_id, limit=limit, offset=offset
+        db, current_user.id, task_id, limit=limit, offset=offset, workspace_id=workspace_id
     )
     return {"items": items, "total": total, "limit": limit, "offset": offset}
 
@@ -586,10 +603,11 @@ def list_activity(
 def attach_label(
     task_id: int,
     label_id: int,
+    workspace_id: int | None = Query(default=None),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    task = service.attach_label(db, current_user.id, task_id, label_id)
+    task = service.attach_label(db, current_user.id, task_id, label_id, workspace_id=workspace_id)
     return service.serialize_task(task, actor_id=current_user.id, db=db)
 
 
@@ -601,10 +619,11 @@ def attach_label(
 def detach_label(
     task_id: int,
     label_id: int,
+    workspace_id: int | None = Query(default=None),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    service.detach_label(db, current_user.id, task_id, label_id)
+    service.detach_label(db, current_user.id, task_id, label_id, workspace_id=workspace_id)
     return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
@@ -613,33 +632,87 @@ def detach_label(
 # ---------------------------------------------------------------------------
 
 
-@router.get("/{task_id}/workspaces")
+@router.get(
+    "/{task_id}/workspaces",
+    response_model=list[TaskWorkspaceOut],
+    summary="List workspaces this task is shared with (authorized workspaces only)",
+)
 def list_task_workspaces(
     task_id: int,
+    context_workspace_id: int | None = Query(default=None),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    return {"workspace_ids": service.list_task_workspaces(db, current_user.id, task_id)}
+    return service.list_task_workspaces(
+        db, current_user.id, task_id, workspace_id=context_workspace_id
+    )
 
 
-@router.post("/{task_id}/workspaces/{workspace_id}", status_code=status.HTTP_201_CREATED)
+@router.post(
+    "/{task_id}/workspaces/{workspace_id}",
+    status_code=status.HTTP_201_CREATED,
+    summary="Share a task with a workspace (task owner only)",
+)
 def attach_task_to_workspace(
     task_id: int,
     workspace_id: int,
+    permission_level: str = Query(default="viewer"),
+    context_workspace_id: int | None = Query(default=None),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    return service.attach_task_to_workspace(db, current_user.id, task_id, workspace_id)
+    return service.attach_task_to_workspace(
+        db,
+        current_user.id,
+        task_id,
+        workspace_id,
+        permission_level=permission_level,
+        workspace_context_id=context_workspace_id,
+    )
 
 
-@router.delete("/{task_id}/workspaces/{workspace_id}", status_code=status.HTTP_204_NO_CONTENT)
+@router.patch(
+    "/{task_id}/workspaces/{workspace_id}",
+    response_model=TaskWorkspaceOut,
+    summary="Change a shared workspace's viewer/editor permission (task owner only)",
+)
+def update_task_workspace_permission(
+    task_id: int,
+    workspace_id: int,
+    permission_level: str = Query(default="viewer"),
+    context_workspace_id: int | None = Query(default=None),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    return service.update_task_workspace_permission(
+        db,
+        current_user.id,
+        task_id,
+        workspace_id,
+        permission_level=permission_level,
+        workspace_context_id=context_workspace_id,
+    )
+
+
+@router.delete(
+    "/{task_id}/workspaces/{workspace_id}",
+    status_code=status.HTTP_204_NO_CONTENT,
+    summary="Remove a shared workspace association (task owner only)",
+)
 def detach_task_from_workspace(
     task_id: int,
     workspace_id: int,
+    context_workspace_id: int | None = Query(default=None),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    service.detach_task_from_workspace(db, current_user.id, task_id, workspace_id)
+    service.detach_task_from_workspace(
+        db,
+        current_user.id,
+        task_id,
+        workspace_id,
+        workspace_context_id=context_workspace_id,
+    )
     return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
@@ -655,10 +728,11 @@ def detach_task_from_workspace(
 )
 def list_checklist_items(
     task_id: int,
+    workspace_id: int | None = Query(default=None),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    items = service.list_checklist_items(db, current_user.id, task_id)
+    items = service.list_checklist_items(db, current_user.id, task_id, workspace_id=workspace_id)
     return {"items": items, "total": len(items)}
 
 
@@ -671,10 +745,11 @@ def list_checklist_items(
 def create_checklist_item(
     task_id: int,
     data: TaskChecklistItemCreate,
+    workspace_id: int | None = Query(default=None),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    return service.create_checklist_item(db, current_user.id, task_id, title=data.title)
+    return service.create_checklist_item(db, current_user.id, task_id, title=data.title, workspace_id=workspace_id)
 
 
 @router.patch(
@@ -685,10 +760,11 @@ def create_checklist_item(
 def reorder_checklist_items(
     task_id: int,
     data: TaskChecklistReorder,
+    workspace_id: int | None = Query(default=None),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    items = service.reorder_checklist_items(db, current_user.id, task_id, item_ids=data.item_ids)
+    items = service.reorder_checklist_items(db, current_user.id, task_id, item_ids=data.item_ids, workspace_id=workspace_id)
     return {"items": items, "total": len(items)}
 
 
@@ -701,10 +777,11 @@ def update_checklist_item(
     task_id: int,
     item_id: int,
     data: TaskChecklistItemUpdate,
+    workspace_id: int | None = Query(default=None),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    return service.update_checklist_item(db, current_user.id, task_id, item_id, data=data)
+    return service.update_checklist_item(db, current_user.id, task_id, item_id, data=data, workspace_id=workspace_id)
 
 
 @router.delete(
@@ -715,9 +792,10 @@ def update_checklist_item(
 def delete_checklist_item(
     task_id: int,
     item_id: int,
+    workspace_id: int | None = Query(default=None),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    service.delete_checklist_item(db, current_user.id, task_id, item_id)
+    service.delete_checklist_item(db, current_user.id, task_id, item_id, workspace_id=workspace_id)
     return Response(status_code=status.HTTP_204_NO_CONTENT)
     return Response(status_code=status.HTTP_204_NO_CONTENT)

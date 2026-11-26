@@ -3,7 +3,7 @@ from __future__ import annotations
 from datetime import datetime
 from typing import TYPE_CHECKING
 
-from sqlalchemy import CheckConstraint, DateTime, ForeignKey, Index, String, UniqueConstraint, func, text
+from sqlalchemy import Boolean, CheckConstraint, DateTime, ForeignKey, Index, String, UniqueConstraint, func, text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from ..core.database import Base
@@ -118,12 +118,27 @@ class WorkspaceInvitation(Base):
 
 
 class TaskWorkspace(Base):
-    """Canonical association between a Task and a Workspace."""
+    """Canonical association between a Task and a Workspace.
+
+    Exactly one association per Task is the original workspace; the rest are
+    shares with an explicit viewer/editor permission level.
+    """
 
     __tablename__ = "task_workspaces"
     __table_args__ = (
+        CheckConstraint(
+            "permission_level IN ('viewer', 'editor')",
+            name="ck_task_workspaces_permission_level",
+        ),
         Index("ix_task_workspaces_workspace_id", "workspace_id"),
         Index("ix_task_workspaces_task_id", "task_id"),
+        Index("ix_task_workspaces_shared_by_user_id", "shared_by_user_id"),
+        Index(
+            "uq_task_workspaces_original_task",
+            "task_id",
+            unique=True,
+            postgresql_where=text("is_original"),
+        ),
     )
 
     task_id: Mapped[int] = mapped_column(
@@ -132,9 +147,20 @@ class TaskWorkspace(Base):
     workspace_id: Mapped[int] = mapped_column(
         ForeignKey("workspaces.id", ondelete="CASCADE"), primary_key=True
     )
+    is_original: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, default=False, server_default=text("false")
+    )
+    permission_level: Mapped[str] = mapped_column(
+        String(16), nullable=False, default="viewer", server_default=text("'viewer'")
+    )
+    shared_by_user_id: Mapped[int | None] = mapped_column(
+        ForeignKey("users.id", ondelete="SET NULL"), nullable=True
+    )
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, server_default=func.now()
     )
+
+    shared_by: Mapped["User | None"] = relationship("User", foreign_keys=[shared_by_user_id])
 
 
 class DocumentWorkspace(Base):
