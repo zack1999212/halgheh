@@ -1,4 +1,4 @@
-import { Check, ExternalLink, Mail, MailOpen, Trash2, X } from 'lucide-react' 
+import { Check, ExternalLink, Mail, MailOpen, Trash2, X } from 'lucide-react'
 import { Link } from 'react-router-dom'
 import {
   formatDateTime,

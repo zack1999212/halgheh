@@ -68,6 +68,9 @@ class DocumentResponse(BaseModel):
     is_favorite: bool
     is_archived: bool
     is_deleted: bool
+    # Per-user write access. Read-only viewers must not be offered editing
+    # affordances (autosave, AI apply). The backend remains authoritative.
+    can_edit: bool = True
     created_at: datetime
     updated_at: datetime
     workspaces: list[WorkspaceSummaryOut] = Field(default_factory=list)

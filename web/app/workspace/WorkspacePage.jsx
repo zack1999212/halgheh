@@ -28,6 +28,7 @@ export default function WorkspacePage() {
   const navigate = useNavigate()
   const { theme, toggleTheme } = useWorkspaceTheme()
   const {
+    activeWorkspace,
     activeWorkspaceId,
     workspaceScope,
     isAllWorkspaces,
@@ -77,6 +78,11 @@ export default function WorkspacePage() {
   const documentsError = documents.error
   const tasksError = tasks.error
   const canCreateEvent = workspaceReady && !calendar.loading && calendar.calendars.length > 0
+  const canCreateMilestone =
+    workspaceReady &&
+    !isAllWorkspaces &&
+    activeWorkspace?.current_user_role === 'owner'
+  const canStartDiscussion = workspaceReady && !isAllWorkspaces
 
   const openCreateEvent = useCallback(() => {
     if (!calendar.calendars.length) return
@@ -240,7 +246,14 @@ export default function WorkspacePage() {
               documents={documents.documents}
               onRetry={documents.reload}
             />
-            <QuickActions onCreateEvent={openCreateEvent} canCreateEvent={canCreateEvent} />
+            <QuickActions
+              onCreateEvent={openCreateEvent}
+              canCreateEvent={canCreateEvent}
+              canCreateMilestone={canCreateMilestone}
+              onCreateMilestone={() => navigate('/milestones?create=1')}
+              canStartDiscussion={canStartDiscussion}
+              onStartDiscussion={() => navigate('/discussions?create=1')}
+            />
           </div>
         </div>
 

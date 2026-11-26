@@ -11,6 +11,7 @@ import { useToast } from '@/components/ui/toast.jsx'
 import useNotifications from './useNotifications.js'
 import NotificationItem from './NotificationItem.jsx'
 import NotificationPreferences from './NotificationPreferences.jsx'
+import { formatRelativeTime } from './format.js'
 import './notifications.css'
 
 export default function NotificationMenu({ received, onUnauthorized }) {
@@ -124,27 +125,74 @@ export default function NotificationMenu({ received, onUnauthorized }) {
   const hasUnread = unreadCount > 0
   const badgeLabel = unreadCount > 99 ? '99+' : String(unreadCount)
 
+  // The inline preview exists only while something is unread. Once the user
+  // reads the last unread notification, it disappears with the badge.
+  const preview = useMemo(
+    () => ({
+      notification: items.find((item) => !item.is_read) || null,
+      extraUnread: Math.max(unreadCount - 1, 0),
+    }),
+    [items, unreadCount],
+  )
+
+  const bellButton = (
+    <button
+      type="button"
+      className={`icon-button${open ? ' is-active' : ''}`}
+      onClick={() => setOpen((current) => !current)}
+      aria-expanded={open}
+      aria-haspopup="dialog"
+      aria-label={
+        hasUnread
+          ? `Notifications, ${unreadCount} unread`
+          : 'Notifications'
+      }
+    >
+      <Bell size={18} aria-hidden="true" />
+      {hasUnread && (
+        <span className="notification-badge" aria-hidden="true">
+          {badgeLabel}
+        </span>
+      )}
+    </button>
+  )
+
   return (
     <div className="notification-menu" ref={containerRef}>
-      <button
-        type="button"
-        className={`icon-button${open ? ' is-active' : ''}`}
-        onClick={() => setOpen((current) => !current)}
-        aria-expanded={open}
-        aria-haspopup="dialog"
-        aria-label={
-          hasUnread
-            ? `Notifications, ${unreadCount} unread`
-            : 'Notifications'
-        }
-      >
-        <Bell size={18} aria-hidden="true" />
+      <div className="notification-inline">
         {hasUnread && (
-          <span className="notification-badge" aria-hidden="true">
-            {badgeLabel}
-          </span>
+          <button
+            type="button"
+            className="notification-peek"
+            onClick={() => setOpen((current) => !current)}
+            aria-label="Open notifications"
+          >
+            {preview.notification ? (
+              <>
+                <span className="notification-peek-title">
+                  {preview.notification.title}
+                </span>
+                <span className="notification-peek-meta">
+                  {preview.notification.message
+                    ? `${preview.notification.message} · `
+                    : ''}
+                  {formatRelativeTime(preview.notification.created_at)}
+                </span>
+                {preview.extraUnread > 0 && (
+                  <span className="notification-peek-more">
+                    +{preview.extraUnread} more
+                  </span>
+                )}
+              </>
+            ) : (
+              <span className="notification-peek-empty">
+                Loading notifications…
+              </span>
+            )}
+          </button>
         )}
-      </button>
+        {bellButton}
+      </div>
 
       {open && (
         <div

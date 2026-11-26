@@ -23,7 +23,7 @@ import useCalendars from './useCalendars.js'
 import useCalendarEvents, { occurrenceToSelection } from './useCalendarEvents.js'
 import { createException, deleteEvent, editOccurrence, updateEvent } from './api.js'
 import { getBrowserTimeZone } from './time.js'
-import { clearToken } from '../src/api.js'
+import { clearSession } from '../auth/api.js'
 import { useActiveWorkspace } from '../workspace/ActiveWorkspaceContext.jsx'
 import { ALL_WORKSPACES } from '../workspace/constants.js'
 import { CALENDAR_VIEWS, DEFAULT_VIEW, fcViewType, periodName } from './views.js'
@@ -170,7 +170,7 @@ export default function CalendarPage() {
   const [dragError, setDragError] = useState('')
 
   const handleUnauthorized = useCallback(() => {
-    clearToken()
+    clearSession()
     navigate('/login', { replace: true })
   }, [navigate])
 

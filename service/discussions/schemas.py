@@ -137,7 +137,7 @@ class DiscussionResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
     id: int
-    project_id: int
+    workspace_id: int
     author_id: int
     author: DiscussionAuthor | None = None
     type: DiscussionType

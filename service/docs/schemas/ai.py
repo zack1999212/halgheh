@@ -21,6 +21,7 @@ def _clean_text(value: str | None, *, max_length: int, field_name: str) -> str |
 
 class DocumentAISummaryRequest(BaseModel):
     max_points: int = Field(default=6, ge=3, le=12)
+    include_related: bool = False
 
 
 class DocumentAIAskRequest(BaseModel):
@@ -40,6 +41,7 @@ class DocumentAIImproveRequest(BaseModel):
     action: ImproveAction
     selected_text: str | None = Field(default=None, max_length=12000)
     instruction: str | None = Field(default=None, max_length=1000)
+    include_related: bool = False
 
     @field_validator("selected_text")
     @classmethod
@@ -55,6 +57,7 @@ class DocumentAIImproveRequest(BaseModel):
 class DocumentAIGenerateRequest(BaseModel):
     instruction: str = Field(..., min_length=1, max_length=2000)
     use_document_context: bool = True
+    include_related: bool = False
 
     @field_validator("instruction")
     @classmethod

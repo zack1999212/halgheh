@@ -1,4 +1,5 @@
 import logging
+import os
 from pathlib import Path
 
 from fastapi import FastAPI, Request
@@ -11,6 +12,7 @@ from .auth.router import router as auth_router
 from .ai.router import router as ai_router
 from .calendar.router import router as calendar_router
 from .discussions.router import router as discussions_router
+from .milestone.router import router as milestone_router
 from .notifications.router import router as notifications_router
 import service.notifications.models  # noqa: F401
 from .docs.router import router as docs_router
@@ -35,12 +37,31 @@ async def unhandled_exception_handler(request: Request, exc: Exception):
     logger.exception("Unhandled error on %s %s", request.method, request.url.path)
     return JSONResponse(status_code=500, content={"detail": "Internal server error"})
 
+CORS_ORIGINS = [
+    origin.strip()
+    for origin in (
+        os.getenv("CORS_ORIGINS")
+        or "http://localhost:5173,http://localhost:5174,http://127.0.0.1:5173,http://127.0.0.1:5174"
+    ).split(",")
+    if origin.strip()
+]
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:5173", "http://localhost:5174", "http://127.0.0.1:5173", "http://127.0.0.1:5174"],
+    allow_origins=CORS_ORIGINS,
+    allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+
+@app.middleware("http")
+async def security_headers(request: Request, call_next):
+    response = await call_next(request)
+    response.headers["X-Content-Type-Options"] = "nosniff"
+    response.headers["X-Frame-Options"] = "DENY"
+    response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
+    return response
 
 app.include_router(auth_router)
 app.include_router(ai_router)
@@ -49,6 +70,7 @@ app.include_router(docs_router)
 app.include_router(calendar_router)
 app.include_router(discussions_router)
 app.include_router(notifications_router)
+app.include_router(milestone_router)
 app.include_router(project_router)
 app.include_router(project_invitations_router)
 app.include_router(task_router)

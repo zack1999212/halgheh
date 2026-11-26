@@ -58,6 +58,7 @@ from .schemas import (
     WorkspaceUpdate,
 )
 from .services import documents as document_service
+from .services import access as access_service
 from .services import ai as ai_service
 from .services import favorites as favorite_service
 from .services import folders as folder_service
@@ -242,7 +243,7 @@ def create_document(
     current_user: User = Depends(get_current_user),
 ):
     document = document_service.create_document(db, current_user, data)
-    response = _document_response(document, favorited=False)
+    response = _document_response(db, current_user, document, favorited=False)
     return _attach_document_workspaces(db, current_user, [response])[0]
 
 
@@ -259,7 +260,7 @@ def list_favorites(
     items, total = favorite_service.list_favorites(
         db, current_user, q=q, limit=limit, offset=offset
     )
-    responses = _attach_document_workspaces(db, current_user, [_document_response(d, f) for d, f in items])
+    responses = _attach_document_workspaces(db, current_user, [_document_response(db, current_user, d, f) for d, f in items])
     return DocumentListResponse(
         items=responses,
         total=total,
@@ -301,7 +302,7 @@ def list_documents(
         is_deleted=is_deleted,
         sort=sort,
     )
-    responses = _attach_document_workspaces(db, current_user, [_document_response(d, f) for d, f in items])
+    responses = _attach_document_workspaces(db, current_user, [_document_response(db, current_user, d, f) for d, f in items])
     return DocumentListResponse(
         items=responses,
         total=total,
@@ -323,6 +324,7 @@ def get_document(
     # Per-user favorite state; the row's flag is the owner's denormalized
     # copy and must not leak to other users.
     response.is_favorite = favorited
+    response.can_edit = access_service.can_modify_document(db, current_user, document)
     response.folder = folder
     response.tags = tags
     from ..workspace import repository as ws_repo
@@ -345,7 +347,7 @@ def update_document(
 ):
     updated = document_service.update_document(db, current_user, document, data)
     response = _document_response(
-        updated, _is_favorited(db, current_user, document.id)
+        db, current_user, updated, _is_favorited(db, current_user, document.id)
     )
     return _attach_document_workspaces(db, current_user, [response])[0]
 
@@ -369,7 +371,7 @@ def restore_document(
 ):
     restored = document_service.restore_document(db, document)
     return _document_response(
-        restored, _is_favorited(db, current_user, document.id)
+        db, current_user, restored, _is_favorited(db, current_user, document.id)
     )
 
 
@@ -425,7 +427,7 @@ def restore_document_version(
         expected_updated_at=data.expected_updated_at,
     )
     return _document_response(
-        restored, _is_favorited(db, current_user, document.id)
+        db, current_user, restored, _is_favorited(db, current_user, document.id)
     )
 
 
@@ -634,7 +636,7 @@ def summarize_document_ai(
     document: Document = Depends(deps.readable_document),
 ):
     result = ai_service.summarize_document(
-        db, current_user, document, max_points=data.max_points
+        db, current_user, document, max_points=data.max_points, include_related=data.include_related
     )
     response = _ai_response(result)
     response.kind = "summary"
@@ -680,6 +682,7 @@ def improve_document_ai(
         action=data.action,
         selected_text=data.selected_text,
         instruction=data.instruction,
+        include_related=data.include_related,
     )
     response = _ai_response(result)
     response.kind = "improvement"
@@ -702,6 +705,7 @@ def generate_document_ai(
         document,
         instruction=data.instruction,
         use_document_context=data.use_document_context,
+        include_related=data.include_related,
     )
     response = _ai_response(result)
     response.kind = "draft"
@@ -730,14 +734,23 @@ def _attach_document_workspaces(db: Session, user: User, responses: list[Documen
     return responses
 
 
-def _document_response(document, favorited: bool, workspaces=None) -> DocumentResponse:
-    """Build the response with the *current user's* favorite state.
+def _can_edit_for(db: Session, user: User, document) -> bool:
+    from .services import access
+
+    return access.can_modify_document(db, user, document)
+
+
+def _document_response(
+    db: Session, user: User, document, favorited: bool, workspaces=None
+) -> DocumentResponse:
+    """Build the response with the *current user's* favorite and edit state.
 
     The row's ``is_favorite`` column is the owner's denormalized flag and
     must not leak to other users.
     """
     response = DocumentResponse.model_validate(document)
     response.is_favorite = favorited
+    response.can_edit = _can_edit_for(db, user, document)
     if workspaces is not None:
         response.workspaces = workspaces
     return response

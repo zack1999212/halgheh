@@ -12,7 +12,7 @@ import {
   SquarePen,
   X,
 } from 'lucide-react'
-import { clearToken } from '../../src/api.js'
+import { clearSession } from '../../auth/api.js'
 import { getEffectiveConfig, listModels } from '../../ai/api.js'
 import { getBrowserTimeZone } from '../time.js'
 import ConfirmationCard from './ConfirmationCard.jsx'
@@ -146,7 +146,7 @@ export default function CalendarAgent({ onCalendarChanged }) {
   const listRef = useRef(null)
 
   const handleUnauthorized = useCallback(() => {
-    clearToken()
+    clearSession()
     navigate('/login', { replace: true })
   }, [navigate])
 
@@ -464,7 +464,9 @@ export default function CalendarAgent({ onCalendarChanged }) {
         err?.status === 400 &&
         /not configured|api key|endpoint/i.test(message)
       ) {
-        setErrorNeedsSettings(true)
+        if (!/ask an administrator/i.test(message)) {
+          setErrorNeedsSettings(true)
+        }
       }
     } finally {
       setSending(false)

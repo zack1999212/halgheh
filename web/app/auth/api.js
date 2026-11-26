@@ -1,4 +1,4 @@
-import { API_BASE, apiRequest, clearToken, getToken, setToken } from '../src/api.js'
+import { API_BASE, apiRequest, clearCsrfCookie, getCsrfToken } from '../src/api.js'
 
 export function login({ username, password }) {
   return apiRequest('/auth/login', {
@@ -8,30 +8,22 @@ export function login({ username, password }) {
   })
 }
 
-export function register({ username, name, password }) {
+export function register({ username, email, name, password }) {
   return apiRequest('/auth/register', {
     method: 'POST',
-    body: { username, name, password },
+    body: { username, email, name, password },
     fallbackMessage: 'Registration failed',
   })
 }
 
-/**
- * The only user endpoint is GET /auth/users, which returns the current user
- * for an authenticated caller. The schema exposes id, username, name and
- * created_at — there is no email field.
- */
-export async function getCurrentUser() {
-  const users = await apiRequest('/auth/users', {
+export function getCurrentUser() {
+  return apiRequest('/auth/users', {
     fallbackMessage: 'Could not load your account.',
-  })
-  return Array.isArray(users) ? users[0] ?? null : null
+  }).then((users) => (Array.isArray(users) ? users[0] ?? null : null))
 }
 
 export function getMe() {
-  return apiRequest('/auth/me', {
-    fallbackMessage: 'Could not load your profile.',
-  })
+  return apiRequest('/auth/me', { fallbackMessage: 'Could not load your profile.' })
 }
 
 export function updateProfile(payload) {
@@ -50,8 +42,39 @@ export function changePassword(payload) {
   })
 }
 
+export function forgotPassword(email) {
+  return apiRequest('/auth/forgot-password', {
+    method: 'POST',
+    body: { email },
+    fallbackMessage: 'Could not send a reset link.',
+  })
+}
+
+export function resetPassword(token, newPassword) {
+  return apiRequest('/auth/reset-password', {
+    method: 'POST',
+    body: { token, new_password: newPassword },
+    fallbackMessage: 'Could not reset your password.',
+  })
+}
+
+export function verifyEmail(token) {
+  return apiRequest('/auth/verify-email', {
+    method: 'POST',
+    body: { token },
+    fallbackMessage: 'Could not verify your email.',
+  })
+}
+
+export function resendVerification() {
+  return apiRequest('/auth/resend-verification', {
+    method: 'POST',
+    body: {},
+    fallbackMessage: 'Could not resend the verification email.',
+  })
+}
+
 export async function uploadAvatar(file) {
-  const token = getToken()
   const form = new FormData()
   form.append('file', file)
 
@@ -59,7 +82,8 @@ export async function uploadAvatar(file) {
   try {
     res = await fetch(`${API_BASE}/auth/me/avatar`, {
       method: 'POST',
-      headers: token ? { Authorization: `Bearer ${token}` } : {},
+      credentials: 'include',
+      headers: getCsrfToken() ? { 'X-CSRF-Token': getCsrfToken() } : {},
       body: form,
     })
   } catch {
@@ -84,10 +108,23 @@ export async function uploadAvatar(file) {
   return data
 }
 
-export function storeSession(accessToken) {
-  setToken(accessToken)
+/** Cookies are set by the server; the client only keeps the readable CSRF cookie. */
+export function storeSession(_session) {
+  // no-op: HttpOnly cookies are managed by the backend
+}
+
+export async function logout() {
+  try {
+    await apiRequest('/auth/logout', {
+      method: 'POST',
+      body: { everywhere: false },
+      fallbackMessage: 'Could not log out.',
+    })
+  } finally {
+    clearCsrfCookie()
+  }
 }
 
 export function clearSession() {
-  clearToken()
+  clearCsrfCookie()
 }

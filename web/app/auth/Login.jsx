@@ -1,13 +1,14 @@
-import { useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useEffect, useState } from 'react'
+import { useLocation, useNavigate, useSearchParams } from 'react-router-dom'
 import AuthLayout from './components/AuthLayout.jsx'
 import AuthLink from './components/AuthLink.jsx'
 import FormError from '@/components/shared/FormError'
+import { useToast } from '@/components/shared/ToastProvider'
 import PasswordField from './components/PasswordField.jsx'
 import SubmitButton from './components/SubmitButton.jsx'
 import TextField from './components/TextField.jsx'
-import { login, storeSession } from './api.js'
-import { validatePassword, validateUsername } from './validation.js'
+import { login } from './api.js'
+import { validateLoginPassword, validateLoginUsername } from './validation.js'
 
 export default function Login() {
   const [username, setUsername] = useState('')
@@ -16,6 +17,21 @@ export default function Login() {
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
   const navigate = useNavigate()
+  const location = useLocation()
+  const [searchParams] = useSearchParams()
+  const toast = useToast()
+
+  useEffect(() => {
+    if (searchParams.get('expired') === '1') {
+      toast.info('Your session expired. Please log in again.')
+    }
+  }, [searchParams, toast])
+
+  function validateField(field, value) {
+    const message =
+      field === 'username' ? validateLoginUsername(value) : validateLoginPassword(value)
+    setFieldErrors((current) => ({ ...current, [field]: message }))
+  }
 
   function updateField(field, value) {
     if (field === 'username') setUsername(value)
@@ -30,23 +46,24 @@ export default function Login() {
     e.preventDefault()
 
     const nextErrors = {
-      username: validateUsername(username),
-      password: validatePassword(password),
+      username: validateLoginUsername(username),
+      password: validateLoginPassword(password),
     }
     setFieldErrors(nextErrors)
     setError('')
-
-    if (nextErrors.username || nextErrors.password) {
-      return
-    }
+    if (nextErrors.username || nextErrors.password) return
 
     setLoading(true)
     try {
-      const data = await login({ username: username.trim(), password })
-      storeSession(data.access_token)
-      navigate('/home')
+      await login({ username: username.trim(), password })
+      navigate(location.state?.from || '/home', { replace: true })
     } catch (err) {
-      setError(err.message)
+      setError(
+        err.status === 429
+          ? 'Too many attempts. Please wait a moment and try again.'
+          : err.message,
+      )
+    } finally {
       setLoading(false)
     }
   }
@@ -71,6 +88,7 @@ export default function Login() {
           placeholder="your-username"
           value={username}
           onChange={(e) => updateField('username', e.target.value)}
+          onBlur={(e) => validateField('username', e.target.value)}
           error={fieldErrors.username}
           disabled={loading}
           autoFocus
@@ -83,9 +101,16 @@ export default function Login() {
           placeholder="Enter your password"
           value={password}
           onChange={(e) => updateField('password', e.target.value)}
+          onBlur={(e) => validateField('password', e.target.value)}
           error={fieldErrors.password}
           disabled={loading}
         />
+
+        <div className="-mt-1 text-right">
+          <AuthLink to="/forgot-password" className="text-[12.5px]">
+            Forgot password?
+          </AuthLink>
+        </div>
 
         <SubmitButton loading={loading} loadingLabel="Logging in…">
           Login
